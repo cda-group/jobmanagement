@@ -13,7 +13,7 @@ class ClusterListener extends Actor with ActorLogging {
   import ClusterListener._
 
   val cluster = Cluster(context.system)
-  val jobMaster = context.actorOf(Worker(), "handler")
+  val taskManager = context.actorOf(TaskManager(), "taskmanager")
 
   override def preStart(): Unit = cluster.subscribe(self, classOf[MemberUp])
   override def postStop(): Unit = cluster.unsubscribe(self)

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package slot
+package utils
 
 import java.io.{IOException, InputStreamReader}
 import java.util.regex.Pattern
@@ -238,4 +238,3 @@ object Hardware extends LazyLogging {
   }
 
 }
-

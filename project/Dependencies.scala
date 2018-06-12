@@ -38,7 +38,7 @@ object Dependencies {
     logDependencies ++ confDependencies ++ testDependencies
 
 
-  val workerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
+  val taskmanagerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
   val driverDependencies: Seq[ModuleID] = basic ++ akkaDependencies
   val resourcemanagerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
   val commonDependencies: Seq[ModuleID] = basic ++ simpleAkka

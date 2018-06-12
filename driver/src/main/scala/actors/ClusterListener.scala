@@ -17,7 +17,7 @@ class ClusterListener extends Actor with ActorLogging {
   import ClusterListener._
 
   val cluster = Cluster(context.system)
-  val driver = context.actorOf(Driver(), "handler")
+  val driver = context.actorOf(Driver(), "driver")
 
   override def preStart(): Unit = cluster.subscribe(self, classOf[MemberUp])
   override def postStop(): Unit = cluster.unsubscribe(self)

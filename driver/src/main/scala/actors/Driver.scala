@@ -21,7 +21,8 @@ class Driver extends Actor with ActorLogging {
       log.info("Rm registration")
       resourceManager = Some(rm)
       // test req
-      val target = context.actorSelection(Utils.jobmasterPath(rm))
+      val target = context.actorSelection(Utils.slotManagerPath(rm))
+      log.info("Sending job")
       target ! JobRequest(UUID.randomUUID().toString)
     case UnreachableRm(rm) =>
       //resourceManager = None

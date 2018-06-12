@@ -6,7 +6,7 @@ lazy val generalSettings = Seq(
   scalaVersion := "2.12.6"
 )
 
-lazy val workerSettings = generalSettings ++ Seq(
+lazy val taskmanagerSettings = generalSettings ++ Seq(
   fork in run := true,  // https://github.com/sbt/sbt/issues/3736#issuecomment-349993007
   cancelable in Global := true,
   version := "0.1"
@@ -33,11 +33,11 @@ lazy val commonSettings = generalSettings ++ Seq(
   version := "0.1"
 )
 
-lazy val worker = (project in file("worker"))
+lazy val taskmanager = (project in file("taskmanager"))
   .dependsOn(common % "test->test;compile->compile")
-  .settings(workerSettings: _*)
+  .settings(taskmanagerSettings: _*)
   .settings(
-    libraryDependencies ++= Dependencies.workerDependencies
+    libraryDependencies ++= Dependencies.taskmanagerDependencies
   )
 
 lazy val resourcemanager = (project in file("resourcemanager"))
@@ -60,4 +60,4 @@ lazy val common = (project in file("common"))
   )
 
 lazy val root = (project in file("."))
-  .aggregate(worker, driver, resourcemanager, common)
+  .aggregate(taskmanager, driver, resourcemanager, common)

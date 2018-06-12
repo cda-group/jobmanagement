@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package slot
+package utils
 
 sealed trait Os
 case object Linux extends Os

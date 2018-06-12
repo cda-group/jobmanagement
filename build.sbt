@@ -55,7 +55,9 @@ lazy val driver = (project in file("driver"))
   )
 lazy val common = (project in file("common"))
   .settings(commonSettings: _*)
-  //.settings()
+  .settings(
+    libraryDependencies ++= Dependencies.commonDependencies
+  )
 
 lazy val root = (project in file("."))
   .aggregate(worker, driver, resourcemanager, common)

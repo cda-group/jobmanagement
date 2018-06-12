@@ -1,42 +1,42 @@
 package actors
 
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.{Actor, ActorLogging, Cancellable, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent.MemberUp
-import common.{HeartbeatInit, Test, WorkerState}
+import common.{WorkerInit, WorkerState}
+import core.Utils
+import utils.WorkerConfig
 
 import scala.concurrent.duration._
-// For now..
-import scala.concurrent.ExecutionContext.Implicits.global
-
 
 object Worker {
   def apply(): Props = Props(new Worker())
 }
 
-class Worker extends Actor with ActorLogging {
+class Worker extends Actor with ActorLogging with WorkerConfig {
   val cluster = Cluster(context.system)
-
+  var stateUpdater = None: Option[Cancellable]
 
   override def preStart(): Unit = cluster.subscribe(self, classOf[MemberUp])
   override def postStop(): Unit = cluster.unsubscribe(self)
 
-  log.info("I AM WORKER: " + self)
+  import context.dispatcher
 
   def receive = {
-    case HeartbeatInit =>
-      log.info("Received HeartbeatInit")
-      /*
-      val cancellable = context.system.scheduler.schedule(
+    case WorkerInit =>
+      stateUpdater = Some(context.
+        system.scheduler.schedule(
         0 milliseconds,
-        200 milliseconds,
+        heartbeat milliseconds,
         sender(),
-        WorkerState(1,2)
-      )
-      */
-    case Test => println("I got a test from: " + sender())
-    case MemberUp(m) =>
-      println("Member up: " + m)
+        workerState()
+      ))
     case _ => println("")
   }
+
+  private def workerState(): WorkerState = {
+    //TODO: replace with real stats (cpu, mem...)
+    WorkerState(Utils.getAvailableCpu(),Utils.getAvailableMemory())
+  }
+
 }

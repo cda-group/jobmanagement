@@ -1,8 +1,9 @@
 package actors
 
-import akka.actor.{Actor, ActorLogging, Props}
-import akka.cluster.{Cluster, Member}
-import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp, UnreachableMember}
+import java.util.UUID
+
+import akka.actor.{Actor, ActorLogging, Address, Props, RootActorPath}
+import common.{JobRequest, Utils}
 
 
 object Driver {
@@ -10,26 +11,23 @@ object Driver {
 }
 
 class Driver extends Actor with ActorLogging {
+  import ClusterListener._
 
-  val cluster = Cluster(context.system)
-
-  override def preStart(): Unit = cluster.subscribe(self, classOf[MemberUp])
-  override def postStop(): Unit = cluster.unsubscribe(self)
+  // Just a single resourcemananger for now
+  var resourceManager = None: Option[Address]
 
   def receive = {
-    case MemberUp(member) =>
-      log.info("Member is Up: {}", member.address)
-    case UnreachableMember(member) =>
-      log.info("Member detected as unreachable: {}", member)
-    case MemberRemoved(member, previousStatus) =>
-      log.info(
-        "Member is Removed: {} after {}",
-        member.address, previousStatus)
+    case RmRegistration(rm) =>
+      log.info("Rm registration")
+      resourceManager = Some(rm)
+      // test req
+      val target = context.actorSelection(Utils.jobmasterPath(rm))
+      target ! JobRequest(UUID.randomUUID().toString)
+    case UnreachableRm(rm) =>
+      //resourceManager = None
+    case RmRemoved(rm) =>
+      resourceManager = None
     case _ =>
   }
 
-  def register(member: Member): Unit = {
-   if (member.hasRole("resourcemanager"))  {
-   }
-  }
 }

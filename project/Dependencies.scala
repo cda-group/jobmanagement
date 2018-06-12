@@ -28,6 +28,10 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-cluster" % akkaVersion
   )
 
+  val simpleAkka: Seq[ModuleID] = Seq(
+    "com.typesafe.akka" %% "akka-actor" % akkaVersion
+  )
+
 
   // Common libs that are used together
   val basic : Seq[ModuleID] =
@@ -37,7 +41,7 @@ object Dependencies {
   val workerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
   val driverDependencies: Seq[ModuleID] = basic ++ akkaDependencies
   val resourcemanagerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
-  val commonDependencies: Seq[ModuleID] = basic ++ akkaDependencies
+  val commonDependencies: Seq[ModuleID] = basic ++ simpleAkka
 
 
 }

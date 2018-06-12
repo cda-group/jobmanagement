@@ -1,15 +1,12 @@
 package common
 
-// Actor messages
 
-case class Job(id: String)
+// to start of with
+case class JobRequest(id: String)
 case class JobAck(id: String)
-case object Test
-case object HeartBeat
 
 
-case class WorkerState(cpu: Int, mem: Int)
+case class WorkerState(cpu: Long, mem: Long)
 case object WorkerRegistration
+case object WorkerInit
 
-//
-case object HeartbeatInit

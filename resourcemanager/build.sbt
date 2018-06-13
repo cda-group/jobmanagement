@@ -1,3 +1,3 @@
 name := "jobmanagement." + "resourcemananger"
 
-mainClass in (Compile, run) := Some("resourcemanager.ResourceManager")
+mainClass in (Compile, run) := Some("resourcemanager.RmSystem")

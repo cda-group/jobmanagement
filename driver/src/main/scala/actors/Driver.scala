@@ -3,7 +3,7 @@ package actors
 import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, Address, Props, RootActorPath}
-import common.{JobRequest, Utils}
+import common.{ArcJob, Utils}
 
 
 object Driver {
@@ -21,9 +21,9 @@ class Driver extends Actor with ActorLogging {
       log.info("Rm registration")
       resourceManager = Some(rm)
       // test req
-      val target = context.actorSelection(Utils.slotManagerPath(rm))
+      val target = context.actorSelection(Utils.resourceManagerPath(rm))
       log.info("Sending job")
-      target ! JobRequest(UUID.randomUUID().toString)
+      target ! ArcJob(UUID.randomUUID().toString, Utils.testResourceProfile())
     case UnreachableRm(rm) =>
       //resourceManager = None
     case RmRemoved(rm) =>

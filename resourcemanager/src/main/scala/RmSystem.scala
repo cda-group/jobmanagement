@@ -2,10 +2,11 @@ package resourcemanager
 
 import actors.ClusterListener
 import akka.actor.ActorSystem
+import common.Utils
 
-object ResourceManager extends App {
+object RmSystem extends App {
   val system = ActorSystem("JmCluster")
-  val handler = system.actorOf(ClusterListener(), "listener")
+  val handler = system.actorOf(ClusterListener(), Utils.LISTENER)
 
   system.whenTerminated
 }

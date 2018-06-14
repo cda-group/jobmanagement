@@ -24,12 +24,22 @@ class SlotHandler(index: Int, taskSlot: TaskSlot) extends Actor with ActorLoggin
       slot = slot.newState(Allocated)
       context.parent ! TaskSlotUpdate(index, slot.copy())
       jobId = Some(job.id)
-      sender() ! AllocateSuccess(job)
+      sender() ! AllocateSuccess(job, self)
     case Allocate(_) =>
       sender() ! AllocateFailure(slot.state)
-    //case ReleaseSlot()
-    //case RemoveArcTask
-    //case AddArcTask
+    case req@AddArcTask(id, task) =>
+      jobId match {
+        case Some(_id) =>
+          if (_id == id) {
+            // JobId is correct, the JobManager has permission to do operations
+          } else {
+            // Wrong JobId provided, let JobManager know..
+            // sender() ! WrongJobID
+          }
+      }
+      log.info("Received ArcTask: "+ req)
+    case RemoveArcTask(id, task) =>
+    case ReleaseSlot() =>
     case _ =>
   }
 }

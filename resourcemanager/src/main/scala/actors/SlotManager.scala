@@ -3,11 +3,8 @@ package actors
 import actors.ResourceManager.SlotRequest
 import akka.actor.{Actor, ActorLogging, Address, Props}
 import common._
-import akka.pattern._
-import akka.util.Timeout
 
 import scala.collection.mutable
-import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 object SlotManager {
@@ -25,7 +22,6 @@ class SlotManager extends Actor with ActorLogging {
   val slots = mutable.HashMap[Address, Set[TaskSlot]]()
   var roundNumber = 0
 
-  import context.dispatcher
 
   def receive = {
     case TaskManagerRegistration(tm) if !taskManagers.contains(tm) =>
@@ -40,7 +36,7 @@ class SlotManager extends Actor with ActorLogging {
       cleanTaskManager(tm)
     case SlotUpdate(s) =>
       slots.put(sender().path.address, s)
-    case req@SlotRequest(job, r) =>
+    case req@SlotRequest(job) =>
       //TODO: Clean and improve
       handleSlotRequest(req) match {
         case NoSlotsAvailable =>
@@ -50,11 +46,7 @@ class SlotManager extends Actor with ActorLogging {
         case SlotAvailable(taskSlot, addr) =>
           log.info("Slots Available")
           val slotHandler = context.actorSelection(Utils.slotHandlerPath(taskSlot.index, addr))
-          implicit val timeout = Timeout(3 seconds)
-          slotHandler ? Allocate(job) onComplete {
-            case Success(ref) => sender() ! ref
-            case Failure(e) =>  sender() ! e
-          }
+          slotHandler forward Allocate(job)
       }
     case _ =>
   }
@@ -81,7 +73,7 @@ class SlotManager extends Actor with ActorLogging {
         // Find a free slot from the taskManager(roundNumber)
         val result = slots.get(taskManagers(roundNumber)) match {
           case Some(set) =>
-            val freeSlots = set.filter(slot => slot.state == Free && slot.profile.matches(req.job.resourceProfile))
+            val freeSlots = set.filter(slot => slot.state == Free && slot.profile.matches(req.job.profile))
             if (freeSlots.nonEmpty)
               SlotAvailable(randomSlot(freeSlots), taskManagers(roundNumber))
             else

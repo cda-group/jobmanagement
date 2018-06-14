@@ -24,6 +24,7 @@ object Utils {
   final val HANDLER = "handler"
   final val DRIVER = "driver"
   final val SLOT_HANDLER = "slothandler"
+  final val JOB_MANAGER = "jobmanager"
 
   def resourceManagerPath(member: Address): ActorPath =
     RootActorPath(member) / USER / LISTENER / RESOURCE_MANAGER
@@ -38,10 +39,10 @@ object Utils {
     RootActorPath(member) / USER / LISTENER / TASK_MANAGER / (SLOT_HANDLER + index)
 
   def driverPath(member: Address): ActorPath =
-    RootActorPath(member) / USER / LISTENER / DRIVER / HANDLER
+    RootActorPath(member) / USER / LISTENER / DRIVER
 
   // For development
-  def testResourceProfile(): ResourceProfile =
-    ResourceProfile(1.0, 1000) // 1.0 cpu core & 1000MB mem
+  def testResourceProfile(): ArcProfile=
+    ArcProfile(1.0, 1000) // 1.0 cpu core & 1000MB mem
 
 }

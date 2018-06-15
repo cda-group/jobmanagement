@@ -19,14 +19,14 @@ class SlotManager extends Actor with ActorLogging {
   import ClusterListener._
 
   var taskManagers = mutable.IndexedSeq.empty[Address]
-  val slots = mutable.HashMap[Address, Set[TaskSlot]]()
+  val slots = mutable.HashMap[Address, Seq[TaskSlot]]()
   var roundNumber = 0
 
 
   def receive = {
     case TaskManagerRegistration(tm) if !taskManagers.contains(tm) =>
       taskManagers = taskManagers :+ tm
-      val target = context.actorSelection(Utils.taskManagerPath(tm))
+      val target = context.actorSelection(Paths.taskManager(tm))
       // TODO: add retry logic in case worker is not reachable
       // in order to make sure that the TaskManager is initialized
       target ! TaskManagerInit
@@ -36,6 +36,7 @@ class SlotManager extends Actor with ActorLogging {
       cleanTaskManager(tm)
     case SlotUpdate(s) =>
       slots.put(sender().path.address, s)
+      log.info(slots.toString())
     case req@SlotRequest(job) =>
       //TODO: Clean and improve
       handleSlotRequest(req) match {
@@ -45,8 +46,9 @@ class SlotManager extends Actor with ActorLogging {
           log.info("No Task Managers Available")
         case SlotAvailable(taskSlot, addr) =>
           log.info("Slots Available")
-          val slotHandler = context.actorSelection(Utils.slotHandlerPath(taskSlot.index, addr))
-          slotHandler forward Allocate(job)
+          val taskManager = context.actorSelection(Paths.taskManager(addr))
+          // wrapping it in a Seq for now until handleSlotRequest is fixed.
+          taskManager forward Allocate(job, Seq(taskSlot))
       }
     case _ =>
   }
@@ -63,6 +65,8 @@ class SlotManager extends Actor with ActorLogging {
 
   //TODO: Improve..
   // Only handles 1 possible round
+  // Fix so more than 1 slot can be allocated.
+  // Perhaps 1 job requires multiple taskslots
   private def handleSlotRequest(req: SlotRequest): SlotRequestResp = {
     if (roundNumber > taskManagers.size)
       roundNumber = 0
@@ -93,7 +97,7 @@ class SlotManager extends Actor with ActorLogging {
     }
   }
 
-  def randomSlot[T](s: Set[T]): T = {
+  def randomSlot[T](s: Seq[T]): T = {
     val n = util.Random.nextInt(s.size)
     s.iterator.drop(n).next
   }

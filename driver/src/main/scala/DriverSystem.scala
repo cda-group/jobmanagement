@@ -1,11 +1,11 @@
 package driver
 
-import actors.{ClusterListener, Driver}
+import actors.ClusterListener
 import akka.actor.ActorSystem
-import common.Utils
+import common.Identifiers
 
 object DriverSystem extends App {
   val system = ActorSystem("JmCluster")
-  val driver = system.actorOf(ClusterListener(), Utils.LISTENER)
+  val driver = system.actorOf(ClusterListener(), Identifiers.LISTENER)
   system.whenTerminated
 }

@@ -1,7 +1,7 @@
 package actors
 
 import actors.Driver.JobManagerInit
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.util.Timeout
 import akka.pattern._
 import common._
@@ -22,30 +22,37 @@ object JobManager {
   */
 class JobManager extends Actor with ActorLogging {
 
+  var binaryManager = None: Option[ActorRef]
+
   // For futures
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
 
   def receive = {
     case JobManagerInit(job, rmAddr) =>
-      log.info("JobManagerInit")
-      val resourceManager = context.actorSelection(Utils.resourceManagerPath(rmAddr))
+      val resourceManager = context.actorSelection(Paths.resourceManager(rmAddr))
       resourceManager ? job.copy(jobManagerRef = Some(self)) onComplete {
         case Success(resp) =>
           resp match {
-            case AllocateSuccess(job_, slotHandler) =>
+            case AllocateSuccess(job_, bm) =>
               log.info("Jobmanager allocated slot successfully")
-              // On success, we are free to add ArcTasks to the slotHandler
-              slotHandler ! AddArcTask(job.id, ArcTask("id"))
+              binaryManager = Some(bm)
             case AllocateFailure(_) =>
               log.info("Jobmanager failed to allocate slot")
-              // Failure for some reason. TaskSlot was most likely not in a Free state..
+              // Failure for some reason. A TaskSlot was most likely not in a Free state..
               // context.parent ! notify
           }
         case Failure(e) =>
           log.info("failure of ArcJob: " + e.toString)
         // context.parent ! We failed
         // context.stop() // Kill this actor
+      }
+    case r@ReleaseSlots =>
+      binaryManager match {
+        case Some(ref) =>
+          ref ! r
+        case None =>
+          //sender() ! no binaryManager defined "handle"
       }
     case _ =>
   }

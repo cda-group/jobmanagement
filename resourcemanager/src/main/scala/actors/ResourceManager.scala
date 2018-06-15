@@ -2,11 +2,10 @@ package actors
 
 import actors.ClusterListener.{TaskManagerRegistration, TaskManagerRemoved, UnreachableTaskManager}
 import actors.ResourceManager.SlotRequest
-import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
-import akka.io.Udp.Send
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern._
 import akka.util.Timeout
-import common.{AllocateFailure, AllocateSuccess, ArcJob, Utils}
+import common._
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -26,7 +25,7 @@ object ResourceManager {
 class ResourceManager extends Actor with ActorLogging {
 
   val activeJobManagers = mutable.HashSet[ActorRef]()
-  val slotManager = context.actorOf(SlotManager(), Utils.SLOT_MANAGER)
+  val slotManager = context.actorOf(SlotManager(), Identifiers.SLOT_MANAGER)
 
   // For futures
   implicit val timeout = Timeout(2 seconds)
@@ -46,11 +45,10 @@ class ResourceManager extends Actor with ActorLogging {
         case Some(jobManager) =>
           slotManager ? SlotRequest(job) onComplete {
             case Success(resp) => resp match {
-              case resp@AllocateSuccess(j, slotHandler) =>
+              case resp@AllocateSuccess(j, taskManagerRef) =>
                 log.info("JobManager Ref: " + jobManager)
-                log.info("SlotHandler ref : " + slotHandler)
-                // Allocation is successful, monitor the jobManager and slotHandler
-                // If one of them dies, act accordingly
+                log.info("TaskManager ref : " + taskManagerRef)
+
                 //context watch jobManager
                 // context watch slotHandler
                 askRef ! resp

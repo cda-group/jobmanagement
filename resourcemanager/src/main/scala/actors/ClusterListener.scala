@@ -3,7 +3,7 @@ package actors
 import akka.actor.{Actor, ActorLogging, Address, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp, UnreachableMember}
-import common.Utils
+import common.{Identifiers, Utils}
 
 object ClusterListener {
   def apply(): Props = Props(new ClusterListener)
@@ -17,17 +17,17 @@ class ClusterListener extends Actor with ActorLogging {
   import ClusterListener._
 
   val cluster = Cluster(context.system)
-  val resourceManager = context.actorOf(ResourceManager(), Utils.RESOURCE_MANAGER)
+  val resourceManager = context.actorOf(ResourceManager(), Identifiers.RESOURCE_MANAGER)
 
   override def preStart(): Unit = cluster.subscribe(self, classOf[MemberUp])
   override def postStop(): Unit = cluster.unsubscribe(self)
 
   def receive = {
-    case MemberUp(member) if member.hasRole(Utils.TASK_MANAGER) =>
+    case MemberUp(member) if member.hasRole(Identifiers.TASK_MANAGER) =>
       resourceManager ! TaskManagerRegistration(member.address)
-    case UnreachableMember(member) if member.hasRole(Utils.TASK_MANAGER) =>
+    case UnreachableMember(member) if member.hasRole(Identifiers.TASK_MANAGER) =>
       resourceManager ! UnreachableTaskManager(member.address)
-    case MemberRemoved(member, previousStatus) if member.hasRole(Utils.TASK_MANAGER) =>
+    case MemberRemoved(member, previousStatus) if member.hasRole(Identifiers.TASK_MANAGER) =>
       resourceManager ! TaskManagerRemoved(member.address)
     case _ =>
   }

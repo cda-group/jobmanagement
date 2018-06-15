@@ -2,8 +2,8 @@ package actors
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, RootActorPath, Terminated}
-import common.{ArcJob, ArcJobRequest, Utils}
+import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
+import common.{ArcJob, ArcJobRequest, Identifiers, Utils}
 
 import scala.collection.mutable
 
@@ -41,7 +41,7 @@ class Driver extends Actor with ActorLogging {
         case Some(rm) =>
           // Rm is availalble, create a jobmanager to deal with the job
           // Create and add jobManager to jobManagers
-          val jobManager = context.actorOf(JobManager(), Utils.JOB_MANAGER+jobManagerId)
+          val jobManager = context.actorOf(JobManager(), Identifiers.JOB_MANAGER+jobManagerId)
           jobManagerId +=1
           jobManagers = jobManagers :+ jobManager
 

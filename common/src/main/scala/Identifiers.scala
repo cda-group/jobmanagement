@@ -11,4 +11,5 @@ object Identifiers {
   final val SLOT_HANDLER = "slothandler"
   final val JOB_MANAGER = "jobmanager"
   final val BINARY_MANAGER = "binarymanager"
+  final val BINARY_EXECUTOR = "binaryexecutor"
 }

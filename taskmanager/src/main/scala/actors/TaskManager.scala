@@ -49,7 +49,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
         val updated = targetSlots.map(_.newState(s = Allocated))
         taskSlots = updated union taskSlots
         //  Create BinaryManager
-        val bm = context.actorOf(BinaryManager(updated, sender()), Identifiers.BINARY_MANAGER+binaryManagerId)
+        val bm = context.actorOf(BinaryManager(job, updated, sender()), Identifiers.BINARY_MANAGER+binaryManagerId)
         binaryManagers = binaryManagers :+ bm
         binaryManagerId += 1
 

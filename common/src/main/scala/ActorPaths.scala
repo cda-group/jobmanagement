@@ -3,7 +3,7 @@ package common
 import akka.actor.{ActorPath, Address, RootActorPath}
 import Identifiers._
 
-object Paths {
+object ActorPaths {
 
   def resourceManager(member: Address): ActorPath =
     RootActorPath(member) / USER / LISTENER / RESOURCE_MANAGER

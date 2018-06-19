@@ -11,6 +11,10 @@ case class ArcProfile(cpuCores: Double, memoryInMB: Long) {
 }
 
 
+case object BMHeartBeat
+case class BinaryJob(binaries: Seq[Array[Byte]])
+
+
 // TaskManager
 case object TaskManagerInit
 case class Allocate(job: ArcJob, slots: Seq[TaskSlot])

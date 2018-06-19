@@ -1,0 +1,118 @@
+package utils
+
+import java.nio.file.attribute.{PosixFilePermission, PosixFilePermissions}
+import java.nio.file.{Files, Path, Paths}
+import java.util.Comparator
+import java.util.stream.Collectors
+
+import com.typesafe.scalalogging.LazyLogging
+import common.ArcJob
+
+import scala.collection.mutable
+import scala.util.{Failure, Success, Try}
+
+/** ExecutionEnvironment is used by BinaryManagers
+  * to create an "isolated" environment for an
+  * ArcJob
+  */
+class ExecutionEnvironment(job: ArcJob) extends LazyLogging {
+
+  // For now. To be discussed
+  final val LINUX_DIR = System.getProperty("user.home") + "/arc"
+  final val MAC_OS_DIR = ""
+
+  final val LINUX_JOB_PATH = LINUX_DIR + "/" + job.id
+  final val MAC_JOB_PATH = MAC_OS_DIR + "/" + job.id
+
+  /**
+    * Create a directory where the job will execute
+    * Path will depend on OS
+    */
+  def create(): Unit = {
+    OperatingSystem.get() match {
+      case Linux =>
+        if (Files.exists(Paths.get(LINUX_DIR))) {
+          Files.createDirectories(Paths.get(LINUX_JOB_PATH))
+        } else {
+          createLinuxEnv() match {
+            case Success(_) =>
+              Files.createDirectories(Paths.get(LINUX_JOB_PATH))
+            case Failure(e) =>
+              logger.error("Could not create linux env")
+              logger.error(e.toString)
+          }
+        }
+      case Mac =>
+      case Windows => // We shouldn't really get here
+      case _ =>
+    }
+  }
+
+  /**
+    * Take the bytes and save it to a file in the execution environment
+    */
+  def writeBinaryToFile(id: Int, file: Array[Byte]): Unit = {
+    OperatingSystem.get() match {
+      case Linux =>
+        Files.write(Paths.get(LINUX_JOB_PATH+"/"+id), file)
+        setAsExecutable(LINUX_JOB_PATH+"/"+id) match {
+          case Success(_) =>
+            logger.info("Made file executable")
+          case Failure(e) =>
+            logger.error(e.toString)
+        }
+      case Mac =>
+      case _ =>
+    }
+  }
+
+  /**
+    * For UNIX/Linux
+    * @param path
+    * @return
+    */
+  private def setAsExecutable(path: String): Try[Unit] = Try {
+    import scala.collection.JavaConverters._
+
+    val perms: mutable.HashSet[PosixFilePermission] = mutable.HashSet()
+    perms += PosixFilePermission.OWNER_EXECUTE
+    perms += PosixFilePermission.OWNER_READ
+    perms += PosixFilePermission.OWNER_WRITE
+    Files.setPosixFilePermissions(Paths.get(path), perms.asJava)
+  }
+
+  /**
+    * Delete resources tied to the ExecutionEnvironment
+    */
+  def clean(): Unit = {
+    import scala.collection.JavaConverters._
+
+    OperatingSystem.get() match {
+      case Linux =>
+        val toDelete = Files.walk(Paths.get(LINUX_JOB_PATH))
+          .sorted(Comparator.reverseOrder())
+          .collect(Collectors.toList())
+          .asScala
+
+        toDelete.foreach(Files.deleteIfExists(_))
+      case Mac =>
+      //TODO
+      case _ =>
+    }
+  }
+
+
+  private def createLinuxEnv(): Try[Unit] = Try {
+    Files.createDirectories(Paths.get(LINUX_DIR),
+      PosixFilePermissions.asFileAttribute(
+        PosixFilePermissions.fromString("rwxr-x---") //TODO: look into fitting permissions
+      ))
+  }
+
+  def getJobPath: String =
+    OperatingSystem.get() match {
+      case Linux => LINUX_JOB_PATH
+      case Mac => MAC_JOB_PATH
+      case _ => ""
+    }
+}

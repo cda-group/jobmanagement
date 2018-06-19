@@ -1,5 +1,6 @@
 package taskmanager
 
+
 import actors.ClusterListener
 import akka.actor.ActorSystem
 import common.Identifiers
@@ -11,6 +12,5 @@ object TaskManagerSystem extends App {
 
   println(Hardware.getSizeOfPhysicalMemory)
   println(Hardware.getNumberCPUCores)
-
   system.whenTerminated
 }

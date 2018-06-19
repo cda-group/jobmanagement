@@ -26,7 +26,7 @@ class SlotManager extends Actor with ActorLogging {
   def receive = {
     case TaskManagerRegistration(tm) if !taskManagers.contains(tm) =>
       taskManagers = taskManagers :+ tm
-      val target = context.actorSelection(Paths.taskManager(tm))
+      val target = context.actorSelection(ActorPaths.taskManager(tm))
       // TODO: add retry logic in case worker is not reachable
       // in order to make sure that the TaskManager is initialized
       target ! TaskManagerInit
@@ -46,7 +46,7 @@ class SlotManager extends Actor with ActorLogging {
           log.info("No Task Managers Available")
         case SlotAvailable(taskSlot, addr) =>
           log.info("Slots Available")
-          val taskManager = context.actorSelection(Paths.taskManager(addr))
+          val taskManager = context.actorSelection(ActorPaths.taskManager(addr))
           // wrapping it in a Seq for now until handleSlotRequest is fixed.
           taskManager forward Allocate(job, Seq(taskSlot))
       }

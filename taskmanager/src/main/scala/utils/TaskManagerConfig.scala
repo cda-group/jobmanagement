@@ -7,4 +7,5 @@ trait TaskManagerConfig {
   val slotTick = config.getLong("taskmanager.slotUpdateTick")
   val nrOfSlots = config.getInt("taskmanager.slots")
   val binaryManagerTimeout = config.getLong("taskmanager.binaryManagerTimeout")
+  val binaryExecutorHealthCheck = config.getLong("taskmanager.binaryExecutorHealthCheck")
 }

@@ -40,10 +40,9 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
               log.info("Jobmanager allocated slot successfully")
               keepAliveTicker = keepAlive(bm)
               binaryManager = Some(bm)
-              bm ! BinaryJob(Seq(testBinary))
-            case AllocateFailure(_) =>
-              log.info("Jobmanager failed to allocate slot")
-              // Failure for some reason. A TaskSlot was most likely not in a Free state..
+              bm ! BinaryJob(testBinary)
+            case AllocateFailure(err) =>
+              log.info("Jobmanager failed to allocate slot: " + err)
               // context.parent ! notify
           }
         case Failure(e) =>
@@ -71,6 +70,8 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
 
   }
 
-  private def testBinary(): Array[Byte] =
-    Files.readAllBytes(Paths.get("../writetofile"))
+  private def testBinary(): Seq[Array[Byte]] = {
+    Seq(Files.readAllBytes(Paths.get("../writetofile")),
+      Files.readAllBytes(Paths.get("../writetofile2")))
+  }
 }

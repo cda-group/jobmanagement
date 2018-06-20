@@ -7,8 +7,9 @@ case class ArcJob(id: String, profile: ArcProfile, jobManagerRef: Option[ActorRe
 case class ArcJobRequest(job: ArcJob)
 case class ArcProfile(cpuCores: Double, memoryInMB: Long) {
   def matches(other: ArcProfile): Boolean =
-    other.cpuCores <= this.cpuCores && other.memoryInMB <= this.memoryInMB
+    this.cpuCores >= other.cpuCores && this.memoryInMB >= other.memoryInMB
 }
+
 
 
 case object BMHeartBeat
@@ -19,8 +20,8 @@ case class BinaryJob(binaries: Seq[Array[Byte]])
 case object TaskManagerInit
 case class Allocate(job: ArcJob, slots: Seq[TaskSlot])
 case class AllocateSuccess(job: ArcJob, ref: ActorRef)
-case class AllocateFailure(slotState: SlotState)
-case class ReleaseSlots(slots: Seq[TaskSlot])
+case class AllocateFailure(resp: SlotRequestResp)
+case class ReleaseSlots(slotIndxes: Seq[Int])
 case class SlotUpdate(slots: Seq[TaskSlot])
 case class BinaryManagerInit()
 

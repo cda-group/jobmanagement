@@ -37,6 +37,8 @@ lazy val taskmanager = (project in file("taskmanager"))
   .dependsOn(common % "test->test;compile->compile")
   .settings(taskmanagerSettings: _*)
   .settings(
+    mainClass in assembly := Some("taskmanager.TaskManagerSystem"),
+    assemblyJarName in assembly := "taskmanager.jar",
     libraryDependencies ++= Dependencies.taskmanagerDependencies
   )
 
@@ -44,6 +46,8 @@ lazy val resourcemanager = (project in file("resourcemanager"))
   .dependsOn(common % "test->test;compile->compile")
   .settings(resourcemanagerSettings: _*)
   .settings(
+    mainClass in assembly := Some("resourcemanager.RmSystem"),
+    assemblyJarName in assembly := "resourcemanager.jar",
     libraryDependencies ++= Dependencies.resourcemanagerDependencies
   )
 
@@ -51,6 +55,8 @@ lazy val driver = (project in file("driver"))
   .dependsOn(common % "test->test;compile->compile")
   .settings(driverSettings: _*)
   .settings(
+    mainClass in assembly := Some("driver.DriverSystem"),
+    assemblyJarName in assembly := "driver.jar",
     libraryDependencies ++= Dependencies.driverDependencies
   )
 lazy val common = (project in file("common"))

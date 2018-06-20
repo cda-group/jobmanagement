@@ -9,6 +9,7 @@ object ClusterListener {
   def apply(): Props = Props(new ClusterListener)
   case class UnreachableResourceManager(addr: Address)
   case class RemovedResourceManager(addr: Address)
+  case class ResourceManagerUp(addr: Address)
 }
 
 class ClusterListener extends Actor with ActorLogging {
@@ -23,7 +24,7 @@ class ClusterListener extends Actor with ActorLogging {
 
   def receive = {
     case MemberUp(member) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>
-      //taskManager !
+      taskManager ! ResourceManagerUp
     case UnreachableMember(member) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>
       taskManager ! UnreachableResourceManager(member.address)
     case MemberRemoved(member, previousStatus) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>

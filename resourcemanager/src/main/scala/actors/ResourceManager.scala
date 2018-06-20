@@ -46,18 +46,12 @@ class ResourceManager extends Actor with ActorLogging {
           slotManager ? SlotRequest(job) onComplete {
             case Success(resp) => resp match {
               case resp@AllocateSuccess(j, taskManagerRef) =>
-                log.info("JobManager Ref: " + jobManager)
-                log.info("TaskManager ref : " + taskManagerRef)
-
-                //context watch jobManager
-                // context watch slotHandler
                 askRef ! resp
-              case AllocateFailure(_) =>
-                log.info("Allocate failure")
+              case resp@AllocateFailure(_) =>
+                askRef ! resp
             }
             case Failure(e) =>
-              log.info("Something went very wrong..")
-              sender() ! "error" // change to something appropriate
+              sender() ! AllocateFailure(UnexpectedError)
           }
         case None =>
           log.error("JobManager Ref was not set in the ArcJob")

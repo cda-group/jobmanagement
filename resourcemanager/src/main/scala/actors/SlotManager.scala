@@ -31,8 +31,10 @@ class SlotManager extends Actor with ActorLogging {
       // in order to make sure that the TaskManager is initialized
       target ! TaskManagerInit
     case TaskManagerRemoved(tm) =>
+      log.info("TaskManager Removed")
       cleanTaskManager(tm)
     case UnreachableTaskManager(tm) =>
+      log.info("TaskManager Unreachable")
       cleanTaskManager(tm)
     case SlotUpdate(s) =>
       slots.put(sender().path.address, s)
@@ -42,14 +44,17 @@ class SlotManager extends Actor with ActorLogging {
       handleSlotRequest(req) match {
         case NoSlotsAvailable =>
           log.info("No Slots Available")
+          sender() ! NoSlotsAvailable
         case NoTaskManagersAvailable =>
           log.info("No Task Managers Available")
-        case SlotAvailable(taskSlot, addr) =>
+          sender() ! NoTaskManagersAvailable
+        case SlotAvailable(taskSlots, addr) =>
           log.info("Slots Available")
           val taskManager = context.actorSelection(ActorPaths.taskManager(addr))
           // wrapping it in a Seq for now until handleSlotRequest is fixed.
-          taskManager forward Allocate(job, Seq(taskSlot))
+          taskManager forward Allocate(job, taskSlots)
       }
+      roundNumber += 1
     case _ =>
   }
 
@@ -63,42 +68,39 @@ class SlotManager extends Actor with ActorLogging {
     }
   }
 
-  //TODO: Improve..
-  // Only handles 1 possible round
-  // Fix so more than 1 slot can be allocated.
-  // Perhaps 1 job requires multiple taskslots
+  //TODO: Make more readable?
   private def handleSlotRequest(req: SlotRequest): SlotRequestResp = {
     if (roundNumber > taskManagers.size)
       roundNumber = 0
 
-    if (taskManagers.nonEmpty) {
-      // Safety check
-      if (roundNumber <= taskManagers.size) {
-        // Find a free slot from the taskManager(roundNumber)
-        val result = slots.get(taskManagers(roundNumber)) match {
-          case Some(set) =>
-            val freeSlots = set.filter(slot => slot.state == Free && slot.profile.matches(req.job.profile))
-            if (freeSlots.nonEmpty)
-              SlotAvailable(randomSlot(freeSlots), taskManagers(roundNumber))
-            else
-              NoSlotsAvailable
-          case None =>
-            log.error("")
+    if (taskManagers.isEmpty) {
+      NoTaskManagersAvailable
+    } else if (roundNumber <= taskManagers.size) {
+      slots.get(taskManagers(roundNumber)) match {
+        case Some(seq) =>
+          val freeSlots = seq.filter(slot => slot.state == Free)
+          if (freeSlots.isEmpty)
             NoSlotsAvailable
-        }
-        roundNumber += 1
-        result
-      } else {
-        roundNumber = 0
-        NoSlotsAvailable
+          else {
+            val resources = freeSlots.foldLeft((ArcProfile(0.0, 0), Seq[TaskSlot]())) { (x, y) =>
+              if (x._1.matches(req.job.profile))
+                x
+              else
+                (x._1.copy(cpuCores = x._1.cpuCores + y.profile.cpuCores,
+                  memoryInMB = x._1.memoryInMB + y.profile.memoryInMB), x._2 :+ y)
+            }
+
+            if (resources._1.matches(req.job.profile)) {
+              SlotAvailable(resources._2, taskManagers(roundNumber))
+            } else {
+              NoSlotsAvailable
+            }
+          }
+        case None =>
+          NoSlotsAvailable
       }
     } else {
-      NoTaskManagersAvailable
+      NoSlotsAvailable
     }
-  }
-
-  def randomSlot[T](s: Seq[T]): T = {
-    val n = util.Random.nextInt(s.size)
-    s.iterator.drop(n).next
   }
 }

@@ -10,7 +10,7 @@ import scala.util.{Failure, Success, Try}
 
 
 object BinaryManager {
-  def apply(job: ArcJob, slots: Seq[TaskSlot], jm: ActorRef):Props =
+  def apply(job: ArcJob, slots: Seq[Int], jm: ActorRef):Props =
     Props(new BinaryManager(job, slots, jm))
   case object VerifyHeartbeat
 }
@@ -22,7 +22,7 @@ object BinaryManager {
   * the specified timeout, it will consider the job cancelled and instruct the
   * TaskManager to release the slots tied to it
   */
-class BinaryManager(job: ArcJob, slots: Seq[TaskSlot], jm: ActorRef)
+class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import BinaryManager._
@@ -78,6 +78,7 @@ class BinaryManager(job: ArcJob, slots: Seq[TaskSlot], jm: ActorRef)
             context watch executor
           }
         case Failure(_) =>
+          // Something went wrong, close down
       }
     case Terminated(ref) =>
       executors = executors.filterNot(_ == ref)

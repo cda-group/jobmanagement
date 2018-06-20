@@ -1,6 +1,6 @@
 package actors
 
-import actors.ClusterListener.{RemovedResourceManager, UnreachableResourceManager}
+import actors.ClusterListener.{RemovedResourceManager, ResourceManagerUp, UnreachableResourceManager}
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import common._
 import utils.TaskManagerConfig
@@ -14,7 +14,7 @@ object TaskManager {
 
 /**
   * The TaskManager keeps track of the availability of each
-  * TaskSlot it provides. After allocating TaskSlot(s) for JobManager,
+  * TaskSlot it provides. After allocating TaskSlot(s) for the JobManager,
   * the TaskManager creates a BinaryManager actor to deal with
   * transfer, execution and monitoring of binaries
   */
@@ -29,27 +29,35 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
   import context.dispatcher
 
+  override def preStart(): Unit = {
+    // Static number of fake slots for now
+    for (i <- 1 to nrOfSlots) {
+      val slot = TaskSlot(i, Utils.slotProfile())
+      taskSlots = taskSlots :+ slot
+    }
+  }
+
+
   def receive = {
     case TaskManagerInit if !initialized =>
       initialized = true
       resourceManager = Some(sender())
-      // Static number of slots for now
-      for (i <- 1 to nrOfSlots) {
-        val slot = TaskSlot(i, Utils.testResourceProfile())
-        taskSlots = taskSlots :+ slot
-      }
       slotTicker = startUpdateTicker(sender())
     case Allocate(job, slots) =>
       val targetSlots = taskSlots intersect slots
       if (targetSlots.exists(_.state != Free)) {
         // One of the slots were not free.
         // notify requester that the allocation failed
-        sender() ! AllocateFailure(Allocated) // TODO: improve
+        sender() ! AllocateFailure(UnexpectedError)
       } else {
-        val updated = targetSlots.map(_.newState(s = Allocated))
-        taskSlots = updated union taskSlots
+        taskSlots = taskSlots.map {s =>
+          if (targetSlots.contains(s))
+            s.newState(s = Allocated)
+          else
+            s
+        }
         //  Create BinaryManager
-        val bm = context.actorOf(BinaryManager(job, updated, sender()), Identifiers.BINARY_MANAGER+binaryManagerId)
+        val bm = context.actorOf(BinaryManager(job, slots.map(_.index), sender()), Identifiers.BINARY_MANAGER+binaryManagerId)
         binaryManagers = binaryManagers :+ bm
         binaryManagerId += 1
 
@@ -61,7 +69,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       }
     case ReleaseSlots(slots) =>
       taskSlots = taskSlots.map {s =>
-        if (slots.contains(s))
+        if (slots.contains(s.index))
           s.newState(s = Free)
         else
           s
@@ -69,10 +77,15 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     case Terminated(ref) =>
       binaryManagers = binaryManagers.filterNot(_ == ref)
     case UnreachableResourceManager(manager) =>
-    // TODO: Cancel current ticker and set TaskManager as "inactive"
-    // and when it connects back to the RM, set to "active"?
+      resourceManager = None
+      slotTicker.map(_.cancel())
+    // and wait for a ResourceManager to connect back
     case RemovedResourceManager(manager) =>
-    // TODO: Similar to above
+      resourceManager = None
+      slotTicker.map(_.cancel())
+    case ResourceManagerUp(manager) =>
+    // RM is up.
+    // This is not important at this current stage.
   }
 
   /** Starts ticker to send slot availability periodically to

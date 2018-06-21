@@ -51,7 +51,6 @@ class SlotManager extends Actor with ActorLogging {
         case SlotAvailable(taskSlots, addr) =>
           log.info("Slots Available")
           val taskManager = context.actorSelection(ActorPaths.taskManager(addr))
-          // wrapping it in a Seq for now until handleSlotRequest is fixed.
           taskManager forward Allocate(job, taskSlots)
       }
       roundNumber += 1
@@ -70,7 +69,7 @@ class SlotManager extends Actor with ActorLogging {
 
   //TODO: Make more readable?
   private def handleSlotRequest(req: SlotRequest): SlotRequestResp = {
-    if (roundNumber > taskManagers.size)
+    if (roundNumber > taskManagers.size-1)
       roundNumber = 0
 
     if (taskManagers.isEmpty) {

@@ -40,6 +40,8 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
               log.info("Jobmanager allocated slot successfully")
               keepAliveTicker = keepAlive(bm)
               binaryManager = Some(bm)
+              // For now transferred using akka remote with increased bytes limit
+              // Look into sending directly over Akka IO TCP
               bm ! BinaryJob(testBinary)
             case AllocateFailure(err) =>
               log.info("Jobmanager failed to allocate slot: " + err)
@@ -71,7 +73,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   }
 
   private def testBinary(): Seq[Array[Byte]] = {
-    Seq(Files.readAllBytes(Paths.get("../writetofile")),
-      Files.readAllBytes(Paths.get("../writetofile2")))
+    Seq(Files.readAllBytes(Paths.get("writetofile")),
+      Files.readAllBytes(Paths.get("sbtwritetofile2")))
   }
 }

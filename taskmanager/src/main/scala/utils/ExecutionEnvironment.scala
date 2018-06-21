@@ -1,7 +1,7 @@
 package utils
 
 import java.nio.file.attribute.{PosixFilePermission, PosixFilePermissions}
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Files, Paths}
 import java.util.Comparator
 import java.util.stream.Collectors
 

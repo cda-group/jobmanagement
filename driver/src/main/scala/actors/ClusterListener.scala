@@ -20,8 +20,10 @@ class ClusterListener extends Actor with ActorLogging {
   val cluster = Cluster(context.system)
   val driver = context.actorOf(Driver(), Identifiers.DRIVER)
 
-  override def preStart(): Unit = cluster.subscribe(self, classOf[MemberUp])
-  override def postStop(): Unit = cluster.unsubscribe(self)
+  override def preStart(): Unit =
+    cluster.subscribe(self, classOf[MemberUp], classOf[UnreachableMember], classOf[MemberRemoved])
+  override def postStop(): Unit =
+    cluster.unsubscribe(self)
 
   def receive = {
     case MemberUp(member) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>

@@ -12,7 +12,8 @@ object TaskManager {
   def apply(): Props = Props(new TaskManager())
 }
 
-/**
+/** Actor that handles TaskSlots
+  *
   * The TaskManager keeps track of the availability of each
   * TaskSlot it provides. After allocating TaskSlot(s) for the JobManager,
   * the TaskManager creates a BinaryManager actor to deal with

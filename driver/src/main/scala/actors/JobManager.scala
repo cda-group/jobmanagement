@@ -1,22 +1,24 @@
 package actors
 
+import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
 
 import actors.Driver.JobManagerInit
-import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, Cancellable, Props}
 import akka.util.Timeout
 import akka.pattern._
 import common._
 import utils.DriverConfig
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{Failure, Success}
 
 object JobManager {
   def apply(): Props = Props(new JobManager)
 }
 
-/**
+/** Actor that handles an ArcJob
+  *
   * One JobManager is created per ArcJob. If a slot allocation is successful,
   * the JobManager communicates directly with the BinaryManager and can do the following:
   * 1. Instruct BinaryManager to execute binaries
@@ -30,27 +32,31 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
 
+
   def receive = {
     case JobManagerInit(job, rmAddr) =>
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
-      resourceManager ? job.copy(jobManagerRef = Some(self)) onComplete {
-        case Success(resp) =>
-          resp match {
-            case AllocateSuccess(job_, bm) =>
-              log.info("Jobmanager allocated slot successfully")
-              keepAliveTicker = keepAlive(bm)
-              binaryManager = Some(bm)
-              // For now transferred using akka remote with increased bytes limit
-              // Look into sending directly over Akka IO TCP
-              bm ! BinaryJob(testBinary)
-            case AllocateFailure(err) =>
-              log.info("Jobmanager failed to allocate slot: " + err)
-              // context.parent ! notify
+      val req: Future[Either[InetSocketAddress, AllocateResponse]] = allocateRequest(job, resourceManager) flatMap {
+        case AllocateSuccess(_, bm) =>
+          keepAliveTicker = keepAlive(bm)
+          binaryManager = Some(bm)
+          requestChannel(bm) flatMap {
+            case Some(server) =>
+              Future.successful(Left(server))
+            case None =>
+              Future.successful(Right(AllocateError("Could not fetch InetSocketAddress")))
           }
-        case Failure(e) =>
-          log.info("failure of ArcJob: " + e.toString)
-        // context.parent ! We failed
-        // context.stop() // Kill this actor
+        case e@AllocateFailure(_) =>
+          Future.successful(Right(e))
+        case e@AllocateError(_) =>
+          Future.successful(Right(e))
+      }
+
+      req.map {
+        case Left(server) =>
+          binaryTransfer(server, binaryManager.get)
+        case Right(e) =>
+          log.info("Allocate Request failed: " + e)
       }
     case r@ReleaseSlots =>
       binaryManager match {
@@ -60,6 +66,35 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
           //sender() ! no binaryManager defined "handle"
       }
     case _ =>
+  }
+
+  private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {
+    rm ? job.copy(jobManagerRef = Some(self)) flatMap {
+      case s@AllocateSuccess(_,_) =>
+        Future.successful(s)
+      case s@AllocateFailure(_) =>
+        Future.successful(s)
+      case s@AllocateError(_) =>
+        Future.successful(s)
+    }
+  }
+
+  private def requestChannel(bm: ActorRef): Future[Option[InetSocketAddress]] = {
+    bm ? BinariesCompiled flatMap {
+      case BinaryTransferConn(addr) =>
+        Future.successful(Some(addr))
+      case BinaryTransferError =>
+        Future.successful(None)
+    }
+  }
+
+  // TODO: add actual logic
+  private def binaryTransfer(server: InetSocketAddress, bm: ActorRef): Future[Unit] = {
+    Future {
+      testBinary().foreach {binary =>
+        val binarySender = context.actorOf(BinarySender(server, binary, bm))
+      }
+    }
   }
 
   private def keepAlive(binaryManager: ActorRef): Option[Cancellable] = {
@@ -73,7 +108,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   }
 
   private def testBinary(): Seq[Array[Byte]] = {
-    Seq(Files.readAllBytes(Paths.get("writetofile")),
-      Files.readAllBytes(Paths.get("sbtwritetofile2")))
+    Seq(Files.readAllBytes(Paths.get("writetofile")))
+      //Files.readAllBytes(Paths.get("writetofile2")))
   }
 }

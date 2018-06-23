@@ -51,18 +51,20 @@ class ExecutionEnvironment(job: ArcJob) extends LazyLogging {
   /**
     * Take the bytes and save it to a file in the execution environment
     */
-  def writeBinaryToFile(id: Int, file: Array[Byte]): Unit = {
+  def writeBinaryToFile(id: Int, file: Array[Byte]): Boolean  = {
     OperatingSystem.get() match {
       case Linux =>
         Files.write(Paths.get(LINUX_JOB_PATH+"/"+id), file)
         setAsExecutable(LINUX_JOB_PATH+"/"+id) match {
           case Success(_) =>
             logger.info("Made file executable")
+            true
           case Failure(e) =>
             logger.error(e.toString)
+            false
         }
-      case Mac =>
-      case _ =>
+      case Mac => false
+      case _ => false
     }
   }
 

@@ -52,6 +52,8 @@ class SlotManager extends Actor with ActorLogging {
           log.info("Slots Available")
           val taskManager = context.actorSelection(ActorPaths.taskManager(addr))
           taskManager forward Allocate(job, taskSlots)
+        case UnexpectedError =>
+          // TODO: fix
       }
       roundNumber += 1
     case _ =>

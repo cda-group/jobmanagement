@@ -1,18 +1,26 @@
 package actors
 
+import java.net.InetSocketAddress
+
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
-import common._
+import akka.io.{IO, Tcp}
+import akka.pattern._
+import akka.util.Timeout
+import common.{BinaryTransferComplete, _}
 import utils.{ExecutionEnvironment, TaskManagerConfig}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 
 object BinaryManager {
   def apply(job: ArcJob, slots: Seq[Int], jm: ActorRef):Props =
     Props(new BinaryManager(job, slots, jm))
   case object VerifyHeartbeat
+  case object BinaryUploaded
+  case class BinaryReady(id: Int)
+  case object BinaryWriteFailure
 }
 
 /**
@@ -26,17 +34,33 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import BinaryManager._
+  import akka.io.Tcp._
+
+  // For Akka TCP IO
+  import context.system
+  // For futures
+  implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
 
+  // Heartbeat variables
   var heartBeatChecker = None: Option[Cancellable]
-  var nrOfBinaries = 0
-  val env = new ExecutionEnvironment(job)
   var lastJmTs: Long = 0
 
+  // Execution Environment
+  val env = new ExecutionEnvironment(job)
+
+  // BinaryExecutor
   var executors = mutable.IndexedSeq.empty[ActorRef]
   var executorId = 0
 
+  // BinaryReceiver
+  var binaryReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
+  var binaryReceiversId = 0
+
+
   override def preStart(): Unit = {
+    env.create() // Here for now
+
     lastJmTs = System.currentTimeMillis()
     heartBeatChecker = Some(context.system.scheduler.schedule(
       0.milliseconds, binaryManagerTimeout.milliseconds,
@@ -48,6 +72,33 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
   }
 
   def receive = {
+    case Connected(remote, local) =>
+      val br = context.actorOf(BinaryReceiver(binaryReceiversId, env), "rec"+binaryReceiversId)
+      binaryReceiversId += 1
+      binaryReceivers.put(remote, br)
+      sender() ! Register(br)
+    case BinaryTransferComplete(remote) =>
+      binaryReceivers.get(remote) match {
+        case Some(ref) =>
+          startExecutor(ref)
+        case None =>
+          log.error("Was not able to locate ref for remote: " + remote)
+      }
+    case BinariesCompiled =>
+      // Binaries are ready to be transferred, open an Akka IO TCP
+      // channel and let the JobManager know how to connect
+      val askRef = sender()
+      //TODO: fetch host from config
+      IO(Tcp) ? Bind(self, new InetSocketAddress("localhost", 0)) onComplete {
+        case Success(resp) => resp match {
+          case Bound(localAddr) =>
+            askRef ! BinaryTransferConn(localAddr)
+          case CommandFailed(_ :Bind) =>
+            askRef ! BinaryTransferError
+        }
+        case Failure(e) =>
+          askRef ! BinaryTransferError
+      }
     case VerifyHeartbeat =>
       val now = System.currentTimeMillis()
       val time = now - lastJmTs
@@ -58,41 +109,41 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
       }
     case BMHeartBeat =>
       lastJmTs = System.currentTimeMillis()
-    case BinaryJob(binaries) =>
-      Try {
-        env.create()
-        binaries.foreach { b =>
-          env.writeBinaryToFile(nrOfBinaries, b)
-          nrOfBinaries += 1
-        }
-      } match {
-        case Success(_) =>
-          for (i <- 1 to binaries.size) {
-            val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + executorId),
-              Identifiers.BINARY_EXECUTOR + executorId)
-
-            executors = executors :+ executor
-            executorId += 1
-
-            // Enable DeathWatch
-            context watch executor
-          }
-        case Failure(_) =>
-          // Something went wrong, close down
-      }
     case Terminated(ref) =>
       executors = executors.filterNot(_ == ref)
+      // TODO: handle scenario where not all executors have been started
       if (executors.isEmpty) {
         log.info("No alive BinaryExecutors left, releasing slots")
         shutdown()
       }
-    case _ =>
+  }
+
+
+  private def startExecutor(ref: ActorRef): Unit = {
+    log.info("Sending BinaryUploaded to ref: " + ref)
+    ref ? BinaryUploaded onComplete {
+      case Success(resp) => resp match {
+        case BinaryReady(binId) =>
+          val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + binId),
+            Identifiers.BINARY_EXECUTOR + executorId)
+
+          executors = executors :+ executor
+          executorId += 1
+
+          // Enable DeathWatch
+          context watch executor
+
+        case BinaryWriteFailure =>
+          log.error("Failed writing to file")
+      }
+      case Failure(e) =>
+        log.error(e.toString)
+    }
   }
 
   private def shutdown(): Unit = {
     // Cancel ticker
-    heartBeatChecker.get
-      .cancel()
+    heartBeatChecker.map(_.cancel())
 
     // Notify parent and shut down the actor
     context.parent ! ReleaseSlots(slots)

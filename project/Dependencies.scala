@@ -5,9 +5,11 @@ object Dependencies {
   //TODO check versions
   val scalatestVersion = "3.0.1"
   val loggingVersion = "3.5.0"
-  val akkaVersion = "2.5.12"
   val logbackVersion = "1.2.3"
   val typeConfigVersion = "1.3.1"
+  val akkaVersion = "2.5.12"
+  val akkaHttpVersion = "10.1.3"
+  val akkaStreamsVersion = akkaVersion
 
 
   val testDependencies: Seq[ModuleID] = Seq(
@@ -28,6 +30,11 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-cluster" % akkaVersion
   )
 
+  val akkaHttpDependencies: Seq[ModuleID] = Seq(
+    "com.typesafe.akka" %% "akka-http"   % akkaHttpVersion,
+    "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion
+  )
+
   val simpleAkka: Seq[ModuleID] = Seq(
     "com.typesafe.akka" %% "akka-actor" % akkaVersion
   )
@@ -39,7 +46,7 @@ object Dependencies {
 
 
   val taskmanagerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
-  val driverDependencies: Seq[ModuleID] = basic ++ akkaDependencies
+  val driverDependencies: Seq[ModuleID] = basic ++ akkaDependencies ++ akkaHttpDependencies
   val resourcemanagerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
   val commonDependencies: Seq[ModuleID] = basic ++ simpleAkka
 

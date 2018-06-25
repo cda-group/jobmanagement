@@ -19,32 +19,48 @@ class ExecutionEnvironment(job: ArcJob) extends LazyLogging {
 
   // For now. To be discussed
   final val LINUX_DIR = System.getProperty("user.home") + "/arc"
-  final val MAC_OS_DIR = ""
+  final val MAC_OS_DIR = System.getProperty("user.home") + "/arc"
 
   final val LINUX_JOB_PATH = LINUX_DIR + "/" + job.id
-  final val MAC_JOB_PATH = MAC_OS_DIR + "/" + job.id
+  final val MAC_OS_JOB_PATH = MAC_OS_DIR + "/" + job.id
 
   /**
     * Create a directory where the job will execute
     * Path will depend on OS
     */
-  def create(): Unit = {
+  def create(): Try[Boolean] = Try {
     OperatingSystem.get() match {
       case Linux =>
-        if (Files.exists(Paths.get(LINUX_DIR))) {
-          Files.createDirectories(Paths.get(LINUX_JOB_PATH))
-        } else {
-          createLinuxEnv() match {
-            case Success(_) =>
-              Files.createDirectories(Paths.get(LINUX_JOB_PATH))
-            case Failure(e) =>
-              logger.error("Could not create linux env")
-              logger.error(e.toString)
-          }
-        }
+        createLinuxJobDir().isSuccess
       case Mac =>
+        // createMacJobDIr().isSuccess
+        false
       case Windows => // We shouldn't really get here
+        false
       case _ =>
+        false
+    }
+  }
+
+
+  /**
+    * Creates a directory with the job's id.
+    * If the environment does not exist, it will create it.
+    */
+  private def createLinuxJobDir(): Try[Boolean] = Try {
+    if (Files.exists(Paths.get(LINUX_DIR))) {
+      Files.createDirectories(Paths.get(LINUX_JOB_PATH))
+      true
+    } else {
+      createLinuxEnv() match {
+        case Success(_) =>
+          Files.createDirectories(Paths.get(LINUX_JOB_PATH))
+          true
+        case Failure(e) =>
+          logger.error("Could not create linux env")
+          logger.error(e.toString)
+          false
+      }
     }
   }
 
@@ -114,7 +130,7 @@ class ExecutionEnvironment(job: ArcJob) extends LazyLogging {
   def getJobPath: String =
     OperatingSystem.get() match {
       case Linux => LINUX_JOB_PATH
-      case Mac => MAC_JOB_PATH
+      case Mac => MAC_OS_JOB_PATH
       case _ => ""
     }
 }

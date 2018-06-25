@@ -3,7 +3,12 @@ package actors
 import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
+import akka.http.scaladsl.Http
+import akka.stream.ActorMaterializer
 import common.{ArcJob, ArcJobRequest, Identifiers, Utils}
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import utils.DriverConfig
 
 import scala.collection.mutable
 
@@ -13,9 +18,17 @@ object Driver {
   case class JobManagerInit(job: ArcJob, rmAddr: Address)
 }
 
-class Driver extends Actor with ActorLogging {
+class Driver extends Actor with ActorLogging with DriverConfig {
   import ClusterListener._
   import Driver._
+
+  implicit val materializer = ActorMaterializer()
+  implicit val system = context.system
+
+  override def preStart(): Unit = {
+    log.info("Starting up REST server at " + interface + ":" + restPort)
+    Http().bindAndHandle(headRoute, interface, restPort)
+  }
 
   // Just a single resourcemananger for now
   var resourceManager = None: Option[Address]
@@ -58,5 +71,22 @@ class Driver extends Actor with ActorLogging {
       jobManagers = jobManagers.filterNot(_ == ref)
     case _ =>
   }
+
+  val headRoute: Route =
+    pathPrefix("api") {
+      pathPrefix("v1") {
+        jobRoute
+      }
+    }
+
+  val jobRoute =
+    pathPrefix("job") {
+      path("submit") {
+        complete("I got the job request")
+      }
+    }
+
+
+
 
 }

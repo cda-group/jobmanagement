@@ -16,6 +16,7 @@ case class ArcProfile(cpuCores: Double, memoryInMB: Long) {
 
 
 case object BMHeartBeat
+case object BinaryManagerFailure
 case class BinaryJob(binaries: Seq[Array[Byte]])
 case object BinariesCompiled
 case class BinaryTransferConn(inet: InetSocketAddress)

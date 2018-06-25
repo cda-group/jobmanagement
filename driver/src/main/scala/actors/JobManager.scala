@@ -59,23 +59,17 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
           log.info("Allocate Request failed: " + e)
       }
     case r@ReleaseSlots =>
-      binaryManager match {
-        case Some(ref) =>
-          ref ! r
-        case None =>
-          //sender() ! no binaryManager defined "handle"
-      }
+      binaryManager.foreach(_ ! r)
+    case BinaryManagerFailure =>
+      // Unexpected failure by the BinaryManager
+      // Handle it
+      keepAliveTicker.map(_.cancel())
     case _ =>
   }
 
   private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {
     rm ? job.copy(jobManagerRef = Some(self)) flatMap {
-      case s@AllocateSuccess(_,_) =>
-        Future.successful(s)
-      case s@AllocateFailure(_) =>
-        Future.successful(s)
-      case s@AllocateError(_) =>
-        Future.successful(s)
+      case r: AllocateResponse => Future.successful(r)
     }
   }
 
@@ -97,6 +91,12 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
     }
   }
 
+  /**
+    * While compilation of binaries is in progress, notify
+    * the BinaryManager to keep the slot contract alive.
+    * @param binaryManager ActorRef to the BinaryManager
+    * @return Cancellable Option
+    */
   private def keepAlive(binaryManager: ActorRef): Option[Cancellable] = {
     Some(context.
       system.scheduler.schedule(
@@ -108,7 +108,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   }
 
   private def testBinary(): Seq[Array[Byte]] = {
-    Seq(Files.readAllBytes(Paths.get("writetofile")))
-      //Files.readAllBytes(Paths.get("writetofile2")))
+    Seq(Files.readAllBytes(Paths.get("writetofile")),
+      Files.readAllBytes(Paths.get("writetofile2")))
   }
 }

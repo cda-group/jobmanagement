@@ -23,7 +23,8 @@ object BinaryManager {
   case object BinaryWriteFailure
 }
 
-/**
+/** Actor that manages received Binaries
+  *
   * On a Successful ArcJob Allocation, a BinaryManager is created
   * to handle the incoming binaries from the JobManager once they have been compiled.
   * A BinaryManager expects heartbeats from the JobManager, if none are received within
@@ -51,7 +52,6 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
 
   // BinaryExecutor
   var executors = mutable.IndexedSeq.empty[ActorRef]
-  var executorId = 0
 
   // BinaryReceiver
   var binaryReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
@@ -59,7 +59,16 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
 
 
   override def preStart(): Unit = {
-    env.create() // Here for now
+    env.create() match {
+      case Success(_) =>
+        log.info("Created job environment: " + env.getJobPath)
+      case Failure(e) =>
+        log.error("Failed to create job environment with path: " + env.getJobPath)
+        // Notify JobManager
+        jm ! BinaryManagerFailure
+        // Shut down
+        context stop self
+    }
 
     lastJmTs = System.currentTimeMillis()
     heartBeatChecker = Some(context.system.scheduler.schedule(
@@ -120,19 +129,13 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
 
 
   private def startExecutor(ref: ActorRef): Unit = {
-    log.info("Sending BinaryUploaded to ref: " + ref)
     ref ? BinaryUploaded onComplete {
       case Success(resp) => resp match {
         case BinaryReady(binId) =>
-          val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + binId),
-            Identifiers.BINARY_EXECUTOR + executorId)
-
+          val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + binId))
           executors = executors :+ executor
-          executorId += 1
-
           // Enable DeathWatch
           context watch executor
-
         case BinaryWriteFailure =>
           log.error("Failed writing to file")
       }

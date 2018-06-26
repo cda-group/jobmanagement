@@ -1,13 +1,16 @@
 package actors
 
-import akka.actor.{Actor, ActorLogging, Cancellable, Props}
+import java.io.{BufferedReader, InputStreamReader}
+
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
+import common.{WeldTask, WeldTaskCompleted}
 import utils.TaskManagerConfig
 
 import scala.concurrent.duration._
 
 object BinaryExecutor {
-  def apply(binPath: String): Props =
-    Props(new BinaryExecutor(binPath))
+  def apply(binPath: String, task: WeldTask, jm: ActorRef): Props =
+    Props(new BinaryExecutor(binPath, task, jm))
   case object HealthCheck
 }
 
@@ -15,7 +18,7 @@ object BinaryExecutor {
   *
   * @param binPath path to the rust binary
   */
-class BinaryExecutor(binPath: String)
+class BinaryExecutor(binPath: String, task: WeldTask, jm: ActorRef)
   extends Actor with ActorLogging with TaskManagerConfig {
   var healthChecker = None: Option[Cancellable]
   val runtime = Runtime.getRuntime
@@ -25,7 +28,8 @@ class BinaryExecutor(binPath: String)
   import context.dispatcher
 
   override def preStart(): Unit = {
-    process = Some(runtime.exec(binPath))
+    val pb = new ProcessBuilder(binPath, task.expr, task.vec)
+    process = Some(pb.start())
 
     healthChecker = Some(context.system.scheduler.schedule(
       binaryExecutorHealthCheck.milliseconds,
@@ -33,6 +37,20 @@ class BinaryExecutor(binPath: String)
       self,
       HealthCheck
     ))
+
+
+    val reader = new BufferedReader(new InputStreamReader(process.get.getInputStream))
+
+    var line: String = null
+    var res: String = ""
+    while ({line = reader.readLine; line != null}) {
+      res = line
+      println(line)
+    }
+    process.get.waitFor()
+    val updated = task.copy(result = Some(res))
+    log.info("Updated task: " + updated)
+    jm ! WeldTaskCompleted(updated)
   }
 
   def receive = {

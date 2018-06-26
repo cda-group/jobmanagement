@@ -31,7 +31,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   // For futures
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
-
+  val jm = self
 
   def receive = {
     case JobManagerInit(job, rmAddr) =>
@@ -60,6 +60,9 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
       }
     case r@ReleaseSlots =>
       binaryManager.foreach(_ ! r)
+    case w@WeldTaskCompleted(t) =>
+      log.info("JobManager received finished WeldTask")
+      context.parent ! w
     case BinaryManagerFailure =>
       // Unexpected failure by the BinaryManager
       // Handle it
@@ -68,7 +71,8 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   }
 
   private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {
-    rm ? job.copy(jobManagerRef = Some(self)) flatMap {
+    log.info("Setting ref as: " + jm)
+    rm ? job.copy(jobManagerRef = Some(jm)) flatMap {
       case r: AllocateResponse => Future.successful(r)
     }
   }
@@ -85,9 +89,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   // TODO: add actual logic
   private def binaryTransfer(server: InetSocketAddress, bm: ActorRef): Future[Unit] = {
     Future {
-      testBinary().foreach {binary =>
-        val binarySender = context.actorOf(BinarySender(server, binary, bm))
-      }
+      val binarySender = context.actorOf(BinarySender(server, weldRunnerBin(), bm))
     }
   }
 
@@ -111,4 +113,9 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
     Seq(Files.readAllBytes(Paths.get("writetofile")),
       Files.readAllBytes(Paths.get("writetofile2")))
   }
+
+  private def weldRunnerBin(): Array[Byte] =
+    Files.readAllBytes(Paths.get("weldrunner"))
+
+
 }

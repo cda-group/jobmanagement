@@ -58,15 +58,21 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
             s
         }
         //  Create BinaryManager
-        val bm = context.actorOf(BinaryManager(job, slots.map(_.index), sender()), Identifiers.BINARY_MANAGER+binaryManagerId)
-        binaryManagers = binaryManagers :+ bm
-        binaryManagerId += 1
+        if (job.jobManagerRef.isEmpty) {
+          // ActorRef to JobManager was not set, something went wrong
+          // This should not happen
+          // TODO: Handle
+        } else {
+          val bm = context.actorOf(BinaryManager(job, slots.map(_.index), job.jobManagerRef.get), Identifiers.BINARY_MANAGER+binaryManagerId)
+          binaryManagers = binaryManagers :+ bm
+          binaryManagerId += 1
 
-        // Enable DeathWatch
-        context watch bm
+          // Enable DeathWatch
+          context watch bm
 
-        // Let JobManager know about the allocation and how to access the BinaryManager
-        sender() ! AllocateSuccess(job, bm)
+          // Let JobManager know about the allocation and how to access the BinaryManager
+          sender() ! AllocateSuccess(job, bm)
+        }
       }
     case ReleaseSlots(slots) =>
       taskSlots = taskSlots.map {s =>

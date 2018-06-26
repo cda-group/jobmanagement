@@ -5,8 +5,14 @@ import java.net.InetSocketAddress
 import akka.actor.ActorRef
 import akka.io.Tcp.Event
 
+// Experimental
+// "map(v, |a:i32| a + i32(5))" "1 2 3 4"
+case class WeldTask(expr: String, vec: String, result: Option[String] = None)
+case class WeldJob(tasks: Seq[WeldTask])
 
-case class ArcJob(id: String, profile: ArcProfile, jobManagerRef: Option[ActorRef] = None)
+case class WeldTaskCompleted(task: WeldTask)
+
+case class ArcJob(id: String, profile: ArcProfile, job: WeldJob, jobManagerRef: Option[ActorRef] = None)
 case class ArcJobRequest(job: ArcJob)
 case class ArcProfile(cpuCores: Double, memoryInMB: Long) {
   def matches(other: ArcProfile): Boolean =

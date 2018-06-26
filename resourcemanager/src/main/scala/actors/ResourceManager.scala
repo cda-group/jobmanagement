@@ -38,7 +38,7 @@ class ResourceManager extends Actor with ActorLogging {
       slotManager forward tmr
     case utm@UnreachableTaskManager(_) =>
       slotManager forward utm
-    case job@ArcJob(_, _, ref) =>
+    case job@ArcJob(_, _, _,  ref) =>
       log.info("Got a job request from a JobManager")
       val askRef  = sender()
       ref match {

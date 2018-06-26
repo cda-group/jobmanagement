@@ -32,7 +32,9 @@ object Dependencies {
 
   val akkaHttpDependencies: Seq[ModuleID] = Seq(
     "com.typesafe.akka" %% "akka-http"   % akkaHttpVersion,
-    "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion
+    "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion,
+    "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion
+
   )
 
   val simpleAkka: Seq[ModuleID] = Seq(

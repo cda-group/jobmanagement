@@ -89,7 +89,7 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
     case BinaryTransferComplete(remote) =>
       binaryReceivers.get(remote) match {
         case Some(ref) =>
-          startExecutor(ref)
+          startExecutors(ref)
         case None =>
           log.error("Was not able to locate ref for remote: " + remote)
       }
@@ -128,14 +128,18 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
   }
 
 
-  private def startExecutor(ref: ActorRef): Unit = {
+  private def startExecutors(ref: ActorRef): Unit = {
     ref ? BinaryUploaded onComplete {
       case Success(resp) => resp match {
         case BinaryReady(binId) =>
-          val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + binId))
-          executors = executors :+ executor
-          // Enable DeathWatch
-          context watch executor
+          // improve names...
+          job.job.tasks.foreach {task =>
+            // Create 1 executor for each task
+            val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + binId, task, jm))
+            executors = executors :+ executor
+            // Enable DeathWatch
+            context watch executor
+          }
         case BinaryWriteFailure =>
           log.error("Failed writing to file")
       }

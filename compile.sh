@@ -34,7 +34,7 @@ case "$1" in
     "driver")
         echo $GREEN"Compiling Driver..."
         sbt_fail=0
-        (sbt driver/assembly) || sbt_fail=1
+        (sbt -DruntimeClass=runtime.driver.DriverSystem -DruntimeJar=driver.jar runtime/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile driver"
@@ -47,7 +47,7 @@ case "$1" in
     "taskmanager"|"tm")
         echo $CYAN"Compiling TaskManager..."
         sbt_fail=0
-        (sbt taskmanager/assembly) || sbt_fail=1
+        (sbt -DruntimeClass=runtime.taskmanager.TaskManagerSystem -DruntimeJar=taskmanager.jar runtime/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile TaskManager"
@@ -60,7 +60,7 @@ case "$1" in
     "resourcemanager"|"rm")
         echo $BLUE"Compiling ResourceManager..."
         sbt_fail=0
-        (sbt resourcemanager/assembly) || sbt_fail=1
+        (sbt -DruntimeClass=runtime.resourcemanager.RmSystem -DruntimeJar=resourcemanager.jar runtime/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile ResourecManager"
@@ -73,7 +73,9 @@ case "$1" in
     *)
         echo $WHITE"Compiling everything..."
         sbt_fail=0
-        (sbt clean assembly) || sbt_fail=1
+        (sbt -DruntimeClass=runtime.resourcemanager.RmSystem -DruntimeJar=resourcemanager.jar runtime/assembly);
+        (sbt -DruntimeClass=runtime.taskmanager.TaskManagerSystem -DruntimeJar=taskmanager.jar runtime/assembly);
+        (sbt -DruntimeClass=runtime.driver.DriverSystem -DruntimeJar=driver.jar runtime/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile"

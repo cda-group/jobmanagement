@@ -13,18 +13,18 @@ mkdir -p build
 function cpy_jars {
     case "$1" in
     "rm")
-        cp resourcemanager/target/scala-2.12/resourcemanager.jar build/resourcemanager.jar
+        cp runtime/rmtarget/scala-2.12/resourcemanager.jar build/resourcemanager.jar
         ;;
     "tm")
-        cp taskmanager/target/scala-2.12/taskmanager.jar build/taskmanager.jar
+        cp runtime/tmtarget/scala-2.12/taskmanager.jar build/taskmanager.jar
         ;;
     "driver")
-        cp driver/target/scala-2.12/driver.jar build/driver.jar
+        cp runtime/drivertarget/scala-2.12/driver.jar build/driver.jar
         ;;
     "all")
-        cp driver/target/scala-2.12/driver.jar build/driver.jar
-        cp resourcemanager/target/scala-2.12/resourcemanager.jar build/resourcemanager.jar
-        cp taskmanager/target/scala-2.12/taskmanager.jar build/taskmanager.jar
+        cp runtime/drivertarget/scala-2.12/driver.jar build/driver.jar
+        cp runtime/rmtarget/scala-2.12/resourcemanager.jar build/resourcemanager.jar
+        cp runtime/tmtarget/scala-2.12/taskmanager.jar build/taskmanager.jar
         ;;
 esac
 }

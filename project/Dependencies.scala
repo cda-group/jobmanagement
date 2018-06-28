@@ -27,7 +27,8 @@ object Dependencies {
 
   val akkaDependencies: Seq[ModuleID] = Seq(
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
-    "com.typesafe.akka" %% "akka-cluster" % akkaVersion
+    "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
+    "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion
   )
 
   val akkaHttpDependencies: Seq[ModuleID] = Seq(
@@ -46,11 +47,6 @@ object Dependencies {
   val basic : Seq[ModuleID] =
     logDependencies ++ confDependencies ++ testDependencies
 
-
-  val taskmanagerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
-  val driverDependencies: Seq[ModuleID] = basic ++ akkaDependencies ++ akkaHttpDependencies
-  val resourcemanagerDependencies: Seq[ModuleID] = basic ++ akkaDependencies
-  val commonDependencies: Seq[ModuleID] = basic ++ simpleAkka
-
+  val runtimeDependencies: Seq[ModuleID] = basic ++ akkaDependencies ++ akkaHttpDependencies
 
 }

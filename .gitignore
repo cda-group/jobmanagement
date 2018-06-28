@@ -7,10 +7,14 @@
 .lib/
 dist/*
 target/
+rmtarget/
+tmtarget/
+drivertarget/
 lib_managed/
 src_managed/
 project/boot/
 project/plugins/project/
 build/
 .idea/
+weldrunner
 

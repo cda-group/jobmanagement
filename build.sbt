@@ -16,7 +16,8 @@ lazy val generalSettings = Seq(
 lazy val runtimeSettings = generalSettings ++ Seq(
   fork in run := true,  // https://github.com/sbt/sbt/issues/3736#issuecomment-349993007
   cancelable in Global := true,
-  version := "0.1"
+  version := "0.1",
+  javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
 )
 
 lazy val runtime = (project in file("runtime"))

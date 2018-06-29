@@ -1,9 +1,8 @@
-package runtime.taskmanager
+package runtime.taskmanager.utils
 
 import java.nio.file.{Files, Paths}
 
 import runtime.BaseSpec
-import utils.ExecutionEnvironment
 
 import scala.util.{Failure, Success}
 

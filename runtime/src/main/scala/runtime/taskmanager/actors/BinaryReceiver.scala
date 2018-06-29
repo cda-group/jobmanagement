@@ -24,19 +24,16 @@ class BinaryReceiver(id: String, env: ExecutionEnvironment)
 
   import BinaryManager._
 
-  var storage = Vector.empty[ByteString]
+  private var buffer = ByteString.empty
 
   def receive = {
     case Received(data) =>
-      storage = storage :+ data
+      buffer = buffer ++ data
     case PeerClosed =>
       log.info("Peer closed for: " + id)
       context stop self
     case BinaryUploaded =>
-      val arrByte = storage.map(_.toArray)
-        .toArray
-        .flatten
-      if (env.writeBinaryToFile(id, arrByte)) {
+      if (env.writeBinaryToFile(id, buffer.toArray)) {
         sender() ! BinaryReady(id)
       } else {
         sender() ! BinaryWriteFailure

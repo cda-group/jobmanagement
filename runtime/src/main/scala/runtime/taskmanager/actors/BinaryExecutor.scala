@@ -49,7 +49,6 @@ class BinaryExecutor(binPath: String, task: WeldTask, jm: ActorRef)
     }
     process.get.waitFor()
     val updated = task.copy(result = Some(res))
-    log.info("Updated task: " + updated)
     jm ! WeldTaskCompleted(updated)
   }
 

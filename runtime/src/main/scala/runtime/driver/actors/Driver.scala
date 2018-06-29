@@ -18,7 +18,7 @@ import scala.collection.mutable
 object Driver {
   def apply(): Props = Props(new Driver)
   case class JobManagerInit(job: ArcJob, rmAddr: Address)
-
+  case object ResourceManagerUnavailable
 }
 
 class Driver extends Actor with ActorLogging with DriverConfig {
@@ -47,10 +47,6 @@ class Driver extends Actor with ActorLogging with DriverConfig {
   def receive = {
     case RmRegistration(rm) =>
       resourceManager = Some(rm)
-      // test req
-      //val testJob = ArcJob(UUID.randomUUID().toString, Utils.testResourceProfile())
-      //val jobRequest = ArcJobRequest(testJob)
-      //self ! jobRequest
     case UnreachableRm(rm) =>
       // Foreach active JobManager, notify status
       resourceManager = None
@@ -73,7 +69,7 @@ class Driver extends Actor with ActorLogging with DriverConfig {
           // Send the job to the JobManager actor and be done with it
           jobManager ! JobManagerInit(job, rm)
         case None =>
-          sender() ! "noresourcemanager" // change this..
+          sender() ! ResourceManagerUnavailable
       }
     case WeldTaskCompleted(task) =>
       weldTasks = weldTasks.map {t =>

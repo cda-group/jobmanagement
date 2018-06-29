@@ -2,6 +2,7 @@ package runtime.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import runtime.common._
+import runtime.taskmanager.actors.TaskManager.TMNotInitialized
 import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.collection.mutable
@@ -9,6 +10,7 @@ import scala.concurrent.duration._
 
 object TaskManager {
   def apply(): Props = Props(new TaskManager())
+  case object TMNotInitialized
 }
 
 /** Actor that handles TaskSlots
@@ -45,6 +47,8 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       initialized = true
       resourceManager = Some(sender())
       slotTicker = startUpdateTicker(sender())
+    case Allocate(_,_) if !initialized =>
+      sender() ! TMNotInitialized
     case Allocate(job, slots) =>
       val targetSlots = taskSlots intersect slots
       if (targetSlots.exists(_.state != Free)) {

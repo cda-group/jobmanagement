@@ -1,7 +1,7 @@
-package runtime.taskmanager
+package runtime.taskmanager.utils
 
 import runtime.BaseSpec
-import utils.Hardware
+
 
 class HardwareSpec extends BaseSpec {
 

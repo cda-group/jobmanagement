@@ -1,6 +1,6 @@
 package runtime.resourcemanager.actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, Props}
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
@@ -24,8 +24,9 @@ class ResourceManager extends Actor with ActorLogging {
 
   import ClusterListener._
   import ResourceManager._
+  import runtime.common.Types._
 
-  val activeJobManagers = mutable.HashSet[ActorRef]()
+  val activeJobManagers = mutable.HashSet[JobManagerRef]()
   val slotManager = context.actorOf(SlotManager(), Identifiers.SLOT_MANAGER)
 
   // For futures

@@ -2,13 +2,14 @@ package runtime.driver.actors
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, Address, Props, Terminated}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import runtime.common._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import runtime.common.Types.ResourceManagerAddr
 import runtime.driver.utils.DriverConfig
 import spray.json.DefaultJsonProtocol._
 
@@ -17,13 +18,14 @@ import scala.collection.mutable
 
 object Driver {
   def apply(): Props = Props(new Driver)
-  case class JobManagerInit(job: ArcJob, rmAddr: Address)
+  case class JobManagerInit(job: ArcJob, rmAddr: ResourceManagerAddr)
   case object ResourceManagerUnavailable
 }
 
 class Driver extends Actor with ActorLogging with DriverConfig {
   import ClusterListener._
   import Driver._
+  import runtime.common.Types._
 
   implicit val materializer = ActorMaterializer()
   implicit val system = context.system
@@ -40,8 +42,8 @@ class Driver extends Actor with ActorLogging with DriverConfig {
   }
 
   // Just a single resourcemananger for now
-  var resourceManager = None: Option[Address]
-  var jobManagers = mutable.IndexedSeq.empty[ActorRef]
+  var resourceManager = None: Option[ResourceManagerAddr]
+  var jobManagers = mutable.IndexedSeq.empty[JobManagerRef]
   var jobManagerId: Long = 0 // unique id for each jobmanager that is created
 
   def receive = {

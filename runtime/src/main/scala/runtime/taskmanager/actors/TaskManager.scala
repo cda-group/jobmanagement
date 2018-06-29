@@ -22,13 +22,14 @@ object TaskManager {
   */
 class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   import ClusterListener._
+  import runtime.common.Types._
 
   var slotTicker = None: Option[Cancellable]
   var taskSlots = mutable.IndexedSeq.empty[TaskSlot]
   var initialized = false
-  var resourceManager = None: Option[ActorRef]
+  var resourceManager = None: Option[ResourceManagerRef]
 
-  var binaryManagers = mutable.IndexedSeq.empty[ActorRef]
+  var binaryManagers = mutable.IndexedSeq.empty[BinaryManagerRef]
   var binaryManagerId: Long = 0
 
   import context.dispatcher
@@ -63,12 +64,12 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
             s
         }
         //  Create BinaryManager
-        if (job.jobManagerRef.isEmpty) {
+        if (job.jmRef.isEmpty) {
           // ActorRef to JobManager was not set, something went wrong
           // This should not happen
           // TODO: Handle
         } else {
-          val bm = context.actorOf(BinaryManager(job, slots.map(_.index), job.jobManagerRef.get), Identifiers.BINARY_MANAGER+binaryManagerId)
+          val bm = context.actorOf(BinaryManager(job, slots.map(_.index), job.jmRef.get), Identifiers.BINARY_MANAGER+binaryManagerId)
           binaryManagers = binaryManagers :+ bm
           binaryManagerId += 1
 
@@ -102,15 +103,15 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
   /** Starts ticker to send slot availability periodically to
     * the resource manager
-    * @param resourceManager ActorRef to the responsible RM
+    * @param rm ActorRef to the responsible RM
     * @return Option[Cancellable]
     */
-  private def startUpdateTicker(resourceManager: ActorRef): Option[Cancellable] = {
+  private def startUpdateTicker(rm: ResourceManagerRef): Option[Cancellable] = {
     Some(context.
       system.scheduler.schedule(
       0.milliseconds,
       slotTick.milliseconds) {
-      resourceManager ! SlotUpdate(currentSlots())
+      rm ! SlotUpdate(currentSlots())
     })
   }
 

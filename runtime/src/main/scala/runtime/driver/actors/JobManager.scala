@@ -25,8 +25,9 @@ object JobManager {
   */
 class JobManager extends Actor with ActorLogging with DriverConfig {
   import Driver._
+  import runtime.common.Types._
 
-  var binaryManager = None: Option[ActorRef]
+  var binaryManager = None: Option[BinaryManagerRef]
   var keepAliveTicker = None: Option[Cancellable]
 
   // For futures
@@ -73,12 +74,12 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
 
   private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {
     log.info("Setting ref as: " + jm)
-    rm ? job.copy(jobManagerRef = Some(jm)) flatMap {
+    rm ? job.copy(jmRef = Some(jm)) flatMap {
       case r: AllocateResponse => Future.successful(r)
     }
   }
 
-  private def requestChannel(bm: ActorRef): Future[Option[InetSocketAddress]] = {
+  private def requestChannel(bm: BinaryManagerRef): Future[Option[InetSocketAddress]] = {
     bm ? BinariesCompiled flatMap {
       case BinaryTransferConn(addr) =>
         Future.successful(Some(addr))
@@ -88,7 +89,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   }
 
   // TODO: add actual logic
-  private def binaryTransfer(server: InetSocketAddress, bm: ActorRef): Future[Unit] = {
+  private def binaryTransfer(server: InetSocketAddress, bm: BinaryManagerRef): Future[Unit] = {
     Future {
       val binarySender = context.actorOf(BinarySender(server, weldRunnerBin(), bm))
     }
@@ -100,7 +101,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
     * @param binaryManager ActorRef to the BinaryManager
     * @return Cancellable Option
     */
-  private def keepAlive(binaryManager: ActorRef): Option[Cancellable] = {
+  private def keepAlive(binaryManager: BinaryManagerRef): Option[Cancellable] = {
     Some(context.
       system.scheduler.schedule(
       0.milliseconds,

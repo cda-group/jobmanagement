@@ -6,6 +6,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated
 import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.util.Timeout
+import runtime.common.Types._
 import runtime.common.{BinaryTransferComplete, _}
 import runtime.taskmanager.utils.{ExecutionEnvironment, TaskManagerConfig}
 
@@ -15,7 +16,7 @@ import scala.util.{Failure, Success}
 
 
 object BinaryManager {
-  def apply(job: ArcJob, slots: Seq[Int], jm: ActorRef):Props =
+  def apply(job: ArcJob, slots: Seq[Int], jm: JobManagerRef):Props =
     Props(new BinaryManager(job, slots, jm))
   case object VerifyHeartbeat
   case object BinaryUploaded
@@ -31,7 +32,7 @@ object BinaryManager {
   * the specified timeout, it will consider the job cancelled and instruct the
   * TaskManager to release the slots tied to it
   */
-class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
+class BinaryManager(job: ArcJob, slots: Seq[Int], jm: JobManagerRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import BinaryManager._
@@ -51,10 +52,10 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
   val env = new ExecutionEnvironment(job.id)
 
   // BinaryExecutor
-  var executors = mutable.IndexedSeq.empty[ActorRef]
+  var executors = mutable.IndexedSeq.empty[BinaryExecutorRef]
 
   // BinaryReceiver
-  var binaryReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
+  var binaryReceivers = mutable.HashMap[InetSocketAddress, BinaryReceiverRef]()
   var binaryReceiversId = 0
 
 
@@ -128,7 +129,7 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: ActorRef)
   }
 
 
-  private def startExecutors(ref: ActorRef): Unit = {
+  private def startExecutors(ref: BinaryReceiverRef): Unit = {
     ref ? BinaryUploaded onComplete {
       case Success(resp) => resp match {
         case BinaryReady(binId) =>

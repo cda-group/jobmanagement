@@ -17,8 +17,9 @@ object SlotManager {
 class SlotManager extends Actor with ActorLogging {
   import ClusterListener._
   import ResourceManager._
+  import runtime.common.Types._
 
-  var taskManagers = mutable.IndexedSeq.empty[Address]
+  var taskManagers = mutable.IndexedSeq.empty[TaskManagerAddr]
   val slots = mutable.HashMap[Address, Seq[TaskSlot]]()
   var roundNumber = 0
 
@@ -59,7 +60,7 @@ class SlotManager extends Actor with ActorLogging {
     case _ =>
   }
 
-  private def cleanTaskManager(tm: Address): Unit = {
+  private def cleanTaskManager(tm: TaskManagerAddr): Unit = {
     Try {
       taskManagers.filterNot(_ == tm)
       slots.remove(tm)

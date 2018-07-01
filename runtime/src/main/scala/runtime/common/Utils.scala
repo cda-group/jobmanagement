@@ -2,16 +2,6 @@ package runtime.common
 
 import akka.actor.Address
 
-sealed trait SlotState
-case object Allocated extends SlotState
-case object Free extends SlotState
-case object Active extends SlotState
-
-sealed trait SlotRequestResp
-case object NoTaskManagersAvailable extends SlotRequestResp
-case object NoSlotsAvailable extends SlotRequestResp
-case object UnexpectedError extends SlotRequestResp
-case class SlotAvailable(taskSlot: Seq[TaskSlot], addr: Address) extends SlotRequestResp
 
 object Utils {
 

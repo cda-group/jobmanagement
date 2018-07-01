@@ -2,7 +2,7 @@ package runtime.common
 
 import java.net.InetSocketAddress
 
-import akka.actor.ActorRef
+import akka.actor.{ActorRef, Address}
 import akka.io.Tcp.Event
 import runtime.common.Types.JobManagerRef
 
@@ -20,6 +20,16 @@ case class ArcProfile(cpuCores: Double, memoryInMB: Long) {
     this.cpuCores >= other.cpuCores && this.memoryInMB >= other.memoryInMB
 }
 
+sealed trait SlotState
+case object Allocated extends SlotState
+case object Free extends SlotState
+case object Active extends SlotState
+
+sealed trait SlotRequestResp
+case object NoTaskManagersAvailable extends SlotRequestResp
+case object NoSlotsAvailable extends SlotRequestResp
+case object UnexpectedError extends SlotRequestResp
+case class SlotAvailable(taskSlot: Seq[TaskSlot], addr: Address) extends SlotRequestResp
 
 
 case object BMHeartBeat

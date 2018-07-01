@@ -25,14 +25,12 @@ lazy val runtime = (project in file("runtime"))
   .settings(
     libraryDependencies ++= Dependencies.runtimeDependencies,
     mainClass in assembly := Some(sysPropOrDefault("runtimeClass", "runtime.resourcemanager.RmSystem")),
-    assemblyJarName in assembly := sysPropOrDefault("runtimeJar", "resourcemanager.jar")
+    assemblyJarName in assembly := sysPropOrDefault("runtimeJar", "resourcemanager.jar"),
+    parallelExecution in Test := false // do not run test cases in parallel
   )
-
-lazy val root = (project in file("."))
-  .aggregate(runtime)
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .settings(multiJvmSettings: _*) // apply the default settings
-  .settings(
-    parallelExecution in Test := false // do not run test cases in parallel
-)
+
+lazy val root = (project in file("."))
+  .aggregate(runtime)

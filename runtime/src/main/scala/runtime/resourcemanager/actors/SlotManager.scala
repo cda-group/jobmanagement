@@ -62,7 +62,7 @@ class SlotManager extends Actor with ActorLogging {
 
   private def cleanTaskManager(tm: TaskManagerAddr): Unit = {
     Try {
-      taskManagers.filterNot(_ == tm)
+      taskManagers = taskManagers.filterNot(_ == tm)
       slots.remove(tm)
     } match {
       case Success(_) => // ignore

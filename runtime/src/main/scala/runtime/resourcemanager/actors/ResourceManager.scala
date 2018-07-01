@@ -32,6 +32,7 @@ class ResourceManager extends Actor with ActorLogging {
   // For futures
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
+  import runtime.common._
 
   def receive = {
     case tmr@TaskManagerRegistration(_) =>
@@ -46,14 +47,10 @@ class ResourceManager extends Actor with ActorLogging {
       ref match {
         case Some(jobManager) =>
           slotManager ? SlotRequest(job) onComplete {
-            case Success(resp) => resp match {
-              case resp@AllocateSuccess(j, taskManagerRef) =>
-                askRef ! resp
-              case resp@AllocateFailure(_) =>
-                askRef ! resp
-            }
+            case Success(resp) =>
+              askRef ! resp
             case Failure(e) =>
-              sender() ! AllocateFailure(UnexpectedError)
+              askRef ! AllocateFailure(UnexpectedError)
           }
         case None =>
           log.error("JobManager Ref was not set in the ArcJob")

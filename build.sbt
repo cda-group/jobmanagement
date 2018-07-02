@@ -26,6 +26,7 @@ lazy val runtime = (project in file("runtime"))
     libraryDependencies ++= Dependencies.runtimeDependencies,
     mainClass in assembly := Some(sysPropOrDefault("runtimeClass", "runtime.resourcemanager.RmSystem")),
     assemblyJarName in assembly := sysPropOrDefault("runtimeJar", "resourcemanager.jar"),
+    test in assembly := {},
     parallelExecution in Test := false // do not run test cases in parallel
   )
   .enablePlugins(MultiJvmPlugin)

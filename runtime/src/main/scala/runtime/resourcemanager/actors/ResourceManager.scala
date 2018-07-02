@@ -17,7 +17,7 @@ object ResourceManager {
 /**
   * The ResourceManager is responsible for handling the
   * computing resources in the Arc Cluster.
-  * 1. Receives Jobs from JobManagers
+  * 1. Receives Jobs from AppMasters
   * 2. Utilises a SlotManager in order to keep track of free slots
   */
 class ResourceManager extends Actor with ActorLogging {
@@ -26,7 +26,7 @@ class ResourceManager extends Actor with ActorLogging {
   import ResourceManager._
   import runtime.common.Types._
 
-  val activeJobManagers = mutable.HashSet[JobManagerRef]()
+  val activeAppMasters = mutable.HashSet[AppMasterRef]()
   val slotManager = context.actorOf(SlotManager(), Identifiers.SLOT_MANAGER)
 
   // For futures
@@ -42,10 +42,10 @@ class ResourceManager extends Actor with ActorLogging {
     case utm@UnreachableTaskManager(_) =>
       slotManager forward utm
     case job@ArcJob(_, _, _,  ref) =>
-      log.info("Got a job request from a JobManager")
+      log.info("Got a job request from an AppMaster")
       val askRef  = sender()
       ref match {
-        case Some(jobManager) =>
+        case Some(_) =>
           slotManager ? SlotRequest(job) onComplete {
             case Success(resp) =>
               askRef ! resp
@@ -53,7 +53,7 @@ class ResourceManager extends Actor with ActorLogging {
               askRef ! AllocateFailure(UnexpectedError)
           }
         case None =>
-          log.error("JobManager Ref was not set in the ArcJob")
+          log.error("AppMaster Ref was not set in the ArcJob")
           // Notify
       }
     case _ =>

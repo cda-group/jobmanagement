@@ -3,15 +3,15 @@ package runtime.taskmanager.actors
 import java.io.{BufferedReader, InputStreamReader}
 
 import akka.actor.{Actor, ActorLogging, Cancellable, Props}
-import runtime.common.Types.JobManagerRef
+import runtime.common.Types.AppMasterRef
 import runtime.common.{WeldTask, WeldTaskCompleted}
 import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.concurrent.duration._
 
 object BinaryExecutor {
-  def apply(binPath: String, task: WeldTask, jm: JobManagerRef): Props =
-    Props(new BinaryExecutor(binPath, task, jm))
+  def apply(binPath: String, task: WeldTask, aMaster: AppMasterRef): Props =
+    Props(new BinaryExecutor(binPath, task, aMaster))
   case object HealthCheck
 }
 
@@ -19,7 +19,7 @@ object BinaryExecutor {
   *
   * @param binPath path to the rust binary
   */
-class BinaryExecutor(binPath: String, task: WeldTask, jm: JobManagerRef)
+class BinaryExecutor(binPath: String, task: WeldTask, appMaster: AppMasterRef)
   extends Actor with ActorLogging with TaskManagerConfig {
   var healthChecker = None: Option[Cancellable]
   val runtime = Runtime.getRuntime
@@ -50,7 +50,7 @@ class BinaryExecutor(binPath: String, task: WeldTask, jm: JobManagerRef)
     }
     process.get.waitFor()
     val updated = task.copy(result = Some(res))
-    jm ! WeldTaskCompleted(updated)
+    appMaster ! WeldTaskCompleted(updated)
   }
 
   def receive = {

@@ -16,8 +16,8 @@ import scala.util.{Failure, Success}
 
 
 object BinaryManager {
-  def apply(job: ArcJob, slots: Seq[Int], jm: JobManagerRef):Props =
-    Props(new BinaryManager(job, slots, jm))
+  def apply(job: ArcJob, slots: Seq[Int], aMaster: AppMasterRef):Props =
+    Props(new BinaryManager(job, slots, aMaster))
   case object VerifyHeartbeat
   case object BinaryUploaded
   case class BinaryReady(id: String)
@@ -27,12 +27,12 @@ object BinaryManager {
 /** Actor that manages received Binaries
   *
   * On a Successful ArcJob Allocation, a BinaryManager is created
-  * to handle the incoming binaries from the JobManager once they have been compiled.
-  * A BinaryManager expects heartbeats from the JobManager, if none are received within
+  * to handle the incoming binaries from the AppMaster once they have been compiled.
+  * A BinaryManager expects heartbeats from the AppMaster, if none are received within
   * the specified timeout, it will consider the job cancelled and instruct the
   * TaskManager to release the slots tied to it
   */
-class BinaryManager(job: ArcJob, slots: Seq[Int], jm: JobManagerRef)
+class BinaryManager(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import BinaryManager._
@@ -65,8 +65,8 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: JobManagerRef)
         log.info("Created job environment: " + env.getJobPath)
       case Failure(e) =>
         log.error("Failed to create job environment with path: " + env.getJobPath)
-        // Notify JobManager
-        jm ! BinaryManagerFailure
+        // Notify AppMaster
+        appMaster ! BinaryManagerFailure
         // Shut down
         context stop self
     }
@@ -96,7 +96,7 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: JobManagerRef)
       }
     case BinariesCompiled =>
       // Binaries are ready to be transferred, open an Akka IO TCP
-      // channel and let the JobManager know how to connect
+      // channel and let the AppMaster know how to connect
       val askRef = sender()
       //TODO: fetch host from config
       IO(Tcp) ? Bind(self, new InetSocketAddress("localhost", 0)) onComplete {
@@ -113,7 +113,7 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: JobManagerRef)
       val now = System.currentTimeMillis()
       val time = now - lastJmTs
       if (time > binaryManagerTimeout) {
-        log.info("Did not receive communication from jobManager: " + jm + " within " + binaryManagerTimeout + " ms")
+        log.info("Did not receive communication from AppMaster: " + appMaster + " within " + binaryManagerTimeout + " ms")
         log.info("Releasing slots: " + slots)
         shutdown()
       }
@@ -136,7 +136,7 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], jm: JobManagerRef)
           // improve names...
           job.job.tasks.foreach {task =>
             // Create 1 executor for each task
-            val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + binId, task, jm))
+            val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + binId, task, appMaster))
             executors = executors :+ executor
             // Enable DeathWatch
             context watch executor

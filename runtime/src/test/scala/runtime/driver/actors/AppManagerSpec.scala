@@ -4,9 +4,9 @@ import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import runtime.ActorSpec
 import runtime.common.ArcJobRequest
-import runtime.driver.actors.Driver.ResourceManagerUnavailable
+import runtime.driver.actors.AppManager.ResourceManagerUnavailable
 
-class DriverSpec extends TestKit(ActorSystem("DriverSpec"))
+class AppManagerSpec extends TestKit(ActorSystem("AppManagerSpec"))
   with ImplicitSender with ActorSpec {
 
   override def afterAll {
@@ -14,11 +14,11 @@ class DriverSpec extends TestKit(ActorSystem("DriverSpec"))
   }
 
 
-  "A Driver Actor" must {
+  "An AppManager Actor" must {
 
     "handle no available ResourceManager" in {
-      val driver = system.actorOf(Driver())
-      driver ! ArcJobRequest(testArcJob)
+      val appManager = system.actorOf(AppManager())
+      appManager ! ArcJobRequest(testArcJob)
       expectMsg(ResourceManagerUnavailable)
     }
 

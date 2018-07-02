@@ -14,6 +14,6 @@ object ActorPaths {
   def taskManager(member: Address): ActorPath =
     RootActorPath(member) / USER / LISTENER / TASK_MANAGER
 
-  def driver(member: Address): ActorPath =
-    RootActorPath(member) / USER / LISTENER / DRIVER
+  def appManager(member: Address): ActorPath =
+    RootActorPath(member) / USER / LISTENER / APP_MANAGER
 }

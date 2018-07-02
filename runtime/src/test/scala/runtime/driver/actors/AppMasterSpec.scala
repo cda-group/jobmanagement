@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import runtime.ActorSpec
 
-class JobManagerSpec extends TestKit(ActorSystem("JobManagerSpec"))
+class AppMasterSpec extends TestKit(ActorSystem("AppMasterSpec"))
   with ImplicitSender with ActorSpec {
 
   override def afterAll {
@@ -12,7 +12,7 @@ class JobManagerSpec extends TestKit(ActorSystem("JobManagerSpec"))
   }
 
 
-  "A JobManager Actor" must {
+  "An AppMaster Actor" must {
     //TODO
   }
 

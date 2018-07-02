@@ -7,9 +7,10 @@ object Identifiers {
   final val TASK_MANAGER = "taskmanager"
   final val USER = "user"
   final val HANDLER = "handler"
-  final val DRIVER = "driver"
   final val SLOT_HANDLER = "slothandler"
-  final val JOB_MANAGER = "jobmanager"
+  final val DRIVER = "driver"
+  final val APP_MASTER= "appmaster"
+  final val APP_MANAGER = "appmanager"
   final val BINARY_MANAGER = "binarymanager"
   final val BINARY_EXECUTOR = "binaryexecutor"
 }

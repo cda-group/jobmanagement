@@ -2,7 +2,7 @@ package runtime.driver.actors
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, Address, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, Props, Terminated}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import runtime.common._
@@ -16,17 +16,18 @@ import spray.json.DefaultJsonProtocol._
 import scala.collection.mutable
 
 
-object Driver {
-  def apply(): Props = Props(new Driver)
-  case class JobManagerInit(job: ArcJob, rmAddr: ResourceManagerAddr)
+object AppManager {
+  def apply(): Props = Props(new AppManager)
+  case class AppMasterInit(job: ArcJob, rmAddr: ResourceManagerAddr)
   case object ResourceManagerUnavailable
 }
 
-class Driver extends Actor with ActorLogging with DriverConfig {
+class AppManager extends Actor with ActorLogging with DriverConfig {
   import ClusterListener._
-  import Driver._
   import runtime.common.Types._
+  import AppManager._
 
+  // For Akka HTTP
   implicit val materializer = ActorMaterializer()
   implicit val system = context.system
 
@@ -43,14 +44,14 @@ class Driver extends Actor with ActorLogging with DriverConfig {
 
   // Just a single resourcemananger for now
   var resourceManager = None: Option[ResourceManagerAddr]
-  var jobManagers = mutable.IndexedSeq.empty[JobManagerRef]
-  var jobManagerId: Long = 0 // unique id for each jobmanager that is created
+  var appMasters = mutable.IndexedSeq.empty[AppMasterRef]
+  var appMasterId: Long = 0 // unique id for each AppMaster that is created
 
   def receive = {
     case RmRegistration(rm) =>
       resourceManager = Some(rm)
     case UnreachableRm(rm) =>
-      // Foreach active JobManager, notify status
+      // Foreach active AppMaster, notify status
       resourceManager = None
     case RmRemoved(rm) =>
       resourceManager = None
@@ -59,17 +60,16 @@ class Driver extends Actor with ActorLogging with DriverConfig {
       // whether it is through another actor, rest, or rpc...
       resourceManager match {
         case Some(rm) =>
-          // Rm is availalble, create a jobmanager to deal with the job
-          // Create and add jobManager to jobManagers
-          val jobManager = context.actorOf(JobManager(), Identifiers.JOB_MANAGER+jobManagerId)
-          jobManagerId +=1
-          jobManagers = jobManagers :+ jobManager
+          // Rm is availalble, create a AppMaster to deal with the job
+          val appMaster = context.actorOf(AppMaster(), Identifiers.APP_MASTER+appMasterId)
+          appMasterId +=1
+          appMasters = appMasters :+ appMaster
 
           // Enable DeathWatch
-          context watch jobManager
+          context watch appMaster
 
-          // Send the job to the JobManager actor and be done with it
-          jobManager ! JobManagerInit(job, rm)
+          // Send the job to the AppMaster actor and be done with it
+          appMaster ! AppMasterInit(job, rm)
         case None =>
           sender() ! ResourceManagerUnavailable
       }
@@ -81,8 +81,8 @@ class Driver extends Actor with ActorLogging with DriverConfig {
           t
       }
     case Terminated(ref) =>
-      // JobManager was terminated somehow
-      jobManagers = jobManagers.filterNot(_ == ref)
+      // AppMaster was terminated somehow
+      appMasters = appMasters.filterNot(_ == ref)
     case _ =>
   }
 

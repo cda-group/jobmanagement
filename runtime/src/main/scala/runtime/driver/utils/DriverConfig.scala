@@ -5,12 +5,12 @@ import runtime.common.Identifiers
 
 trait DriverConfig {
   val config = ConfigFactory.load("driver.conf")
-  val jobManagerKeepAlive = config.getLong("driver.jobManagerKeepAlive")
+  val appMasterKeepAlive = config.getLong("driver.appMasterKeepAlive")
   val restPort = config.getInt("driver.restPort")
   val interface = config.getString("driver.interface")
 
   require(config.isResolved)
-  require(jobManagerKeepAlive > 0)
+  require(appMasterKeepAlive > 0)
   require(restPort >= 0 && restPort <= 65535)
   require(!interface.isEmpty)
 

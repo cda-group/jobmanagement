@@ -6,8 +6,8 @@ object Types {
   type TaskManagerAddr = Address
   type TaskManagerRef = ActorRef
 
-  type JobManagerRef = ActorRef
-  type JobManagerAddr = Address
+  type AppMasterRef = ActorRef
+  type AppMasterAddr = Address
 
   type BinaryExecutorRef = ActorRef
   type BinaryExecutorAddr = Address

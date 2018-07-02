@@ -12,19 +12,20 @@ import runtime.driver.utils.DriverConfig
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
-object JobManager {
-  def apply(): Props = Props(new JobManager)
+object AppMaster {
+  def apply(): Props = Props(new AppMaster)
 }
 
 /** Actor that handles an ArcJob
   *
-  * One JobManager is created per ArcJob. If a slot allocation is successful,
-  * the JobManager communicates directly with the BinaryManager and can do the following:
+  * One AppMaster is created per ArcJob. If a slot allocation is successful,
+  * the AppMaster communicates directly with the BinaryManager and can do the following:
   * 1. Instruct BinaryManager to execute binaries
   * 2. Release the slots
+  * 3. to be added...
   */
-class JobManager extends Actor with ActorLogging with DriverConfig {
-  import Driver._
+class AppMaster extends Actor with ActorLogging with DriverConfig {
+  import AppManager._
   import runtime.common.Types._
 
   var binaryManager = None: Option[BinaryManagerRef]
@@ -33,10 +34,9 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   // For futures
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
-  val jm = self
 
   def receive = {
-    case JobManagerInit(job, rmAddr) =>
+    case AppMasterInit(job, rmAddr) =>
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
       val req: Future[Either[InetSocketAddress, AllocateResponse]] = allocateRequest(job, resourceManager) flatMap {
         case AllocateSuccess(_, bm) =>
@@ -63,7 +63,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
     case r@ReleaseSlots =>
       binaryManager.foreach(_ ! r)
     case w@WeldTaskCompleted(t) =>
-      log.info("JobManager received finished WeldTask")
+      log.info("AppMaster received finished WeldTask")
       context.parent ! w
     case BinaryManagerFailure =>
       // Unexpected failure by the BinaryManager
@@ -73,8 +73,7 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
   }
 
   private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {
-    log.info("Setting ref as: " + jm)
-    rm ? job.copy(jmRef = Some(jm)) flatMap {
+    rm ? job.copy(masterRef = Some(self)) flatMap {
       case r: AllocateResponse => Future.successful(r)
     }
   }
@@ -105,12 +104,13 @@ class JobManager extends Actor with ActorLogging with DriverConfig {
     Some(context.
       system.scheduler.schedule(
       0.milliseconds,
-      jobManagerKeepAlive.milliseconds) {
+      appMasterKeepAlive.milliseconds) {
       binaryManager ! BMHeartBeat
     })
 
   }
 
+  // Just for testing
   private def testBinary(): Seq[Array[Byte]] = {
     Seq(Files.readAllBytes(Paths.get("writetofile")),
       Files.readAllBytes(Paths.get("writetofile2")))

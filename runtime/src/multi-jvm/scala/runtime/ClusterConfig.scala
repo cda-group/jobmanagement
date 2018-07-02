@@ -27,10 +27,12 @@ object ClusterConfig extends MultiNodeConfig {
 
   commonConfig(ConfigFactory.parseString(
     """
-      |akka.loglevel=OFF
+      |akka.loglevel = off
+      |akka.remote.log-remote-lifecycle-events = off
       |akka.actor.provider = cluster
       |akka.cluster.log-info = off
-      |akka.log-dead-letters=off
+      |akka.stdout-loglevel = off
+      |akka.log-dead-letters = off
       |akka.coordinated-shutdown.run-by-jvm-shutdown-hook = off
       |akka.coordinated-shutdown.terminate-actor-system = off
       |akka.cluster.run-coordinated-shutdown-when-down = off

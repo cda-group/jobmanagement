@@ -3,21 +3,57 @@
 In early stage of development
 
 
-Run ResourceManager
+## Building
+
+ResourceManager
 ```
-$ sbt resourcemanager/run
+$ ./compile.sh rm
 ```
 
-Run TaskManager
+TaskManager
 ```
-$ sbt taskmanager/run
-```
-
-Run Driver
-```
-$ sbt driver/run
+$ ./compile.sh tm
 ```
 
+Driver
+```
+$ ./compile.sh driver
+```
+
+Complete Runtime
+```
+$ ./compile.sh
+```
+
+## Running
+
+Resource Manager
+```
+$ ./bin/resourcemanager.sh
+```
+
+Task Manager
+```
+$ ./bin/taskmanager.sh
+```
+
+Driver
+```
+$ ./bin/driver.sh
+```
+
+## Testing
+
+
+General
+```
+$ sbt test
+```
+
+Cluster Multi-JVM tests
+```
+$ sbt multi-jvm:test
+```
 
 # License
 

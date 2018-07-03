@@ -23,31 +23,31 @@ function cpy_jars {
     "sm")
         cp runtime/target/scala-"$SCALA_VER"/statemanager.jar build/statemanager.jar
         ;;
-    "driver")
-        cp runtime/target/scala-"$SCALA_VER"/driver.jar build/driver.jar
+    "am")
+        cp runtime/target/scala-"$SCALA_VER"/appmanager.jar build/appmanager.jar
         ;;
     "all")
-        cp runtime/target/scala-"$SCALA_VER"/driver.jar build/driver.jar
+        cp runtime/target/scala-"$SCALA_VER"/appmanager.jar build/appmanager.jar
         cp runtime/target/scala-"$SCALA_VER"/resourcemanager.jar build/resourcemanager.jar
         cp runtime/target/scala-"$SCALA_VER"/statemanager.jar build/statemanager.jar
-        cp runtime/target/scala-"$SCALA_vER"/taskmanager.jar build/taskmanager.jar
+        cp runtime/target/scala-"$SCALA_VER"/taskmanager.jar build/taskmanager.jar
         ;;
 esac
 }
 
 
 case "$1" in
-    "driver")
-        echo $GREEN"Compiling Driver..."
+    "am"|"appmanager")
+        echo $GREEN"Compiling AppManager..."
         sbt_fail=0
-        (sbt -DruntimeClass=runtime.driver.DriverSystem -DruntimeJar=driver.jar runtime/assembly) || sbt_fail=1
+        (sbt -DruntimeClass=runtime.appmanager.AmSystem -DruntimeJar=appmanager.jar runtime/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
-            echo $RED"Failed to compile driver"
+            echo $RED"Failed to compile AppManager"
             exit 1
         else
-            echo $GREEN"driver.jar is being moved to build/"
-            cpy_jars "driver"
+            echo $GREEN"appmanager.jar is being moved to build/"
+            cpy_jars "am"
         fi
         ;;
     "taskmanager"|"tm")
@@ -95,13 +95,13 @@ case "$1" in
         (sbt -DruntimeClass=runtime.resourcemanager.RmSystem -DruntimeJar=resourcemanager.jar runtime/assembly);
         (sbt -DruntimeClass=runtime.taskmanager.TaskManagerSystem -DruntimeJar=taskmanager.jar runtime/assembly);
         (sbt -DruntimeClass=runtime.statemanager.SmSystem -DruntimeJar=statemanager.jar runtime/assembly);
-        (sbt -DruntimeClass=runtime.driver.DriverSystem -DruntimeJar=driver.jar runtime/assembly) || sbt_fail=1
+        (sbt -DruntimeClass=runtime.appmanager.AmSystem -DruntimeJar=appmanager.jar runtime/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile"
             exit 1
         else
-            echo $WHITE"Moving driver, taskmanager, statemanager and resourcemanager jars to build/"
+            echo $WHITE"Moving appmanager, taskmanager, statemanager and resourcemanager jars to build/"
             cpy_jars "all"
         fi
         ;;

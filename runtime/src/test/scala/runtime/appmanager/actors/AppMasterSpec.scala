@@ -1,4 +1,4 @@
-package runtime.driver.actors
+package runtime.appmanager.actors
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}

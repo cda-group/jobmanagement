@@ -1,4 +1,4 @@
-package runtime.driver.actors
+package runtime.appmanager.actors
 
 import akka.actor.{Actor, ActorLogging, Address, Props}
 import akka.cluster.Cluster

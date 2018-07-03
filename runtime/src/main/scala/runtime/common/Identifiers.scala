@@ -8,7 +8,6 @@ object Identifiers {
   final val USER = "user"
   final val HANDLER = "handler"
   final val SLOT_HANDLER = "slothandler"
-  final val DRIVER = "driver"
   final val APP_MASTER= "appmaster"
   final val APP_MANAGER = "appmanager"
   final val BINARY_MANAGER = "binarymanager"

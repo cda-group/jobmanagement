@@ -20,12 +20,12 @@ with STMultiNodeSpec with ImplicitSender {
 
   val taskmanager = ClusterConfig.taskmanager
   val resourcemanager = ClusterConfig.resourcemanager
-  val driver = ClusterConfig.driver
+  val appmanager = ClusterConfig.appmanager
   val statemanager = ClusterConfig.statemanager
 
   val tmAddr = node(taskmanager).address
   val rmAddr = node(resourcemanager).address
-  val driverAddr = node(driver).address
+  val amAddr = node(appmanager).address
   val smAddr = node(statemanager).address
 
 
@@ -43,8 +43,8 @@ with STMultiNodeSpec with ImplicitSender {
         system.actorOf(ClusterListener(), Identifiers.LISTENER)
       }
 
-      runOn(driver) {
-        import runtime.driver.actors.ClusterListener
+      runOn(appmanager) {
+        import runtime.appmanager.actors.ClusterListener
         system.actorOf(ClusterListener(), Identifiers.LISTENER)
       }
 
@@ -62,7 +62,7 @@ with STMultiNodeSpec with ImplicitSender {
 
       // Verify nodes
       receiveN(4).collect { case MemberUp(m) => m.address }.toSet should be(
-        Set(tmAddr, rmAddr, driverAddr, smAddr)
+        Set(tmAddr, rmAddr, amAddr, smAddr)
       )
 
       Cluster(system).unsubscribe(testActor)

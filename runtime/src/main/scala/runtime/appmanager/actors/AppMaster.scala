@@ -1,13 +1,13 @@
-package runtime.driver.actors
+package runtime.appmanager.actors
 
 import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, Cancellable, Props}
+import akka.actor.{Actor, ActorLogging, ActorSelection, Cancellable, Props}
 import akka.util.Timeout
 import akka.pattern._
 import runtime.common._
-import runtime.driver.utils.DriverConfig
+import runtime.appmanager.utils.AppManagerConfig
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -24,7 +24,7 @@ object AppMaster {
   * 2. Release the slots
   * 3. to be added...
   */
-class AppMaster extends Actor with ActorLogging with DriverConfig {
+class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   import AppManager._
   import runtime.common.Types._
 

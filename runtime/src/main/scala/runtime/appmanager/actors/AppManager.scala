@@ -1,4 +1,4 @@
-package runtime.driver.actors
+package runtime.appmanager.actors
 
 import java.util.UUID
 
@@ -10,7 +10,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import runtime.common.Types.ResourceManagerAddr
-import runtime.driver.utils.DriverConfig
+import runtime.appmanager.utils.AppManagerConfig
 import spray.json.DefaultJsonProtocol._
 
 import scala.collection.mutable
@@ -22,7 +22,7 @@ object AppManager {
   case object ResourceManagerUnavailable
 }
 
-class AppManager extends Actor with ActorLogging with DriverConfig {
+class AppManager extends Actor with ActorLogging with AppManagerConfig {
   import ClusterListener._
   import runtime.common.Types._
   import AppManager._

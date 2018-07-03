@@ -10,7 +10,7 @@ import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import akka.util.Timeout
 import runtime.ActorSpec
 import runtime.common.{BinariesCompiled, BinaryTransferComplete, BinaryTransferConn}
-import runtime.driver.actors.BinarySender
+import runtime.appmanager.actors.BinarySender
 import runtime.taskmanager.actors.BinaryManager.{BinaryReady, BinaryUploaded, BinaryWriteFailure}
 import runtime.taskmanager.utils.ExecutionEnvironment
 

@@ -1,10 +1,10 @@
-package runtime.driver.actors
+package runtime.appmanager.actors
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import runtime.ActorSpec
 import runtime.common.ArcJobRequest
-import runtime.driver.actors.AppManager.ResourceManagerUnavailable
+import runtime.appmanager.actors.AppManager.ResourceManagerUnavailable
 
 class AppManagerSpec extends TestKit(ActorSystem("AppManagerSpec"))
   with ImplicitSender with ActorSpec {

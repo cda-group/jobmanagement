@@ -7,17 +7,22 @@ In early stage of development
 
 ResourceManager
 ```
-$ ./compile.sh rm
+$ ./compile.sh resourcemanager
 ```
 
 TaskManager
 ```
-$ ./compile.sh tm
+$ ./compile.sh taskmanager
 ```
 
-Driver
+AppManager
 ```
-$ ./compile.sh driver
+$ ./compile.sh appmanager
+```
+
+StateManager
+```
+$ ./compile.sh statemanager
 ```
 
 Complete Runtime
@@ -37,11 +42,15 @@ Task Manager
 $ ./bin/taskmanager.sh
 ```
 
-Driver
+AppManager
 ```
-$ ./bin/driver.sh
+$ ./bin/appmanager.sh
 ```
 
+StateManager
+```
+$ ./bin/statemanager.sh
+```
 ## Testing
 
 

@@ -1,11 +1,14 @@
 package runtime.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
+import akka.pattern._
+import akka.util.Timeout
 import runtime.common._
 import runtime.taskmanager.actors.TaskManager.TMNotInitialized
 import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.collection.mutable
+import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object TaskManager {
@@ -32,6 +35,9 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   var binaryManagers = mutable.IndexedSeq.empty[BinaryManagerRef]
   var binaryManagerId: Long = 0
 
+  var stateManagers = mutable.IndexedSeq.empty[StateManagerAddr]
+  var stateManagerReqs: Int = 0
+
   import context.dispatcher
 
   override def preStart(): Unit = {
@@ -50,6 +56,9 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       slotTicker = startUpdateTicker(sender())
     case Allocate(_,_) if !initialized =>
       sender() ! TMNotInitialized
+    case Allocate(_,_) if stateManagers.isEmpty =>
+      // improve
+      sender() ! AllocateFailure(UnexpectedError)
     case Allocate(job, slots) =>
       val targetSlots = taskSlots intersect slots
       if (targetSlots.exists(_.state != Free)) {
@@ -69,17 +78,36 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
           // This should not happen
           // TODO: Handle
         } else {
-          val bm = context.actorOf(BinaryManager(job, slots.map(_.index),
-            job.masterRef.get), Identifiers.BINARY_MANAGER+binaryManagerId)
+          // Set reference to actual sender to avoid problems
+          // when temporary actors are created...
+          val askRef = sender()
 
-          binaryManagers = binaryManagers :+ bm
-          binaryManagerId += 1
+          // Check if there are any available StateManagers
+          // If there are, then send a StateManagerJob and
+          // Collect the StateMaster ref, and give it to the BinaryManager.
 
-          // Enable DeathWatch
-          context watch bm
+          // If there are no StateManagers, then perhaps create an
+          // StateMaster actor remotely on the driver "instead"
+          getStateMaster(job.masterRef.get) map {
+            case Some(stateMaster) =>
+              val bm = context.actorOf(BinaryManager(job, slots.map(_.index),
+                job.masterRef.get), Identifiers.BINARY_MANAGER+binaryManagerId)
 
-          // Let AppMaster know about the allocation and how to access the BinaryManager
-          sender() ! AllocateSuccess(job, bm)
+              binaryManagers = binaryManagers :+ bm
+              binaryManagerId += 1
+
+              // Enable DeathWatch
+              context watch bm
+
+              // Let AppMaster know about the allocation and how to access the BinaryManager
+              askRef ! AllocateSuccess(job, bm)
+            case None =>
+            // Could not retreive a StateMaster
+            // Either we can create a StateMaster actor remotely on the driver
+            // or we fail the Allocation..
+              sender() ! AllocateFailure(UnexpectedError)
+          }
+
         }
       }
     case ReleaseSlots(slots) =>
@@ -101,6 +129,12 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     case ResourceManagerUp(manager) =>
     // RM is up.
     // This is not important at this current stage.
+    case StateManagerUp(manager) =>
+      stateManagers = stateManagers :+ manager
+    case UnreachableStateManager(manager) =>
+      // TODO: Handle by either removing or try to wait for a reconnection
+    case RemovedStateManager(manager) =>
+      stateManagers = stateManagers.filterNot(_ == manager)
   }
 
   /** Starts ticker to send slot availability periodically to
@@ -118,6 +152,16 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   }
 
   private def currentSlots(): Seq[TaskSlot] = taskSlots
+
+  private def getStateMaster(amRef: AppMasterRef): Future[Option[ActorRef]] = {
+    val smAddr = stateManagers(stateManagerReqs % stateManagers.size)
+    val smSelection = context.actorSelection(ActorPaths.stateManager(smAddr))
+    implicit val timeout = Timeout(3 seconds)
+    smSelection ? StateManagerJob(amRef) flatMap {
+      case StateMasterConn(stateMaster) =>
+        Future.successful(Some(stateMaster))
+    }
+  }
 
 
 }

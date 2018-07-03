@@ -23,4 +23,7 @@ object Types {
 
   type SlotManagerRef = ActorRef
   type SlotManagerAddr = Address
+
+  type StateManagerRef = ActorRef
+  type StateManagerAddr = Address
 }

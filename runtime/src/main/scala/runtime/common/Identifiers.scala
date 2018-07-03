@@ -13,4 +13,6 @@ object Identifiers {
   final val APP_MANAGER = "appmanager"
   final val BINARY_MANAGER = "binarymanager"
   final val BINARY_EXECUTOR = "binaryexecutor"
+  final val STATE_MANAGER = "statemanager"
+  final val STATE_MASTER = "statemaster"
 }

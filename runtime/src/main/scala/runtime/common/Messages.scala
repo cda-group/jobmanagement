@@ -60,4 +60,8 @@ case class TaskSlot(index: Int, profile: ArcProfile, state: SlotState = Free) {
   }
 }
 
+// StateManager
+case class StateManagerJob(appMasterRef: AppMasterRef)
+case class StateMasterConn(stateMaster: ActorRef)
+
 

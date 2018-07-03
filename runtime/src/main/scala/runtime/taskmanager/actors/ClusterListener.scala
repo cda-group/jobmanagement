@@ -1,6 +1,6 @@
 package runtime.taskmanager.actors
 
-import akka.actor.{Actor, ActorLogging, Address, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp, UnreachableMember}
 import runtime.common.Identifiers
@@ -8,9 +8,15 @@ import runtime.common.Types.ResourceManagerAddr
 
 object ClusterListener {
   def apply(): Props = Props(new ClusterListener)
+  // ResourceManager
   case class UnreachableResourceManager(addr: ResourceManagerAddr)
   case class RemovedResourceManager(addr: ResourceManagerAddr)
   case class ResourceManagerUp(addr: ResourceManagerAddr)
+
+  // StateManager
+  case class UnreachableStateManager(addr: Address)
+  case class RemovedStateManager(addr: Address)
+  case class StateManagerUp(addr: Address)
 }
 
 class ClusterListener extends Actor with ActorLogging {
@@ -26,13 +32,20 @@ class ClusterListener extends Actor with ActorLogging {
     cluster.unsubscribe(self)
 
   def receive = {
+    // ResourceManager
     case MemberUp(member) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>
       taskManager ! ResourceManagerUp
     case UnreachableMember(member) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>
       taskManager ! UnreachableResourceManager(member.address)
     case MemberRemoved(member, previousStatus) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>
       taskManager ! RemovedResourceManager(member.address)
-    case _ =>
+      // StateManager
+    case MemberUp(member) if member.hasRole(Identifiers.STATE_MANAGER) =>
+      taskManager ! StateManagerUp(member.address)
+    case UnreachableMember(member) if member.hasRole(Identifiers.STATE_MANAGER) =>
+      taskManager ! UnreachableStateManager(member.address)
+    case MemberRemoved(member,_) if member.hasRole(Identifiers.STATE_MANAGER) =>
+      taskManager ! RemovedStateManager(member.address)
   }
 
 }

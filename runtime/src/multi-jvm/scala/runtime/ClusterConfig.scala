@@ -8,6 +8,7 @@ object ClusterConfig extends MultiNodeConfig {
   val taskmanager = role(Identifiers.TASK_MANAGER)
   val resourcemanager = role(Identifiers.RESOURCE_MANAGER)
   val driver = role(Identifiers.DRIVER)
+  val statemanager = role(Identifiers.STATE_MANAGER)
 
 
   nodeConfig(taskmanager)(ConfigFactory.parseString(
@@ -23,6 +24,11 @@ object ClusterConfig extends MultiNodeConfig {
   nodeConfig(driver)(ConfigFactory.parseString(
     s"""
        |akka.cluster.roles=[${Identifiers.DRIVER}]
+    """.stripMargin))
+
+  nodeConfig(statemanager)(ConfigFactory.parseString(
+    s"""
+       |akka.cluster.roles=[${Identifiers.STATE_MANAGER}]
     """.stripMargin))
 
   commonConfig(ConfigFactory.parseString(

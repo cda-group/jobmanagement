@@ -6,23 +6,23 @@ import akka.util.ByteString
 import runtime.taskmanager.utils.ExecutionEnvironment
 
 
-object BinaryReceiver {
+object TaskReceiver {
   def apply(id: String, env: ExecutionEnvironment): Props =
-    Props(new BinaryReceiver(id, env))
+    Props(new TaskReceiver(id, env))
 }
 
-/** Actor that receives a Rust binary and writes it to file
+/** Actor that receives a binary and writes it to file
   *
-  * BinaryReceiver is registered by Akka IO TCP to
+  * TaskReceiver is registered by Akka IO TCP to
   * handle a client connection. When the transfer is complete
-  * the BinaryReceiver will receive a BinaryUploaded event
+  * the TaskReceiver will receive a TaskUploaded event
   * and write the binary to file in the specified Execution
   * Environment
   */
-class BinaryReceiver(id: String, env: ExecutionEnvironment)
+class TaskReceiver(id: String, env: ExecutionEnvironment)
   extends Actor with ActorLogging {
 
-  import BinaryManager._
+  import TaskMaster._
 
   private var buffer = ByteString.empty
 
@@ -30,13 +30,12 @@ class BinaryReceiver(id: String, env: ExecutionEnvironment)
     case Received(data) =>
       buffer = buffer ++ data
     case PeerClosed =>
-      log.info("Peer closed for: " + id)
       context stop self
-    case BinaryUploaded =>
+    case TaskUploaded =>
       if (env.writeBinaryToFile(id, buffer.toArray)) {
-        sender() ! BinaryReady(id)
+        sender() ! TaskReady(id)
       } else {
-        sender() ! BinaryWriteFailure
+        sender() ! TaskWriteFailure
       }
       context stop self
   }

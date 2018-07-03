@@ -10,8 +10,8 @@ object Identifiers {
   final val SLOT_HANDLER = "slothandler"
   final val APP_MASTER= "appmaster"
   final val APP_MANAGER = "appmanager"
-  final val BINARY_MANAGER = "binarymanager"
-  final val BINARY_EXECUTOR = "binaryexecutor"
+  final val TASK_MASTER = "taskmaster"
+  final val TASK_EXECUTOR = "taskexecutor"
   final val STATE_MANAGER = "statemanager"
   final val STATE_MASTER = "statemaster"
 }

@@ -19,8 +19,8 @@ object AppMaster {
 /** Actor that handles an ArcJob
   *
   * One AppMaster is created per ArcJob. If a slot allocation is successful,
-  * the AppMaster communicates directly with the BinaryManager and can do the following:
-  * 1. Instruct BinaryManager to execute binaries
+  * the AppMaster communicates directly with the TaskMaster and can do the following:
+  * 1. Instruct TaskMaster to execute tasks
   * 2. Release the slots
   * 3. to be added...
   */
@@ -28,7 +28,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   import AppManager._
   import runtime.common.Types._
 
-  var binaryManager = None: Option[BinaryManagerRef]
+  var taskMaster = None: Option[TaskMasterRef]
   var keepAliveTicker = None: Option[Cancellable]
 
   // For futures
@@ -39,10 +39,10 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
     case AppMasterInit(job, rmAddr) =>
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
       val req: Future[Either[InetSocketAddress, AllocateResponse]] = allocateRequest(job, resourceManager) flatMap {
-        case AllocateSuccess(_, bm) =>
-          keepAliveTicker = keepAlive(bm)
-          binaryManager = Some(bm)
-          requestChannel(bm) flatMap {
+        case AllocateSuccess(_, tm) =>
+          keepAliveTicker = keepAlive(tm)
+          taskMaster = Some(tm)
+          requestChannel(tm) flatMap {
             case Some(server) =>
               Future.successful(Left(server))
             case None =>
@@ -56,17 +56,17 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
 
       req.map {
         case Left(server) =>
-          binaryTransfer(server, binaryManager.get)
+          taskTransfer(server, taskMaster.get)
         case Right(e) =>
           log.info("Allocate Request failed: " + e)
       }
     case r@ReleaseSlots =>
-      binaryManager.foreach(_ ! r)
+      taskMaster.foreach(_ ! r)
     case w@WeldTaskCompleted(t) =>
       log.info("AppMaster received finished WeldTask")
       context.parent ! w
-    case BinaryManagerFailure =>
-      // Unexpected failure by the BinaryManager
+    case TaskMasterFailure =>
+      // Unexpected failure by the TaskMaster
       // Handle it
       keepAliveTicker.map(_.cancel())
     case _ =>
@@ -78,36 +78,35 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
     }
   }
 
-  private def requestChannel(bm: BinaryManagerRef): Future[Option[InetSocketAddress]] = {
-    bm ? BinariesCompiled flatMap {
-      case BinaryTransferConn(addr) =>
+  private def requestChannel(tm: TaskMasterRef): Future[Option[InetSocketAddress]] = {
+    tm ? TasksCompiled flatMap {
+      case TaskTransferConn(addr) =>
         Future.successful(Some(addr))
-      case BinaryTransferError =>
+      case TaskTransferError =>
         Future.successful(None)
     }
   }
 
   // TODO: add actual logic
-  private def binaryTransfer(server: InetSocketAddress, bm: BinaryManagerRef): Future[Unit] = {
+  private def taskTransfer(server: InetSocketAddress, tm: TaskMasterRef): Future[Unit] = {
     Future {
-      val binarySender = context.actorOf(BinarySender(server, weldRunnerBin(), bm))
+      val taskSender = context.actorOf(TaskSender(server, weldRunnerBin(), tm))
     }
   }
 
   /**
     * While compilation of binaries is in progress, notify
-    * the BinaryManager to keep the slot contract alive.
-    * @param binaryManager ActorRef to the BinaryManager
+    * the TaskMaster to keep the slot contract alive.
+    * @param taskMaster ActorRef to the TaskMaster
     * @return Cancellable Option
     */
-  private def keepAlive(binaryManager: BinaryManagerRef): Option[Cancellable] = {
+  private def keepAlive(taskMaster: TaskMasterRef): Option[Cancellable] = {
     Some(context.
       system.scheduler.schedule(
       0.milliseconds,
       appMasterKeepAlive.milliseconds) {
-      binaryManager ! BMHeartBeat
+      taskMaster ! TaskMasterHeartBeat
     })
-
   }
 
   // Just for testing

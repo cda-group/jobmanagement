@@ -32,14 +32,13 @@ case object UnexpectedError extends SlotRequestResp
 case class SlotAvailable(taskSlot: Seq[TaskSlot], addr: Address) extends SlotRequestResp
 
 
-case object BMHeartBeat
-case object BinaryManagerFailure
-case class BinaryJob(binaries: Seq[Array[Byte]])
-case object BinariesCompiled
-case class BinaryTransferConn(inet: InetSocketAddress)
-case object BinaryTransferError
-case class BinaryTransferAck(inet: InetSocketAddress) extends Event
-case class BinaryTransferComplete(inet: InetSocketAddress)
+case object TaskMasterHeartBeat
+case object TaskMasterFailure
+case object TasksCompiled
+case class TaskTransferConn(inet: InetSocketAddress)
+case object TaskTransferError
+case class TaskTransferAck(inet: InetSocketAddress) extends Event
+case class TaskTransferComplete(inet: InetSocketAddress)
 
 
 // TaskManager
@@ -52,7 +51,6 @@ case object TaskManagerInit
 case class Allocate(job: ArcJob, slots: Seq[TaskSlot])
 case class ReleaseSlots(slotIndxes: Seq[Int])
 case class SlotUpdate(slots: Seq[TaskSlot])
-case class BinaryManagerInit()
 
 case class TaskSlot(index: Int, profile: ArcProfile, state: SlotState = Free) {
   def newState(s: SlotState): TaskSlot = {

@@ -8,7 +8,7 @@ import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.concurrent.duration._
 
-class BinaryExecutorSpec extends TestKit(ActorSystem("BinaryExecutorSpec"))
+class TaskExecutorSpec extends TestKit(ActorSystem("TaskExecutorSpec"))
   with ImplicitSender with ActorSpec with TaskManagerConfig {
 
   // UNIX bias
@@ -19,20 +19,20 @@ class BinaryExecutorSpec extends TestKit(ActorSystem("BinaryExecutorSpec"))
   }
 
 
-  "A BinaryExecutor Actor" must {
+  "A TaskExecutor Actor" must {
 
     "Receive updated object" in {
       val jm = TestProbe()
-      val be = system.actorOf(BinaryExecutor(program, WeldTask("", ""), jm.ref))
+      val be = system.actorOf(TaskExecutor(program, WeldTask("", ""), jm.ref))
       jm.expectMsgType[WeldTaskCompleted]
     }
 
     "Terminate after execution" in {
       val jm = TestProbe()
-      val be = system.actorOf(BinaryExecutor(program, WeldTask("", ""), jm.ref))
+      val be = system.actorOf(TaskExecutor(program, WeldTask("", ""), jm.ref))
       val probe = TestProbe()
       probe watch be
-      probe.expectTerminated(be, binaryExecutorHealthCheck.millis + binaryExecutorHealthCheck.millis)
+      probe.expectTerminated(be, taskExecutorHealthCheck.millis + taskExecutorHealthCheck.millis)
     }
   }
 

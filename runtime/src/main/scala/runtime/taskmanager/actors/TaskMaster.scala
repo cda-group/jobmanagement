@@ -2,12 +2,12 @@ package runtime.taskmanager.actors
 
 import java.net.InetSocketAddress
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, Cancellable, Props, Terminated}
 import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.util.Timeout
+import runtime.common._
 import runtime.common.Types._
-import runtime.common.{BinaryTransferComplete, _}
 import runtime.taskmanager.utils.{ExecutionEnvironment, TaskManagerConfig}
 
 import scala.collection.mutable
@@ -15,27 +15,27 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 
-object BinaryManager {
+object TaskMaster {
   def apply(job: ArcJob, slots: Seq[Int], aMaster: AppMasterRef):Props =
-    Props(new BinaryManager(job, slots, aMaster))
+    Props(new TaskMaster(job, slots, aMaster))
   case object VerifyHeartbeat
-  case object BinaryUploaded
-  case class BinaryReady(id: String)
-  case object BinaryWriteFailure
+  case object TaskUploaded
+  case class TaskReady(id: String)
+  case object TaskWriteFailure
 }
 
 /** Actor that manages received Binaries
   *
-  * On a Successful ArcJob Allocation, a BinaryManager is created
-  * to handle the incoming binaries from the AppMaster once they have been compiled.
-  * A BinaryManager expects heartbeats from the AppMaster, if none are received within
+  * On a Successful ArcJob Allocation, a TaskMaster is created
+  * to handle the incoming Tasks from the AppMaster once they have been compiled.
+  * A TaskMaster expects heartbeats from the AppMaster, if none are received within
   * the specified timeout, it will consider the job cancelled and instruct the
   * TaskManager to release the slots tied to it
   */
-class BinaryManager(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
+class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
-  import BinaryManager._
+  import TaskMaster._
   import akka.io.Tcp._
 
   // For Akka TCP IO
@@ -51,12 +51,12 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
   // Execution Environment
   val env = new ExecutionEnvironment(job.id)
 
-  // BinaryExecutor
-  var executors = mutable.IndexedSeq.empty[BinaryExecutorRef]
+  // TaskExecutor
+  var executors = mutable.IndexedSeq.empty[TaskExecutorRef]
 
-  // BinaryReceiver
-  var binaryReceivers = mutable.HashMap[InetSocketAddress, BinaryReceiverRef]()
-  var binaryReceiversId = 0
+  // TaskReceiver
+  var taskReceivers = mutable.HashMap[InetSocketAddress, TaskReceiverRef]()
+  var taskReceiversId = 0
 
 
   override def preStart(): Unit = {
@@ -66,14 +66,14 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
       case Failure(e) =>
         log.error("Failed to create job environment with path: " + env.getJobPath)
         // Notify AppMaster
-        appMaster ! BinaryManagerFailure
+        appMaster ! TaskMasterFailure
         // Shut down
         context stop self
     }
 
     lastJmTs = System.currentTimeMillis()
     heartBeatChecker = Some(context.system.scheduler.schedule(
-      0.milliseconds, binaryManagerTimeout.milliseconds,
+      0.milliseconds, taskMasterTimeout.milliseconds,
       self, VerifyHeartbeat))
   }
 
@@ -83,18 +83,18 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
 
   def receive = {
     case Connected(remote, local) =>
-      val br = context.actorOf(BinaryReceiver(binaryReceiversId.toString, env), "rec"+binaryReceiversId)
-      binaryReceiversId += 1
-      binaryReceivers.put(remote, br)
-      sender() ! Register(br)
-    case BinaryTransferComplete(remote) =>
-      binaryReceivers.get(remote) match {
+      val tr = context.actorOf(TaskReceiver(taskReceiversId.toString, env), "rec"+taskReceiversId)
+      taskReceiversId += 1
+      taskReceivers.put(remote, tr)
+      sender() ! Register(tr)
+    case TaskTransferComplete(remote) =>
+      taskReceivers.get(remote) match {
         case Some(ref) =>
           startExecutors(ref)
         case None =>
           log.error("Was not able to locate ref for remote: " + remote)
       }
-    case BinariesCompiled =>
+      case TasksCompiled=>
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
       val askRef = sender()
@@ -102,46 +102,46 @@ class BinaryManager(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
       IO(Tcp) ? Bind(self, new InetSocketAddress("localhost", 0)) onComplete {
         case Success(resp) => resp match {
           case Bound(localAddr) =>
-            askRef ! BinaryTransferConn(localAddr)
+            askRef ! TaskTransferConn(localAddr)
           case CommandFailed(_ :Bind) =>
-            askRef ! BinaryTransferError
+            askRef ! TaskTransferError
         }
         case Failure(e) =>
-          askRef ! BinaryTransferError
+          askRef ! TaskTransferError
       }
     case VerifyHeartbeat =>
       val now = System.currentTimeMillis()
       val time = now - lastJmTs
-      if (time > binaryManagerTimeout) {
-        log.info("Did not receive communication from AppMaster: " + appMaster + " within " + binaryManagerTimeout + " ms")
+      if (time > taskMasterTimeout) {
+        log.info("Did not receive communication from AppMaster: " + appMaster + " within " + taskMasterTimeout + " ms")
         log.info("Releasing slots: " + slots)
         shutdown()
       }
-    case BMHeartBeat =>
+    case TaskMasterHeartBeat =>
       lastJmTs = System.currentTimeMillis()
     case Terminated(ref) =>
       executors = executors.filterNot(_ == ref)
       // TODO: handle scenario where not all executors have been started
       if (executors.isEmpty) {
-        log.info("No alive BinaryExecutors left, releasing slots")
+        log.info("No alive TaskExecutors left, releasing slots")
         shutdown()
       }
   }
 
 
-  private def startExecutors(ref: BinaryReceiverRef): Unit = {
-    ref ? BinaryUploaded onComplete {
+  private def startExecutors(ref: TaskReceiverRef): Unit = {
+    ref ? TaskUploaded onComplete {
       case Success(resp) => resp match {
-        case BinaryReady(binId) =>
+        case TaskReady(binId) =>
           // improve names...
           job.job.tasks.foreach {task =>
             // Create 1 executor for each task
-            val executor = context.actorOf(BinaryExecutor(env.getJobPath+"/" + binId, task, appMaster))
+            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appMaster))
             executors = executors :+ executor
             // Enable DeathWatch
             context watch executor
           }
-        case BinaryWriteFailure =>
+        case TaskWriteFailure =>
           log.error("Failed writing to file")
       }
       case Failure(e) =>

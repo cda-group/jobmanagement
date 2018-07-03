@@ -20,8 +20,8 @@ object TaskManager {
   *
   * The TaskManager keeps track of the availability of each
   * TaskSlot it provides. After allocating TaskSlot(s) for the AppMaster,
-  * the TaskManager creates a BinaryManager actor to deal with
-  * transfer, execution and monitoring of binaries
+  * the TaskManager creates a TaskMaster actor to deal with
+  * transfer, execution and monitoring of tasks
   */
 class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   import ClusterListener._
@@ -32,8 +32,8 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   var initialized = false
   var resourceManager = None: Option[ResourceManagerRef]
 
-  var binaryManagers = mutable.IndexedSeq.empty[BinaryManagerRef]
-  var binaryManagerId: Long = 0
+  var taskMasters = mutable.IndexedSeq.empty[TaskMasterRef]
+  var taskMastersId: Long = 0
 
   var stateManagers = mutable.IndexedSeq.empty[StateManagerAddr]
   var stateManagerReqs: Int = 0
@@ -59,20 +59,21 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     case Allocate(_,_) if stateManagers.isEmpty =>
       // improve
       sender() ! AllocateFailure(UnexpectedError)
-    case Allocate(job, slots) =>
+    case Allocate(job, slots) => // TODO: Refactor
       val targetSlots = taskSlots intersect slots
       if (targetSlots.exists(_.state != Free)) {
         // One of the slots were not free.
         // notify requester that the allocation failed
         sender() ! AllocateFailure(UnexpectedError)
       } else {
+
         taskSlots = taskSlots.map {s =>
           if (targetSlots.contains(s))
             s.newState(s = Allocated)
           else
             s
         }
-        //  Create BinaryManager
+
         if (job.masterRef.isEmpty) {
           // ActorRef to AppMaster was not set, something went wrong
           // This should not happen
@@ -84,23 +85,23 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
           // Check if there are any available StateManagers
           // If there are, then send a StateManagerJob and
-          // Collect the StateMaster ref, and give it to the BinaryManager.
+          // Collect the StateMaster ref, and give it to the TaskMaster
 
           // If there are no StateManagers, then perhaps create an
           // StateMaster actor remotely on the driver "instead"
           getStateMaster(job.masterRef.get) map {
             case Some(stateMaster) =>
-              val bm = context.actorOf(BinaryManager(job, slots.map(_.index),
-                job.masterRef.get), Identifiers.BINARY_MANAGER+binaryManagerId)
+              val tm = context.actorOf(TaskMaster(job, slots.map(_.index),
+                job.masterRef.get), Identifiers.TASK_MASTER+taskMastersId)
 
-              binaryManagers = binaryManagers :+ bm
-              binaryManagerId += 1
+              taskMasters = taskMasters :+ tm
+              taskMastersId += 1
 
               // Enable DeathWatch
-              context watch bm
+              context watch tm
 
-              // Let AppMaster know about the allocation and how to access the BinaryManager
-              askRef ! AllocateSuccess(job, bm)
+              // Let AppMaster know about the allocation and how to access the TaskMaster
+              askRef ! AllocateSuccess(job, tm)
             case None =>
             // Could not retreive a StateMaster
             // Either we can create a StateMaster actor remotely on the driver
@@ -118,7 +119,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
           s
       }
     case Terminated(ref) =>
-      binaryManagers = binaryManagers.filterNot(_ == ref)
+      taskMasters = taskMasters.filterNot(_ == ref)
     case UnreachableResourceManager(manager) =>
       resourceManager = None
       slotTicker.map(_.cancel())

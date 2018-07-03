@@ -19,5 +19,4 @@ object ActorPaths {
 
   def stateManager(member: Address): ActorPath =
     RootActorPath(member) / USER / LISTENER / STATE_MANAGER
-
 }

@@ -9,14 +9,14 @@ object Types {
   type AppMasterRef = ActorRef
   type AppMasterAddr = Address
 
-  type BinaryExecutorRef = ActorRef
-  type BinaryExecutorAddr = Address
+  type TaskExecutorRef = ActorRef
+  type TaskExecutorAddr = Address
 
-  type BinaryManagerRef = ActorRef
-  type BinaryManagerAddr = Address
+  type TaskMasterRef = ActorRef
+  type TaskMasterAddr = Address
 
-  type BinaryReceiverRef = ActorRef
-  type BinaryReceiverAddr = Address
+  type TaskReceiverRef = ActorRef
+  type TaskReceiverAddr = Address
 
   type ResourceManagerRef = ActorRef
   type ResourceManagerAddr = Address

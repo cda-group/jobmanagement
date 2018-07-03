@@ -3,9 +3,9 @@ package runtime.taskmanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import runtime.ActorSpec
-import runtime.common.{BinariesCompiled, BinaryTransferConn}
+import runtime.common.{TaskTransferConn, TasksCompiled}
 
-class BinaryManagerSpec extends TestKit(ActorSystem("BinaryManagerSpec"))
+class TaskMasterSpec extends TestKit(ActorSystem("TaskMasterSpec"))
   with ImplicitSender with ActorSpec {
 
   override def afterAll {
@@ -13,13 +13,13 @@ class BinaryManagerSpec extends TestKit(ActorSystem("BinaryManagerSpec"))
   }
 
 
-  "A BinaryManager Actor" must {
+  "A TaskMaster Actor" must {
 
     "Receive Transfer Channel" in {
       val jm = TestProbe()
-      val bm = system.actorOf(BinaryManager(testArcJob, Seq(), jm.ref))
-      bm ! BinariesCompiled
-      val conn = expectMsgType[BinaryTransferConn]
+      val tm = system.actorOf(TaskMaster(testArcJob, Seq(), jm.ref))
+      tm ! TasksCompiled
+      val conn = expectMsgType[TaskTransferConn]
     }
   }
 

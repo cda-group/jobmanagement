@@ -9,15 +9,15 @@ import akka.pattern._
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import akka.util.Timeout
 import runtime.ActorSpec
-import runtime.common.{BinariesCompiled, BinaryTransferComplete, BinaryTransferConn}
-import runtime.appmanager.actors.BinarySender
-import runtime.taskmanager.actors.BinaryManager.{BinaryReady, BinaryUploaded, BinaryWriteFailure}
+import runtime.appmanager.actors.TaskSender
+import runtime.common.TaskTransferComplete
+import runtime.taskmanager.actors.TaskMaster.{TaskReady, TaskUploaded}
 import runtime.taskmanager.utils.ExecutionEnvironment
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-class BinaryReceiverSpec extends TestKit(ActorSystem("BinaryReceiverSpec"))
+class TaskReceiverSpec extends TestKit(ActorSystem("TaskReceiverSpec"))
   with ImplicitSender with ActorSpec {
 
   private val env = new ExecutionEnvironment("test-recv")
@@ -29,12 +29,12 @@ class BinaryReceiverSpec extends TestKit(ActorSystem("BinaryReceiverSpec"))
   }
 
 
-  "A BinaryReceiver Actor" must {
+  "A TaskReceiver Actor" must {
 
     "Write received binary to file" in {
       env.create()
-      // Set up BinaryReceiver
-      val br = system.actorOf(BinaryReceiver("1", env), "rec")
+      // Set up TaskReceiver
+      val tr = system.actorOf(TaskReceiver("1", env), "rec")
 
       val probe = TestProbe()
       implicit val timeout = Timeout(3 seconds)
@@ -44,16 +44,16 @@ class BinaryReceiverSpec extends TestKit(ActorSystem("BinaryReceiverSpec"))
       val bound = Await.result(f, 3 seconds)
       val inet = bound match {case Bound(i) => i}
 
-      // Set up BinarySender
-      val bmProbe = TestProbe()
-      val bs = system.actorOf(BinarySender(inet, "test".getBytes(), bmProbe.ref))
+      // Set up TaskSender
+      val tmProbe = TestProbe()
+      val ts = system.actorOf(TaskSender(inet, "test".getBytes(), tmProbe.ref))
       val connected = probe.expectMsgType[Connected]
-      bs ! Register(br)
+      ts ! Register(tr)
 
       // Assert
-      bmProbe.expectMsgType[BinaryTransferComplete]
-      bmProbe.send(br, BinaryUploaded)
-      bmProbe.expectMsgType[BinaryReady]
+      tmProbe.expectMsgType[TaskTransferComplete]
+      tmProbe.send(tr, TaskUploaded)
+      tmProbe.expectMsgType[TaskReady]
     }
   }
 

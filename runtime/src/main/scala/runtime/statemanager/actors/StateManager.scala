@@ -23,6 +23,7 @@ class StateManager extends Actor with ActorLogging {
     case StateManagerJob(ref) =>
       val stateMaster = context.actorOf(StateMaster(ref), Identifiers.STATE_MASTER + stateMasterId)
       stateMasters = stateMasters :+ stateMaster
+      stateMasterId += 1
 
       // Enable deathwatch
       context watch stateMaster

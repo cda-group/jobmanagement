@@ -11,7 +11,7 @@ import runtime.common.ArcJob
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
-/** ExecutionEnvironment is used by BinaryManagers
+/** ExecutionEnvironment is used by TaskMasters
   * to create an "isolated" environment for an
   * ArcJob
   */

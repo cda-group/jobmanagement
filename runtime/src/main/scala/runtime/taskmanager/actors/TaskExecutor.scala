@@ -9,9 +9,9 @@ import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.concurrent.duration._
 
-object BinaryExecutor {
+object TaskExecutor {
   def apply(binPath: String, task: WeldTask, aMaster: AppMasterRef): Props =
-    Props(new BinaryExecutor(binPath, task, aMaster))
+    Props(new TaskExecutor(binPath, task, aMaster))
   case object HealthCheck
 }
 
@@ -19,13 +19,13 @@ object BinaryExecutor {
   *
   * @param binPath path to the rust binary
   */
-class BinaryExecutor(binPath: String, task: WeldTask, appMaster: AppMasterRef)
+class TaskExecutor(binPath: String, task: WeldTask, appMaster: AppMasterRef)
   extends Actor with ActorLogging with TaskManagerConfig {
   var healthChecker = None: Option[Cancellable]
   val runtime = Runtime.getRuntime
   var process = None: Option[Process]
 
-  import BinaryExecutor._
+  import TaskExecutor._
   import context.dispatcher
 
   override def preStart(): Unit = {
@@ -33,8 +33,8 @@ class BinaryExecutor(binPath: String, task: WeldTask, appMaster: AppMasterRef)
     process = Some(pb.start())
 
     healthChecker = Some(context.system.scheduler.schedule(
-      binaryExecutorHealthCheck.milliseconds,
-      binaryExecutorHealthCheck.milliseconds,
+      taskExecutorHealthCheck.milliseconds,
+      taskExecutorHealthCheck.milliseconds,
       self,
       HealthCheck
     ))
@@ -61,7 +61,7 @@ class BinaryExecutor(binPath: String, task: WeldTask, appMaster: AppMasterRef)
             log.info("bin: " + binPath + " is alive")
           } else {
             log.info("bin: " + binPath + " has died or stopped executing")
-            log.info("Stopping binaryexecutor: " + self)
+            log.info("Stopping taskexecutor: " + self)
             healthChecker.map(_.cancel())
             context.stop(self)
           }

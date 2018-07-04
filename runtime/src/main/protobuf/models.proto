@@ -1,0 +1,248 @@
+syntax = "proto3";
+
+// Brought in from scalapb-runtime
+import "scalapb/scalapb.proto";
+import "google/protobuf/wrappers.proto";
+
+package runtime.common;
+
+option (scalapb.options) = {
+  // All classes that extend a sealed trait need to be in the same Scala
+  // file, so we set single_file to true.
+  single_file: true
+
+  // Sealed Traits
+  preamble: "sealed trait SlotState"
+  preamble: "sealed trait SlotRequestResp"
+  preamble: "sealed trait AllocateResponse"
+};
+
+message SlotStateM {
+    option (scalapb.message).extends = "SlotState";
+}
+
+message SlotRequestRespMsg {
+    option (scalapb.message).extends = "SlotRequestResp";
+}
+
+
+// Traits
+
+// SlotState
+
+//case object Free extends SlotState
+message Free {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    option (scalapb.message).extends = "SlotState";
+}
+
+//case object Allocated extends SlotState
+message Allocated {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    option (scalapb.message).extends = "SlotState";
+}
+
+// SlotRequestResp
+
+//case object NoTaskManagerAvailable extends SlotRequestResp with NetMsg
+message NoTaskManagerAvailable {
+    option (scalapb.message).extends = "SlotRequestResp";
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+}
+
+//case object NoSlotsAvailable extends SlotRequestResp with NetMsg
+message NoSlotsAvailable {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    option (scalapb.message).extends = "SlotRequestResp";
+}
+
+//case object UnexpectedError extends SlotRequestResp with NetMsg
+message UnexpectedError {
+    option (scalapb.message).extends = "SlotRequestResp";
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+}
+
+//case class SlotAvailable(taskSlot: Seq[TaskSlot], addr: Address) extends SlotRequestResp with NetMsg
+message SlotAvailable {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    option (scalapb.message).extends = "SlotRequestResp";
+    repeated TaskSlot taskSlot = 1;
+    Address addr = 2 [(scalapb.field).no_box = true];
+}
+
+// TODO: look into how to manage ref and address
+message ActorRef {
+    string ref = 1;
+}
+
+message Address {
+    string addr = 1;
+}
+
+message InetSocketAddress {
+    string ip = 1;
+    int32 port = 2;
+}
+
+//case object TaskManagerInit extends NetMsg
+message TaskManagerInit {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+}
+
+
+//case class WeldTask(expr: String, vec: String, result: Option[String] = None) extends NetMsg
+message WeldTask {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    string expr = 1;
+    string vec = 2;
+    google.protobuf.StringValue result = 3; // Option[String]
+}
+
+//case class WeldJob(tasks: Seq[WeldTask]) extends NetMsg
+message WeldJob {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    repeated WeldTask tasks = 1;
+}
+
+//case class WeldTaskCompleted(task: WeldTask) extends NetMsg
+message WeldTaskCompleted {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    WeldTask task = 1 [(scalapb.field).no_box = true];
+}
+
+//case class ArcProfile(cpuCores: Double, memoryInMB: Long) extends NetMsg {
+//def matches(other: ArcProfile): Boolean =
+//this.cpuCores >= other.cpuCores && this.memoryInMB >= other.memoryInMB
+//}
+// TODO: fix matches
+message ArcProfile {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    double cpuCores = 1;
+    int64 memoryInMb = 2; // Long
+}
+
+//case class ArcJob(id: String, profile: ArcProfile, job: WeldJob, masterRef: Option[AppMasterRef] = None)
+//extends NetMsg
+message ArcJob {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    string id = 1;
+    ArcProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
+    WeldJob job = 3 [(scalapb.field).no_box = true]; // Not Option[]
+    ActorRef ref = 4;
+}
+
+// TaskMaster related
+
+//case object TaskMasterHeartBeat extends NetMsg
+message TaskMasterHeartBeat {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+}
+
+//case object TaskMasterFailure extends NetMsg
+message TaskMasterFailure {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+}
+
+//case class TaskTransferConn(inet: InetSocketAddress) extends NetMsg
+message TaskTransferConn {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    InetSocketAddress inet = 1 [(scalapb.field).no_box = true,
+                               (scalapb.field).type = "runtime.common.Mappers.InetAddr"];
+}
+
+//case class TaskTransferAck(inet: InetSocketAddress) extends Event with NetMsg
+message TaskTransferAck {
+    option (scalapb.message).extends = "akka.io.Tcp.Event";
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    InetSocketAddress inet = 1;
+}
+
+//case object TaskTransferError extends NetMsg
+message TaskTransferError{
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+}
+
+//case class TaskTransferComplete(inet: InetSocketAddress) extends NetMsg
+message TaskTransferComplete{
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    InetSocketAddress inet = 1;
+}
+
+//case object TasksCompiled extends NetMsg
+message TasksCompiled {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+}
+
+
+// TaskManager related
+
+//case class AllocateSuccess(job: ArcJob, ref: ActorRef) extends AllocateResponse with NetMsg
+message AllocateSuccess {
+    option (scalapb.message).extends = "AllocateResponse";
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    ArcJob job = 1 [(scalapb.field).no_box = true]; // Not Option[]
+    ActorRef ref = 2 [(scalapb.field).no_box = true]; // Not Option[]
+}
+
+//case class AllocateFailure(resp: SlotRequestResp) extends AllocateResponse with NetMsg
+message AllocateFailure{
+    option (scalapb.message).extends = "AllocateResponse";
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    string resp = 1 [(scalapb.field).type = "SlotRequestResp"];
+}
+
+//case class AllocateError(err:  String) extends AllocateResponse with NetMsg
+message AllocateError {
+    option (scalapb.message).extends = "AllocateResponse";
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    string err = 1;
+}
+
+//case class TaskSlot(index: Int, profile: ArcProfile, state: SlotState = Free) extends NetMsg  {
+//def newState(s: SlotState): TaskSlot = {
+//this.copy(state = s)
+//}
+//}
+message TaskSlot {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    int32 index = 1;
+    ArcProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
+    // TODO implement
+    SlotStateM state = 3 [(scalapb.field).no_box = true]; // Not Option[]
+}
+
+//case class Allocate(job: ArcJob, slots: Seq[TaskSlot]) extends NetMsg
+message Allocate {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    ArcJob job = 1 [(scalapb.field).no_box = true]; // Not Option[]
+    repeated TaskSlot slots = 2;
+}
+
+//case class ReleaseSlots(slotIndxes: Seq[Int]) extends NetMsg
+message ReleaseSlots {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    repeated int32 slotIndexes = 1;
+}
+
+//case class SlotUpdate(slots: Seq[TaskSlot]) extends NetMsg
+message SlotUpdate {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    repeated TaskSlot slots = 1;
+}
+
+
+// StateManager related
+
+//case class StateManagerJob(appMasterRef: AppMasterRef) extends NetMsg
+message StateManagerJob {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    ActorRef appMasterRef = 1 [(scalapb.field).no_box = true]; // Not Option[]
+}
+
+//case class StateMasterConn(stateMaster: ActorRef) extends NetMsg
+message StateManagerConn {
+    option (scalapb.message).extends = "runtime.common.NetMsg";
+    ActorRef stateMaster =
+    1 [(scalapb.field).no_box = true, (scalapb.field).type = "runtime.common.Mappers.ARef"]; // Not Option[]
+}
+

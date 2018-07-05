@@ -55,7 +55,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
 
   def receive = {
-    case models.TaskManagerInit if !initialized =>
+    case TaskManagerInit() if !initialized =>
       initialized = true
       resourceManager = Some(sender())
       slotTicker = startUpdateTicker(sender())
@@ -63,13 +63,13 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       sender() ! TMNotInitialized
     case Allocate(_,_) if stateManagers.isEmpty =>
       // improve
-      sender() ! AllocateFailure(Unexpected().toByteString)
+      sender() ! AllocateFailure().withUnexpected(Unexpected())
     case Allocate(job, slots) => // TODO: Refactor
       val targetSlots = taskSlots intersect slots
       if (targetSlots.exists(_.state != SlotState.FREE)) {
         // One of the slots were not free.
         // notify requester that the allocation failed
-        sender() ! AllocateFailure(Unexpected().toByteString)
+        sender() ! AllocateFailure().withUnexpected(Unexpected())
       } else {
 
         taskSlots = taskSlots.map {s =>
@@ -111,7 +111,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
             // Could not retreive a StateMaster
             // Either we can create a StateMaster actor remotely on the driver
             // or we fail the Allocation..
-              sender() ! AllocateFailure(Unexpected().toByteString) // Fix...
+              sender() ! AllocateFailure().withUnexpected(Unexpected())
           }
 
         }

@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
-import runtime.common.models.{AllocateFailure, ArcJob, Unexpected}
+import runtime.common.models.{AllocateFailure, ArcJob, NoSlotsAvailable, Unexpected}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -49,7 +49,7 @@ class ResourceManager extends Actor with ActorLogging {
             case Success(resp) =>
               askRef ! resp
             case Failure(e) =>
-              askRef ! AllocateFailure(Unexpected().toByteString)
+              askRef ! AllocateFailure().withUnexpected(Unexpected())
           }
         case None =>
           log.error("AppMaster Ref was not set in the ArcJob")

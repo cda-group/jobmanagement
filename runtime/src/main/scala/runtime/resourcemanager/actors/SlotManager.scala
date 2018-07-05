@@ -31,7 +31,7 @@ class SlotManager extends Actor with ActorLogging {
       val target = context.actorSelection(ActorPaths.taskManager(tm))
       // TODO: add retry logic in case worker is not reachable
       // in order to make sure that the TaskManager is initialized
-      target ! TaskManagerInit
+      target ! TaskManagerInit()
     case TaskManagerRemoved(tm) =>
       log.info("TaskManager Removed")
       cleanTaskManager(tm)

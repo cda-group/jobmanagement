@@ -66,7 +66,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
       case Failure(e) =>
         log.error("Failed to create job environment with path: " + env.getJobPath)
         // Notify AppMaster
-        appMaster ! TaskMasterFailure
+        appMaster ! TaskMasterFailure()
         // Shut down
         context stop self
     }
@@ -106,10 +106,10 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
           case Bound(localAddr) =>
             askRef ! TaskTransferConn(localAddr)
           case CommandFailed(_ :Bind) =>
-            askRef ! TaskTransferError
+            askRef ! TaskTransferError()
         }
         case Failure(e) =>
-          askRef ! TaskTransferError
+          askRef ! TaskTransferError()
       }
     case VerifyHeartbeat =>
       val now = System.currentTimeMillis()
@@ -119,7 +119,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
         log.info("Releasing slots: " + slots)
         shutdown()
       }
-    case TaskMasterHeartBeat =>
+    case TaskMasterHeartBeat() =>
       lastJmTs = System.currentTimeMillis()
     case Terminated(ref) =>
       executors = executors.filterNot(_ == ref)

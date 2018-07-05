@@ -69,7 +69,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
     case w@WeldTaskCompleted(t) =>
       log.info("AppMaster received finished WeldTask")
       context.parent ! w
-    case TaskMasterFailure =>
+    case TaskMasterFailure() =>
       // Unexpected failure by the TaskMaster
       // Handle it
       keepAliveTicker.map(_.cancel())
@@ -84,10 +84,10 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
 
   private def requestChannel(tm: ActorRef): Future[Option[InetSocketAddress]] = {
     import ProtoConversions.InetAddr._
-    tm ? TasksCompiled flatMap {
+    tm ? TasksCompiled() flatMap {
       case TaskTransferConn(addr) =>
         Future.successful(Some(addr))
-      case TaskTransferError =>
+      case TaskTransferError() =>
         Future.successful(None)
     }
   }
@@ -110,7 +110,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
       system.scheduler.schedule(
       0.milliseconds,
       appMasterKeepAlive.milliseconds) {
-      taskMaster ! TaskMasterHeartBeat
+      taskMaster ! TaskMasterHeartBeat()
     })
   }
 

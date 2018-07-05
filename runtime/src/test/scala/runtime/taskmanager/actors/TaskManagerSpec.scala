@@ -28,7 +28,7 @@ class TaskManagerSpec extends TestKit(ActorSystem("TaskManagerSpec"))
     "Send SlotUpdate" in {
       val probe = TestProbe()
       val tm = system.actorOf(TaskManager())
-      probe.send(tm, TaskManagerInit)
+      probe.send(tm, TaskManagerInit())
       probe.expectMsgType[SlotUpdate](slotTick.millis + slotTick.millis)
     }
   }

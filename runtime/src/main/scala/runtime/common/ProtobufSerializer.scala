@@ -1,33 +1,52 @@
 package runtime.common
 
-import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicReference
 
-import akka.serialization.{Serialization, SerializerWithStringManifest}
-import akka.actor.{ActorRef, ExtendedActorSystem}
-import runtime.common.models.TaskManagerInit
+import akka.actor.ExtendedActorSystem
+import akka.serialization.Serializer
+
+import scalapb.GeneratedMessageCompanion
 
 
-class ProtobufSerializer(system: ExtendedActorSystem) extends SerializerWithStringManifest {
-  override def identifier: Int = 1313131
+/**
+  * https://gist.github.com/thesamet/5d0349b40d3dc92859a1a2eafba448d5
+  * Serializer for our Proto messages
+  */
+class ProtobufSerializer(val system: ExtendedActorSystem) extends Serializer {
+  private val classToCompanionMapRef = new AtomicReference[Map[Class[_], GeneratedMessageCompanion[_]]](Map.empty)
 
-  override def manifest(o: AnyRef): String = o.getClass.getName
+  override def includeManifest: Boolean = true
 
-  private final val TaskManagerInitManifest = classOf[TaskManagerInit].getName
-  private final val ActorRefManifest = classOf[ActorRef].getName
-
+  // 0-40 is reserved for Akka
+  override def identifier = 1313131
 
   override def toBinary(o: AnyRef): Array[Byte] = o match {
-    case tmi: TaskManagerInit => tmi.toByteArray
-    case aref: ActorRef => Serialization.serializedActorPath(aref).getBytes
-  }
-
-  override def fromBinary(bytes: Array[Byte], manifest: String): AnyRef = manifest match {
-    case TaskManagerInitManifest => TaskManagerInit.parseFrom(bytes)
-    case ActorRefManifest =>
-      val str = new String(bytes, StandardCharsets.UTF_8)
-      system.provider.resolveActorRef(str)
+    case e: scalapb.GeneratedMessage => e.toByteArray
+    case s => throw new IllegalArgumentException("Need a subclass of scalapb.GeneratedMessage")
   }
 
 
+  override def fromBinary(bytes: Array[Byte], manifest: Option[Class[_]]): AnyRef = {
+    manifest match {
+      case Some(clazz) =>
+        @scala.annotation.tailrec
+        def messageCompanion(companion: GeneratedMessageCompanion[_] = null): GeneratedMessageCompanion[_] = {
+          val classToCompanion = classToCompanionMapRef.get()
+          classToCompanion.get(clazz) match {
+            case Some(cachedCompanion) => cachedCompanion
+            case None =>
+              val uncachedCompanion =
+                if (companion eq null) Class.forName(clazz.getName + "$", true, clazz.getClassLoader)
+                  .getField("MODULE$").get().asInstanceOf[GeneratedMessageCompanion[_]]
+                else companion
+              if (classToCompanionMapRef.compareAndSet(classToCompanion, classToCompanion.updated(clazz, uncachedCompanion)))
+                uncachedCompanion
+              else
+                messageCompanion(uncachedCompanion)
+          }
+        }
+        messageCompanion().parseFrom(bytes).asInstanceOf[AnyRef]
+      case _ => throw new IllegalArgumentException("Need a ScalaPB companion class to be able to deserialize.")
+    }
+  }
 }
-

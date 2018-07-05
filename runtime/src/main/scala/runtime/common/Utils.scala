@@ -1,6 +1,6 @@
 package runtime.common
 
-import akka.actor.Address
+import runtime.common.models.ArcProfile
 
 
 object Utils {

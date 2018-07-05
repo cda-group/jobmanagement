@@ -6,10 +6,11 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.io.Tcp._
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
-import runtime.common.Types.TaskMasterRef
+import runtime.common.models.{TaskTransferAck, TaskTransferComplete}
+import runtime.common.ProtoConversions
 
 object TaskSender {
-  def apply(server: InetSocketAddress, bytes: Array[Byte], tm: TaskMasterRef): Props =
+  def apply(server: InetSocketAddress, bytes: Array[Byte], tm: ActorRef): Props =
     Props(new TaskSender(server, bytes, tm))
 }
 
@@ -20,10 +21,11 @@ object TaskSender {
   * @param bytes The actual binary to be transferred
   * @param tm ActorRef to TaskManager's TaskMaster
   */
-class TaskSender(server: InetSocketAddress, bytes: Array[Byte], tm: TaskMasterRef)
+class TaskSender(server: InetSocketAddress, bytes: Array[Byte], tm: ActorRef)
   extends Actor with ActorLogging {
-  import runtime.common._
   import context.system // Required for TCP IO
+
+  import ProtoConversions.InetAddr._
 
   IO(Tcp) ! Connect(server)
 

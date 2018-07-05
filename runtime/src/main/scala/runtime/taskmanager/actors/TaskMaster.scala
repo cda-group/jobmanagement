@@ -2,12 +2,12 @@ package runtime.taskmanager.actors
 
 import java.net.InetSocketAddress
 
-import akka.actor.{Actor, ActorLogging, Cancellable, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
-import runtime.common.Types._
+import runtime.common.models._
 import runtime.taskmanager.utils.{ExecutionEnvironment, TaskManagerConfig}
 
 import scala.collection.mutable
@@ -16,7 +16,7 @@ import scala.util.{Failure, Success}
 
 
 object TaskMaster {
-  def apply(job: ArcJob, slots: Seq[Int], aMaster: AppMasterRef):Props =
+  def apply(job: ArcJob, slots: Seq[Int], aMaster: ActorRef):Props =
     Props(new TaskMaster(job, slots, aMaster))
   case object VerifyHeartbeat
   case object TaskUploaded
@@ -32,7 +32,7 @@ object TaskMaster {
   * the specified timeout, it will consider the job cancelled and instruct the
   * TaskManager to release the slots tied to it
   */
-class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
+class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskMaster._
@@ -52,10 +52,10 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
   val env = new ExecutionEnvironment(job.id)
 
   // TaskExecutor
-  var executors = mutable.IndexedSeq.empty[TaskExecutorRef]
+  var executors = mutable.IndexedSeq.empty[ActorRef]
 
   // TaskReceiver
-  var taskReceivers = mutable.HashMap[InetSocketAddress, TaskReceiverRef]()
+  var taskReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
   var taskReceiversId = 0
 
 
@@ -88,6 +88,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
       taskReceivers.put(remote, tr)
       sender() ! Register(tr)
     case TaskTransferComplete(remote) =>
+      import ProtoConversions.InetAddr._
       taskReceivers.get(remote) match {
         case Some(ref) =>
           startExecutors(ref)
@@ -98,6 +99,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
       val askRef = sender()
+        import ProtoConversions.InetAddr._
       //TODO: fetch host from config
       IO(Tcp) ? Bind(self, new InetSocketAddress("localhost", 0)) onComplete {
         case Success(resp) => resp match {
@@ -129,7 +131,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: AppMasterRef)
   }
 
 
-  private def startExecutors(ref: TaskReceiverRef): Unit = {
+  private def startExecutors(ref: ActorRef): Unit = {
     ref ? TaskUploaded onComplete {
       case Success(resp) => resp match {
         case TaskReady(binId) =>

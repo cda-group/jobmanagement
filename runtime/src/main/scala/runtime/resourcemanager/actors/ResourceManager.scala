@@ -1,9 +1,10 @@
 package runtime.resourcemanager.actors
 
-import akka.actor.{Actor, ActorLogging, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
+import runtime.common.models.{AllocateFailure, ArcJob, Unexpected}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -24,15 +25,13 @@ class ResourceManager extends Actor with ActorLogging {
 
   import ClusterListener._
   import ResourceManager._
-  import runtime.common.Types._
 
-  val activeAppMasters = mutable.HashSet[AppMasterRef]()
+  val activeAppMasters = mutable.HashSet[ActorRef]()
   val slotManager = context.actorOf(SlotManager(), Identifiers.SLOT_MANAGER)
 
   // For futures
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
-  import runtime.common._
 
   def receive = {
     case tmr@TaskManagerRegistration(_) =>
@@ -50,7 +49,7 @@ class ResourceManager extends Actor with ActorLogging {
             case Success(resp) =>
               askRef ! resp
             case Failure(e) =>
-              askRef ! AllocateFailure(UnexpectedError)
+              askRef ! AllocateFailure(Unexpected().toByteString)
           }
         case None =>
           log.error("AppMaster Ref was not set in the ArcJob")

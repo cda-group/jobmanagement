@@ -1,9 +1,11 @@
 package runtime.statemanager.actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
-import runtime.common.{Identifiers, StateManagerJob, StateMasterConn}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
+import runtime.common.{Identifiers, ProtoConversions}
+import runtime.common.models.{StateManagerJob, StateMasterConn}
 
 import scala.collection.mutable
+
 
 object StateManager {
   def apply(): Props = Props(new StateManager())
@@ -18,6 +20,10 @@ object StateManager {
 class StateManager extends Actor with ActorLogging {
   var stateMasters = mutable.IndexedSeq.empty[ActorRef]
   var stateMasterId: Long = 0
+
+  // Handles implicit conversions of ActorRef and ActorRefProto
+  implicit val sys: ActorSystem = context.system
+  import ProtoConversions.ActorRef._
 
   def receive = {
     case StateManagerJob(ref) =>

@@ -1,17 +1,16 @@
 package runtime.taskmanager.actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props}
+import akka.actor.{Actor, ActorLogging, Address, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp, UnreachableMember}
 import runtime.common.Identifiers
-import runtime.common.Types.ResourceManagerAddr
 
 object ClusterListener {
   def apply(): Props = Props(new ClusterListener)
   // ResourceManager
-  case class UnreachableResourceManager(addr: ResourceManagerAddr)
-  case class RemovedResourceManager(addr: ResourceManagerAddr)
-  case class ResourceManagerUp(addr: ResourceManagerAddr)
+  case class UnreachableResourceManager(addr: Address)
+  case class RemovedResourceManager(addr: Address)
+  case class ResourceManagerUp(addr: Address)
 
   // StateManager
   case class UnreachableStateManager(addr: Address)

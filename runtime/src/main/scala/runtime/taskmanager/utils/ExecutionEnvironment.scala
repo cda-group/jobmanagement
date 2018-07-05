@@ -6,7 +6,6 @@ import java.util.Comparator
 import java.util.stream.Collectors
 
 import com.typesafe.scalalogging.LazyLogging
-import runtime.common.ArcJob
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}

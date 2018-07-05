@@ -24,11 +24,15 @@ object Dependencies {
     "com.typesafe" % "config" % typeConfigVersion
   )
 
-
   val akkaDependencies: Seq[ModuleID] = Seq(
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
     "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
     "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion
+  )
+
+  import scalapb.compiler.Version.scalapbVersion
+  val protobufDependencies: Seq[ModuleID] = Seq(
+    "com.thesamet.scalapb" %% "scalapb-runtime" % scalapbVersion % "protobuf"
   )
 
   val akkaHttpDependencies: Seq[ModuleID] = Seq(
@@ -38,15 +42,11 @@ object Dependencies {
 
   )
 
-  val simpleAkka: Seq[ModuleID] = Seq(
-    "com.typesafe.akka" %% "akka-actor" % akkaVersion
-  )
-
-
   // Common libs that are used together
   val basic : Seq[ModuleID] =
     logDependencies ++ confDependencies ++ testDependencies
 
-  val runtimeDependencies: Seq[ModuleID] = basic ++ akkaDependencies ++ akkaHttpDependencies
+  val runtimeDependencies: Seq[ModuleID] = basic ++
+    akkaDependencies ++ akkaHttpDependencies ++ protobufDependencies
 
 }

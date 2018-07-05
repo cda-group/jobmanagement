@@ -3,9 +3,10 @@ package runtime.taskmanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import runtime.ActorSpec
-import runtime.common._
+import runtime.common.models.{Allocate, SlotUpdate, TaskManagerInit}
 import runtime.taskmanager.actors.TaskManager.TMNotInitialized
 import runtime.taskmanager.utils.TaskManagerConfig
+
 import scala.concurrent.duration._
 
 class TaskManagerSpec extends TestKit(ActorSystem("TaskManagerSpec"))

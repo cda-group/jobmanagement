@@ -1,6 +1,7 @@
 package runtime
 
-import runtime.common.{ArcJob, ArcProfile, WeldJob, WeldTask}
+import runtime.common.models.{ArcJob, ArcProfile, WeldJob, WeldTask}
+
 
 trait RuntimeHelper {
   val bigProfile = ArcProfile(8.0, 16000)

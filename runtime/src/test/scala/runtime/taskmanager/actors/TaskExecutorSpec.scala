@@ -3,7 +3,7 @@ package runtime.taskmanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import runtime.ActorSpec
-import runtime.common.{WeldTask, WeldTaskCompleted}
+import runtime.common.models.{WeldTask, WeldTaskCompleted}
 import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.concurrent.duration._

@@ -1,7 +1,9 @@
 package runtime.resourcemanager.actors
 
 import akka.actor.{Actor, ActorLogging, Address, Props}
-import runtime.common._
+import runtime.common.ActorPaths
+import runtime.common.models._
+import runtime.common.ProtoConversions
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
@@ -17,9 +19,8 @@ object SlotManager {
 class SlotManager extends Actor with ActorLogging {
   import ClusterListener._
   import ResourceManager._
-  import runtime.common.Types._
 
-  var taskManagers = mutable.IndexedSeq.empty[TaskManagerAddr]
+  var taskManagers = mutable.IndexedSeq.empty[Address]
   val slots = mutable.HashMap[Address, Seq[TaskSlot]]()
   var roundNumber = 0
 
@@ -43,24 +44,25 @@ class SlotManager extends Actor with ActorLogging {
     case req@SlotRequest(job) =>
       //TODO: Clean and improve
       handleSlotRequest(req) match {
-        case NoSlotsAvailable =>
+        case r@NoSlotsAvailable() =>
           log.info("No Slots Available")
-          sender() ! NoSlotsAvailable
-        case NoTaskManagersAvailable =>
+          sender() ! r
+        case r@NoTaskManagerAvailable() =>
           log.info("No Task Managers Available")
-          sender() ! NoTaskManagersAvailable
+          sender() ! r
         case SlotAvailable(taskSlots, addr) =>
           log.info("Slots Available")
+          import ProtoConversions.Address._
           val taskManager = context.actorSelection(ActorPaths.taskManager(addr))
           taskManager forward Allocate(job, taskSlots)
-        case UnexpectedError =>
+        case Unexpected() =>
           // TODO: fix
       }
       roundNumber += 1
     case _ =>
   }
 
-  private def cleanTaskManager(tm: TaskManagerAddr): Unit = {
+  private def cleanTaskManager(tm: Address): Unit = {
     Try {
       taskManagers = taskManagers.filterNot(_ == tm)
       slots.remove(tm)
@@ -70,39 +72,41 @@ class SlotManager extends Actor with ActorLogging {
     }
   }
 
+
   //TODO: Make more readable?
   private def handleSlotRequest(req: SlotRequest): SlotRequestResp = {
     if (roundNumber > taskManagers.size-1)
       roundNumber = 0
 
     if (taskManagers.isEmpty) {
-      NoTaskManagersAvailable
+      NoTaskManagerAvailable()
     } else if (roundNumber <= taskManagers.size) {
       slots.get(taskManagers(roundNumber)) match {
         case Some(seq) =>
-          val freeSlots = seq.filter(slot => slot.state == Free)
+          val freeSlots = seq.filter(s => s.state == SlotState.FREE)
           if (freeSlots.isEmpty)
-            NoSlotsAvailable
+            NoSlotsAvailable()
           else {
             val resources = freeSlots.foldLeft((ArcProfile(0.0, 0), Seq[TaskSlot]())) { (x, y) =>
               if (x._1.matches(req.job.profile))
                 x
               else
                 (x._1.copy(cpuCores = x._1.cpuCores + y.profile.cpuCores,
-                  memoryInMB = x._1.memoryInMB + y.profile.memoryInMB), x._2 :+ y)
+                  memoryInMb = x._1.memoryInMb + y.profile.memoryInMb), x._2 :+ y)
             }
 
             if (resources._1.matches(req.job.profile)) {
+              import ProtoConversions.Address._
               SlotAvailable(resources._2, taskManagers(roundNumber))
             } else {
-              NoSlotsAvailable
+              NoSlotsAvailable()
             }
           }
         case None =>
-          NoSlotsAvailable
+          NoSlotsAvailable()
       }
     } else {
-      NoSlotsAvailable
+      NoSlotsAvailable()
     }
   }
 }

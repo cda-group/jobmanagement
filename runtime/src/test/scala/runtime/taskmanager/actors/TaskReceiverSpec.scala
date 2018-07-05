@@ -10,7 +10,7 @@ import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import akka.util.Timeout
 import runtime.ActorSpec
 import runtime.appmanager.actors.TaskSender
-import runtime.common.TaskTransferComplete
+import runtime.common.models.TaskTransferComplete
 import runtime.taskmanager.actors.TaskMaster.{TaskReady, TaskUploaded}
 import runtime.taskmanager.utils.ExecutionEnvironment
 

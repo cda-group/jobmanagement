@@ -1,9 +1,11 @@
 package runtime.taskmanager.actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancellable, Props, Terminated}
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
+import runtime.common.models.SlotState.{ALLOCATED, FREE}
+import runtime.common.models._
 import runtime.taskmanager.actors.TaskManager.TMNotInitialized
 import runtime.taskmanager.utils.TaskManagerConfig
 
@@ -25,17 +27,20 @@ object TaskManager {
   */
 class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   import ClusterListener._
-  import runtime.common.Types._
+
+  // Handles implicit conversions of ActorRef and ActorRefProto
+  implicit val sys: ActorSystem = context.system
+  import ProtoConversions.ActorRef._
 
   var slotTicker = None: Option[Cancellable]
   var taskSlots = mutable.IndexedSeq.empty[TaskSlot]
   var initialized = false
-  var resourceManager = None: Option[ResourceManagerRef]
+  var resourceManager = None: Option[ActorRef]
 
-  var taskMasters = mutable.IndexedSeq.empty[TaskMasterRef]
+  var taskMasters = mutable.IndexedSeq.empty[ActorRef]
   var taskMastersId: Long = 0
 
-  var stateManagers = mutable.IndexedSeq.empty[StateManagerAddr]
+  var stateManagers = mutable.IndexedSeq.empty[Address]
   var stateManagerReqs: Int = 0
 
   import context.dispatcher
@@ -50,7 +55,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
 
   def receive = {
-    case TaskManagerInit if !initialized =>
+    case models.TaskManagerInit if !initialized =>
       initialized = true
       resourceManager = Some(sender())
       slotTicker = startUpdateTicker(sender())
@@ -58,23 +63,23 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       sender() ! TMNotInitialized
     case Allocate(_,_) if stateManagers.isEmpty =>
       // improve
-      sender() ! AllocateFailure(UnexpectedError)
+      sender() ! AllocateFailure(Unexpected().toByteString)
     case Allocate(job, slots) => // TODO: Refactor
       val targetSlots = taskSlots intersect slots
-      if (targetSlots.exists(_.state != Free)) {
+      if (targetSlots.exists(_.state != SlotState.FREE)) {
         // One of the slots were not free.
         // notify requester that the allocation failed
-        sender() ! AllocateFailure(UnexpectedError)
+        sender() ! AllocateFailure(Unexpected().toByteString)
       } else {
 
         taskSlots = taskSlots.map {s =>
           if (targetSlots.contains(s))
-            s.newState(s = Allocated)
+            s.copy(state = ALLOCATED)
           else
             s
         }
 
-        if (job.masterRef.isEmpty) {
+        if (job.ref.isEmpty) {
           // ActorRef to AppMaster was not set, something went wrong
           // This should not happen
           // TODO: Handle
@@ -89,10 +94,10 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
           // If there are no StateManagers, then perhaps create an
           // StateMaster actor remotely on the driver "instead"
-          getStateMaster(job.masterRef.get) map {
+          getStateMaster(job.ref.get) map {
             case Some(stateMaster) =>
               val tm = context.actorOf(TaskMaster(job, slots.map(_.index),
-                job.masterRef.get), Identifiers.TASK_MASTER+taskMastersId)
+                job.ref.get), Identifiers.TASK_MASTER+taskMastersId)
 
               taskMasters = taskMasters :+ tm
               taskMastersId += 1
@@ -106,7 +111,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
             // Could not retreive a StateMaster
             // Either we can create a StateMaster actor remotely on the driver
             // or we fail the Allocation..
-              sender() ! AllocateFailure(UnexpectedError)
+              sender() ! AllocateFailure(Unexpected().toByteString) // Fix...
           }
 
         }
@@ -114,7 +119,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     case ReleaseSlots(slots) =>
       taskSlots = taskSlots.map {s =>
         if (slots.contains(s.index))
-          s.newState(s = Free)
+          s.copy(state = FREE)
         else
           s
       }
@@ -143,7 +148,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     * @param rm ActorRef to the responsible RM
     * @return Option[Cancellable]
     */
-  private def startUpdateTicker(rm: ResourceManagerRef): Option[Cancellable] = {
+  private def startUpdateTicker(rm: ActorRef): Option[Cancellable] = {
     Some(context.
       system.scheduler.schedule(
       0.milliseconds,
@@ -154,7 +159,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
   private def currentSlots(): Seq[TaskSlot] = taskSlots
 
-  private def getStateMaster(amRef: AppMasterRef): Future[Option[ActorRef]] = {
+  private def getStateMaster(amRef: ActorRef): Future[Option[ActorRef]] = {
     val smAddr = stateManagers(stateManagerReqs % stateManagers.size)
     val smSelection = context.actorSelection(ActorPaths.stateManager(smAddr))
     implicit val timeout = Timeout(3 seconds)

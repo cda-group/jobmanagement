@@ -2,15 +2,14 @@ package runtime.taskmanager.actors
 
 import java.io.{BufferedReader, InputStreamReader}
 
-import akka.actor.{Actor, ActorLogging, Cancellable, Props}
-import runtime.common.Types.AppMasterRef
-import runtime.common.{WeldTask, WeldTaskCompleted}
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
+import runtime.common.models.{WeldTask, WeldTaskCompleted}
 import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.concurrent.duration._
 
 object TaskExecutor {
-  def apply(binPath: String, task: WeldTask, aMaster: AppMasterRef): Props =
+  def apply(binPath: String, task: WeldTask, aMaster: ActorRef): Props =
     Props(new TaskExecutor(binPath, task, aMaster))
   case object HealthCheck
 }
@@ -19,7 +18,7 @@ object TaskExecutor {
   *
   * @param binPath path to the rust binary
   */
-class TaskExecutor(binPath: String, task: WeldTask, appMaster: AppMasterRef)
+class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef)
   extends Actor with ActorLogging with TaskManagerConfig {
   var healthChecker = None: Option[Cancellable]
   val runtime = Runtime.getRuntime

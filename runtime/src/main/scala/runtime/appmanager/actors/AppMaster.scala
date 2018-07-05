@@ -3,11 +3,12 @@ package runtime.appmanager.actors
 import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
 
-import akka.actor.{Actor, ActorLogging, ActorSelection, Cancellable, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Cancellable, Props}
 import akka.util.Timeout
 import akka.pattern._
 import runtime.common._
 import runtime.appmanager.utils.AppManagerConfig
+import runtime.common.models._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -26,14 +27,17 @@ object AppMaster {
   */
 class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   import AppManager._
-  import runtime.common.Types._
 
-  var taskMaster = None: Option[TaskMasterRef]
+  var taskMaster = None: Option[ActorRef]
   var keepAliveTicker = None: Option[Cancellable]
 
   // For futures
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
+
+  // Handles implicit conversions of ActorRef and ActorRefProto
+  implicit val sys: ActorSystem = context.system
+  import ProtoConversions.ActorRef._
 
   def receive = {
     case AppMasterInit(job, rmAddr) =>
@@ -73,12 +77,13 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   }
 
   private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {
-    rm ? job.copy(masterRef = Some(self)) flatMap {
+    rm ? job.copy(ref = Some(self)) flatMap {
       case r: AllocateResponse => Future.successful(r)
     }
   }
 
-  private def requestChannel(tm: TaskMasterRef): Future[Option[InetSocketAddress]] = {
+  private def requestChannel(tm: ActorRef): Future[Option[InetSocketAddress]] = {
+    import ProtoConversions.InetAddr._
     tm ? TasksCompiled flatMap {
       case TaskTransferConn(addr) =>
         Future.successful(Some(addr))
@@ -88,7 +93,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   }
 
   // TODO: add actual logic
-  private def taskTransfer(server: InetSocketAddress, tm: TaskMasterRef): Future[Unit] = {
+  private def taskTransfer(server: InetSocketAddress, tm: ActorRef): Future[Unit] = {
     Future {
       val taskSender = context.actorOf(TaskSender(server, weldRunnerBin(), tm))
     }
@@ -100,7 +105,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
     * @param taskMaster ActorRef to the TaskMaster
     * @return Cancellable Option
     */
-  private def keepAlive(taskMaster: TaskMasterRef): Option[Cancellable] = {
+  private def keepAlive(taskMaster: ActorRef): Option[Cancellable] = {
     Some(context.
       system.scheduler.schedule(
       0.milliseconds,

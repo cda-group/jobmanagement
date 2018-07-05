@@ -2,15 +2,15 @@ package runtime.appmanager.actors
 
 import java.util.UUID
 
-import akka.actor.{Actor, ActorLogging, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import runtime.common._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import runtime.common.Types.ResourceManagerAddr
 import runtime.appmanager.utils.AppManagerConfig
+import runtime.common.models.{ArcJob, WeldJob, WeldTask, WeldTaskCompleted}
 import spray.json.DefaultJsonProtocol._
 
 import scala.collection.mutable
@@ -18,21 +18,21 @@ import scala.collection.mutable
 
 object AppManager {
   def apply(): Props = Props(new AppManager)
-  case class AppMasterInit(job: ArcJob, rmAddr: ResourceManagerAddr)
+  case class AppMasterInit(job: ArcJob, rmAddr: Address)
   case object ResourceManagerUnavailable
+  case class ArcJobRequest(job: ArcJob)
 }
 
 class AppManager extends Actor with ActorLogging with AppManagerConfig {
   import ClusterListener._
-  import runtime.common.Types._
   import AppManager._
 
   // For Akka HTTP
   implicit val materializer = ActorMaterializer()
   implicit val system = context.system
 
-  implicit val weldTaskFormat = jsonFormat3(WeldTask)
-  implicit val weldJobFormat = jsonFormat1(WeldJob)
+  implicit val weldTaskFormat = jsonFormat3(WeldTask.apply)
+  implicit val weldJobFormat = jsonFormat1(WeldJob.apply)
 
   // Job storage
   var weldTasks = IndexedSeq.empty[WeldTask]
@@ -43,8 +43,8 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
   }
 
   // Just a single resourcemananger for now
-  var resourceManager = None: Option[ResourceManagerAddr]
-  var appMasters = mutable.IndexedSeq.empty[AppMasterRef]
+  var resourceManager = None: Option[Address]
+  var appMasters = mutable.IndexedSeq.empty[ActorRef]
   var appMasterId: Long = 0 // unique id for each AppMaster that is created
 
   def receive = {

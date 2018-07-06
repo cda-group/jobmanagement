@@ -38,9 +38,9 @@ object ClusterConfig extends MultiNodeConfig {
       |akka.actor.provider = cluster
       |akka.cluster.log-info = off
       |akka.stdout-loglevel = off
-      |akka.actor.serialize-messages = on
       |akka.actor.serializers.proto = "runtime.common.ProtobufSerializer"
-      |akka.actor.allow-java-serialization = off
+      |akka.actor.serializers.java = "akka.serialization.JavaSerializer"
+      |akka.actor.serialize-messages = on
       |akka.actor.serialization-bindings {"scalapb.GeneratedMessage" = proto}
       |akka.log-dead-letters = off
       |akka.coordinated-shutdown.run-by-jvm-shutdown-hook = off
@@ -48,10 +48,3 @@ object ClusterConfig extends MultiNodeConfig {
       |akka.cluster.run-coordinated-shutdown-when-down = off
     """.stripMargin))
 }
-  /*
-|akka.actor.serialize-messages = on
-|akka.actor.serializers.proto = "runtime.common.ProtobufSerializer"
-|akka.actor.allow-java-serialization = off
-|akka.actor.serializers.java= "akka.serialization.JavaSerializer"
-|akka.actor.serialization-bindings {"scalapb.GeneratedMessage" = proto}
-*/

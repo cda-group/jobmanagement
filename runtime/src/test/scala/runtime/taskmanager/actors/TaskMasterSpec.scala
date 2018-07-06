@@ -18,7 +18,7 @@ class TaskMasterSpec extends TestKit(ActorSystem("TaskMasterSpec"))
     "Receive Transfer Channel" in {
       val jm = TestProbe()
       val tm = system.actorOf(TaskMaster(testArcJob, Seq(), jm.ref))
-      tm ! TasksCompiled
+      tm ! TasksCompiled()
       val conn = expectMsgType[TaskTransferConn]
     }
   }

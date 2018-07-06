@@ -2,7 +2,7 @@ package runtime
 
 import akka.testkit.TestProbe
 import runtime.common._
-import runtime.common.models.{AllocateSuccess, NoSlotsAvailable}
+import runtime.common.models.{ActorRefProto, AllocateSuccess, NoSlotsAvailable}
 
 
 class ResourceManagementSpecMultiJvmNode1 extends ResourceManagementSpec
@@ -35,8 +35,8 @@ class ResourceManagementSpec extends RuntimeSpec with RuntimeHelper {
 
       runOn(appmanager) {
         val rm = system.actorSelection(ActorPaths.resourceManager(rmAddr))
-        val probe = TestProbe()
         import ProtoConversions.ActorRef._
+        val probe = TestProbe()
         rm ! smallJob.copy(ref = Some(probe.ref))
         expectMsgType[AllocateSuccess]
         enterBarrier("allocated_slot")

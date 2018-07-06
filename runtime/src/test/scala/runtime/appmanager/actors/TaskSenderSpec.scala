@@ -20,7 +20,7 @@ class TaskSenderSpec extends TestKit(ActorSystem("TaskSenderSpec"))
     "complete transfer to TaskReceiver" in {
       val jm = TestProbe()
       val tm = system.actorOf(TaskMaster(testArcJob, Seq(), jm.ref))
-      tm ! TasksCompiled
+      tm ! TasksCompiled()
       val conn = expectMsgType[TaskTransferConn]
       val tmProbe = TestProbe()
       import ProtoConversions.InetAddr._

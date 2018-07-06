@@ -95,11 +95,11 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
         case None =>
           log.error("Was not able to locate ref for remote: " + remote)
       }
-      case TasksCompiled=>
+    case TasksCompiled() =>
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
+      import ProtoConversions.InetAddr._
       val askRef = sender()
-        import ProtoConversions.InetAddr._
       //TODO: fetch host from config
       IO(Tcp) ? Bind(self, new InetSocketAddress("localhost", 0)) onComplete {
         case Success(resp) => resp match {

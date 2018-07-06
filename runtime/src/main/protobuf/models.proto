@@ -7,7 +7,6 @@ import "google/protobuf/wrappers.proto";
 
 option (scalapb.options) = {
   package_name: "runtime.common"
-  import: "runtime.common.TypeMappers._"
 
   // All classes that extend a sealed trait need to be in the same Scala
   // file, so we set single_file to true.

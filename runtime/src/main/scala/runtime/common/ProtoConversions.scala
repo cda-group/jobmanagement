@@ -12,9 +12,8 @@ object ProtoConversions {
   object ActorRef {
     implicit def toRef(p: ActorRefProto)(implicit system: ActorSystem): ActorRef =
       system.asInstanceOf[ExtendedActorSystem].provider.resolveActorRef(p.path)
-
-    implicit def toProto(ref: ActorRef): ActorRefProto =
-      ActorRefProto(Serialization.serializedActorPath(ref))
+    implicit def toProto(ref: ActorRef)(implicit system: ActorSystem) : ActorRefProto =
+      ActorRefProto(ref.path.toSerializationFormatWithAddress(ExternalAddress(system).addressForAkka))
   }
 
   object Address {

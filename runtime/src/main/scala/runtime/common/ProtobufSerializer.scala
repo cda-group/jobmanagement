@@ -9,8 +9,8 @@ import scalapb.GeneratedMessageCompanion
 
 
 /**
-  * https://gist.github.com/thesamet/5d0349b40d3dc92859a1a2eafba448d5
-  * Serializer for our Proto messages
+  * Serializer for Proto messages in the Arc Cluster
+  * Based on https://gist.github.com/thesamet/5d0349b40d3dc92859a1a2eafba448d5
   */
 class ProtobufSerializer(val system: ExtendedActorSystem) extends Serializer {
   private val classToCompanionMapRef = new AtomicReference[Map[Class[_], GeneratedMessageCompanion[_]]](Map.empty)
@@ -21,8 +21,14 @@ class ProtobufSerializer(val system: ExtendedActorSystem) extends Serializer {
   override def identifier = 1313131
 
   override def toBinary(o: AnyRef): Array[Byte] = o match {
+    case gmc: scalapb.GeneratedMessageCompanion[_] =>
+      val incorrect = gmc.defaultInstance
+        .toString
+        .filterNot(c => c ==  '(' || c == ')')
+      throw new IllegalArgumentException("Proto messages are case classes, use " +
+        gmc.defaultInstance + " instead of " + incorrect)
     case e: scalapb.GeneratedMessage => e.toByteArray
-    case s => throw new IllegalArgumentException("Need a subclass of scalapb.GeneratedMessage")
+    case _ => throw new IllegalArgumentException("Need a subclass of scalapb.GeneratedMessage")
   }
 
 

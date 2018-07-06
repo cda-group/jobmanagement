@@ -4,7 +4,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
-import runtime.common.models.{AllocateFailure, ArcJob, NoSlotsAvailable, Unexpected}
+import runtime.common.messages.{AllocateFailure, ArcJob, Unexpected}
 
 import scala.collection.mutable
 import scala.concurrent.duration._

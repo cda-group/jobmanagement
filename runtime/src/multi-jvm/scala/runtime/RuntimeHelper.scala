@@ -1,6 +1,6 @@
 package runtime
 
-import runtime.common.models.{ArcJob, ArcProfile, WeldJob, WeldTask}
+import runtime.common.messages.{ArcJob, ArcProfile, WeldJob, WeldTask}
 
 
 trait RuntimeHelper {

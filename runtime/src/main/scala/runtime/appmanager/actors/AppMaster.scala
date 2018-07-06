@@ -8,7 +8,7 @@ import akka.util.Timeout
 import akka.pattern._
 import runtime.common._
 import runtime.appmanager.utils.AppManagerConfig
-import runtime.common.models._
+import runtime.common.messages._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -37,7 +37,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
-  import ProtoConversions.ActorRef._
+  import runtime.common.messages.ProtoConversions.ActorRef._
 
   def receive = {
     case AppMasterInit(job, rmAddr) =>
@@ -83,7 +83,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   }
 
   private def requestChannel(tm: ActorRef): Future[Option[InetSocketAddress]] = {
-    import ProtoConversions.InetAddr._
+    import runtime.common.messages.ProtoConversions.InetAddr._
     tm ? TasksCompiled() flatMap {
       case TaskTransferConn(addr) =>
         Future.successful(Some(addr))

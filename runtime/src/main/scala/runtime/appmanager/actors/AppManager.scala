@@ -10,7 +10,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
 import runtime.appmanager.utils.AppManagerConfig
-import runtime.common.models.{ArcJob, WeldJob, WeldTask, WeldTaskCompleted}
+import runtime.common.messages.{ArcJob, WeldJob, WeldTask, WeldTaskCompleted}
 import spray.json.DefaultJsonProtocol._
 
 import scala.collection.mutable

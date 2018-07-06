@@ -3,8 +3,7 @@ package runtime.appmanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import runtime.ActorSpec
-import runtime.common._
-import runtime.common.models.{TaskTransferComplete, TaskTransferConn, TasksCompiled}
+import runtime.common.messages.{TaskTransferComplete, TaskTransferConn, TasksCompiled}
 import runtime.taskmanager.actors.TaskMaster
 
 class TaskSenderSpec extends TestKit(ActorSystem("TaskSenderSpec"))
@@ -23,7 +22,7 @@ class TaskSenderSpec extends TestKit(ActorSystem("TaskSenderSpec"))
       tm ! TasksCompiled()
       val conn = expectMsgType[TaskTransferConn]
       val tmProbe = TestProbe()
-      import ProtoConversions.InetAddr._
+      import runtime.common.messages.ProtoConversions.InetAddr._
       val taskSender = system.actorOf(TaskSender(conn.inet, "test".getBytes(), tmProbe.ref))
       tmProbe.expectMsgType[TaskTransferComplete]
     }

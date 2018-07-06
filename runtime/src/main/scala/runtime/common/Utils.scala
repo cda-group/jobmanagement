@@ -1,6 +1,6 @@
 package runtime.common
 
-import runtime.common.models.ArcProfile
+import runtime.common.messages.ArcProfile
 
 
 object Utils {

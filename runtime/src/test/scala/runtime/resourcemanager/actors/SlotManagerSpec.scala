@@ -3,7 +3,7 @@ package runtime.resourcemanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import runtime.ActorSpec
-import runtime.common.models.{NoSlotsAvailable, NoTaskManagerAvailable}
+import runtime.common.messages.{NoSlotsAvailable, NoTaskManagerAvailable}
 import runtime.resourcemanager.actors.ClusterListener.TaskManagerRegistration
 import runtime.resourcemanager.actors.ResourceManager.SlotRequest
 

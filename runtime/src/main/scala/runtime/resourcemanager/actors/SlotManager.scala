@@ -2,8 +2,7 @@ package runtime.resourcemanager.actors
 
 import akka.actor.{Actor, ActorLogging, Address, Props}
 import runtime.common.ActorPaths
-import runtime.common.models._
-import runtime.common.ProtoConversions
+import runtime.common.messages._
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}

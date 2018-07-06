@@ -1,9 +1,9 @@
-package runtime.common
+package runtime.common.messages
+
+import java.net.{InetSocketAddress => InetSocketAddressJava}
 
 import akka.actor.{ActorRef, ActorSystem, Address, ExtendedActorSystem}
-import akka.serialization.Serialization
-import runtime.common.models.{ActorRefProto, AddressProto, InetProto}
-import java.net.{InetSocketAddress => InetSocketAddressJava}
+import runtime.common.ExternalAddress
 
 import scala.language.implicitConversions
 

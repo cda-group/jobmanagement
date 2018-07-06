@@ -6,8 +6,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.io.Tcp._
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
-import runtime.common.models.{TaskTransferAck, TaskTransferComplete}
-import runtime.common.ProtoConversions
+import runtime.common.messages.{ProtoConversions, TaskTransferAck, TaskTransferComplete}
 
 object TaskSender {
   def apply(server: InetSocketAddress, bytes: Array[Byte], tm: ActorRef): Props =

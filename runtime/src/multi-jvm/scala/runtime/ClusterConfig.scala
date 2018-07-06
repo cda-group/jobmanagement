@@ -38,7 +38,7 @@ object ClusterConfig extends MultiNodeConfig {
       |akka.actor.provider = cluster
       |akka.cluster.log-info = off
       |akka.stdout-loglevel = off
-      |akka.actor.serializers.proto = "runtime.common.ProtobufSerializer"
+      |akka.actor.serializers.proto = "runtime.common.serialization.ProtobufSerializer"
       |akka.actor.serializers.java = "akka.serialization.JavaSerializer"
       |akka.actor.serialize-messages = on
       |akka.actor.serialization-bindings {"scalapb.GeneratedMessage" = proto}

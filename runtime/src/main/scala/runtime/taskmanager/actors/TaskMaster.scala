@@ -6,8 +6,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated
 import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.util.Timeout
-import runtime.common._
-import runtime.common.models._
+import runtime.common.messages._
 import runtime.taskmanager.utils.{ExecutionEnvironment, TaskManagerConfig}
 
 import scala.collection.mutable
@@ -88,7 +87,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
       taskReceivers.put(remote, tr)
       sender() ! Register(tr)
     case TaskTransferComplete(remote) =>
-      import ProtoConversions.InetAddr._
+      import runtime.common.messages.ProtoConversions.InetAddr._
       taskReceivers.get(remote) match {
         case Some(ref) =>
           startExecutors(ref)
@@ -98,7 +97,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
     case TasksCompiled() =>
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
-      import ProtoConversions.InetAddr._
+      import runtime.common.messages.ProtoConversions.InetAddr._
       val askRef = sender()
       //TODO: fetch host from config
       IO(Tcp) ? Bind(self, new InetSocketAddress("localhost", 0)) onComplete {

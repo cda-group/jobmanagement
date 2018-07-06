@@ -1,8 +1,8 @@
 package runtime.statemanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
-import runtime.common.{Identifiers, ProtoConversions}
-import runtime.common.models.{StateManagerJob, StateMasterConn}
+import runtime.common.Identifiers
+import runtime.common.messages.{StateManagerJob, StateMasterConn}
 
 import scala.collection.mutable
 
@@ -23,7 +23,7 @@ class StateManager extends Actor with ActorLogging {
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
-  import ProtoConversions.ActorRef._
+  import runtime.common.messages.ProtoConversions.ActorRef._
 
   def receive = {
     case StateManagerJob(ref) =>

@@ -2,7 +2,7 @@ package runtime
 
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
 import runtime.common.Utils
-import runtime.common.models.{ArcJob, WeldJob, WeldTask}
+import runtime.common.messages.{ArcJob, WeldJob, WeldTask}
 
 
 trait ActorSpec extends WordSpecLike with Matchers with BeforeAndAfterAll {

@@ -1,4 +1,4 @@
-package runtime.common
+package runtime.common.serialization
 
 import java.util.concurrent.atomic.AtomicReference
 

@@ -3,7 +3,7 @@ package runtime.taskmanager.actors
 import java.io.{BufferedReader, InputStreamReader}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
-import runtime.common.models.{WeldTask, WeldTaskCompleted}
+import runtime.common.messages.{WeldTask, WeldTaskCompleted}
 import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.concurrent.duration._

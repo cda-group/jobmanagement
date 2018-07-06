@@ -6,11 +6,12 @@ import "google/protobuf/wrappers.proto";
 
 
 option (scalapb.options) = {
-  package_name: "runtime.common"
+  package_name: "runtime.common.messages"
 
   // All classes that extend a sealed trait need to be in the same Scala
   // file, so we set single_file to true.
   single_file: true
+  flat_package: true
   preamble: "sealed trait AllocateResponse"
   preamble: "sealed trait SlotRequestResp"
 };
@@ -92,7 +93,7 @@ message WeldTaskCompleted {
 //this.cpuCores >= other.cpuCores && this.memoryInMB >= other.memoryInMB
 //}
 message ArcProfile {
-    option (scalapb.message).extends = "runtime.common.ProfileMatcher";
+    option (scalapb.message).extends = "runtime.common.messages.ProfileMatcher";
     double cpuCores = 1;
     int64 memoryInMb = 2; // Long
 }

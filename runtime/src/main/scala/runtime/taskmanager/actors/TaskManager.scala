@@ -4,8 +4,8 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancella
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
-import runtime.common.models.SlotState.{ALLOCATED, FREE}
-import runtime.common.models._
+import runtime.common.messages.SlotState.{ALLOCATED, FREE}
+import runtime.common.messages._
 import runtime.taskmanager.actors.TaskManager.TMNotInitialized
 import runtime.taskmanager.utils.TaskManagerConfig
 
@@ -30,7 +30,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
-  import ProtoConversions.ActorRef._
+  import runtime.common.messages.ProtoConversions.ActorRef._
 
   var slotTicker = None: Option[Cancellable]
   var taskSlots = mutable.IndexedSeq.empty[TaskSlot]

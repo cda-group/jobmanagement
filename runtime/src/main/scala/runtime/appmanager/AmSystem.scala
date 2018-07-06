@@ -9,7 +9,7 @@ import runtime.common.Identifiers
 
 object AmSystem extends App with AppManagerConfig with LazyLogging {
   logger.info("Starting up AppManager")
-  val system = ActorSystem("JmCluster", config)
+  val system = ActorSystem(Identifiers.CLUSTER, config)
   val appmanager = system.actorOf(ClusterListener(), Identifiers.LISTENER)
 
   system.whenTerminated

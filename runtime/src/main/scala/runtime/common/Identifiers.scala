@@ -14,4 +14,6 @@ object Identifiers {
   final val TASK_EXECUTOR = "taskexecutor"
   final val STATE_MANAGER = "statemanager"
   final val STATE_MASTER = "statemaster"
+
+  final val CLUSTER = "ArcRuntime"
 }

@@ -3,9 +3,10 @@ package runtime.taskmanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import runtime.ActorSpec
-import runtime.common._
+import runtime.common.messages.{Allocate, SlotUpdate, TaskManagerInit}
 import runtime.taskmanager.actors.TaskManager.TMNotInitialized
 import runtime.taskmanager.utils.TaskManagerConfig
+
 import scala.concurrent.duration._
 
 class TaskManagerSpec extends TestKit(ActorSystem("TaskManagerSpec"))
@@ -27,7 +28,7 @@ class TaskManagerSpec extends TestKit(ActorSystem("TaskManagerSpec"))
     "Send SlotUpdate" in {
       val probe = TestProbe()
       val tm = system.actorOf(TaskManager())
-      probe.send(tm, TaskManagerInit)
+      probe.send(tm, TaskManagerInit())
       probe.expectMsgType[SlotUpdate](slotTick.millis + slotTick.millis)
     }
   }

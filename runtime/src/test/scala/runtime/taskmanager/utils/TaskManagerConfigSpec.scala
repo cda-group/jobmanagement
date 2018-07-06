@@ -8,7 +8,7 @@ class TaskManagerConfigSpec extends BaseSpec with TaskManagerConfig {
     assert(config.isResolved)
     assert(slotTick > 0 && slotTick <= 15000)
     assert(nrOfSlots > 0 && nrOfSlots <= 100)
-    assert(binaryManagerTimeout > 0 && binaryManagerTimeout <= 15000)
-    assert(binaryExecutorHealthCheck > 0 && binaryExecutorHealthCheck <= 15000)
+    assert(taskMasterTimeout > 0 && taskMasterTimeout <= 15000)
+    assert(taskExecutorHealthCheck > 0 && taskExecutorHealthCheck <= 15000)
   }
 }

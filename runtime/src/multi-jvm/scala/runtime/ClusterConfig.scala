@@ -7,7 +7,8 @@ import runtime.common.Identifiers
 object ClusterConfig extends MultiNodeConfig {
   val taskmanager = role(Identifiers.TASK_MANAGER)
   val resourcemanager = role(Identifiers.RESOURCE_MANAGER)
-  val driver = role(Identifiers.DRIVER)
+  val appmanager = role(Identifiers.APP_MANAGER)
+  val statemanager = role(Identifiers.STATE_MANAGER)
 
 
   nodeConfig(taskmanager)(ConfigFactory.parseString(
@@ -20,17 +21,28 @@ object ClusterConfig extends MultiNodeConfig {
        |akka.cluster.roles=[${Identifiers.RESOURCE_MANAGER}]
     """.stripMargin))
 
-  nodeConfig(driver)(ConfigFactory.parseString(
+  nodeConfig(appmanager)(ConfigFactory.parseString(
     s"""
-       |akka.cluster.roles=[${Identifiers.DRIVER}]
+       |akka.cluster.roles=[${Identifiers.APP_MANAGER}]
+    """.stripMargin))
+
+  nodeConfig(statemanager)(ConfigFactory.parseString(
+    s"""
+       |akka.cluster.roles=[${Identifiers.STATE_MANAGER}]
     """.stripMargin))
 
   commonConfig(ConfigFactory.parseString(
     """
-      |akka.loglevel=OFF
+      |akka.loglevel = off
+      |akka.remote.log-remote-lifecycle-events = off
       |akka.actor.provider = cluster
       |akka.cluster.log-info = off
-      |akka.log-dead-letters=off
+      |akka.stdout-loglevel = off
+      |akka.actor.serializers.proto = "runtime.common.serialization.ProtobufSerializer"
+      |akka.actor.serializers.java = "akka.serialization.JavaSerializer"
+      |akka.actor.serialize-messages = on
+      |akka.actor.serialization-bindings {"scalapb.GeneratedMessage" = proto}
+      |akka.log-dead-letters = off
       |akka.coordinated-shutdown.run-by-jvm-shutdown-hook = off
       |akka.coordinated-shutdown.terminate-actor-system = off
       |akka.cluster.run-coordinated-shutdown-when-down = off

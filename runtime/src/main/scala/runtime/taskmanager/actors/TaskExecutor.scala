@@ -1,0 +1,73 @@
+package runtime.taskmanager.actors
+
+import java.io.{BufferedReader, InputStreamReader}
+
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
+import runtime.common.messages.{WeldTask, WeldTaskCompleted}
+import runtime.taskmanager.utils.TaskManagerConfig
+
+import scala.concurrent.duration._
+
+object TaskExecutor {
+  def apply(binPath: String, task: WeldTask, aMaster: ActorRef): Props =
+    Props(new TaskExecutor(binPath, task, aMaster))
+  case object HealthCheck
+}
+
+/** Initial PoC for executing binaries and "monitoring" them
+  *
+  * @param binPath path to the rust binary
+  */
+class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef)
+  extends Actor with ActorLogging with TaskManagerConfig {
+  var healthChecker = None: Option[Cancellable]
+  val runtime = Runtime.getRuntime
+  var process = None: Option[Process]
+
+  import TaskExecutor._
+  import context.dispatcher
+
+  override def preStart(): Unit = {
+    val pb = new ProcessBuilder(binPath, task.expr, task.vec)
+    process = Some(pb.start())
+
+    healthChecker = Some(context.system.scheduler.schedule(
+      taskExecutorHealthCheck.milliseconds,
+      taskExecutorHealthCheck.milliseconds,
+      self,
+      HealthCheck
+    ))
+
+
+    val reader = new BufferedReader(new InputStreamReader(process.get.getInputStream))
+
+    var line: String = null
+    var res: String = ""
+    while ({line = reader.readLine; line != null}) {
+      res = line
+      println(line)
+    }
+    process.get.waitFor()
+    val updated = task.copy(result = Some(res))
+    appMaster ! WeldTaskCompleted(updated)
+  }
+
+  def receive = {
+    case HealthCheck =>
+      process match {
+        case Some(p) =>
+          if (p.isAlive) {
+            log.info("bin: " + binPath + " is alive")
+          } else {
+            log.info("bin: " + binPath + " has died or stopped executing")
+            log.info("Stopping taskexecutor: " + self)
+            healthChecker.map(_.cancel())
+            context.stop(self)
+          }
+        case None =>
+          log.error("Something went wrong..")
+      }
+    case _ =>
+  }
+
+}

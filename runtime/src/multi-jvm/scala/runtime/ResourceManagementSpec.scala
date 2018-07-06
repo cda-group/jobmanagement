@@ -2,11 +2,13 @@ package runtime
 
 import akka.testkit.TestProbe
 import runtime.common._
+import runtime.common.messages.{AllocateSuccess, NoSlotsAvailable}
 
 
 class ResourceManagementSpecMultiJvmNode1 extends ResourceManagementSpec
 class ResourceManagementSpecMultiJvmNode2 extends ResourceManagementSpec
 class ResourceManagementSpecMultiJvmNode3 extends ResourceManagementSpec
+class ResourceManagementSpecMultiJvmNode4 extends ResourceManagementSpec
 
 
 class ResourceManagementSpec extends RuntimeSpec with RuntimeHelper {
@@ -27,13 +29,19 @@ class ResourceManagementSpec extends RuntimeSpec with RuntimeHelper {
         enterBarrier("allocated_slot")
       }
 
-      runOn(driver) {
+      runOn(statemanager) {
+        enterBarrier("allocated_slot")
+      }
+
+      runOn(appmanager) {
         val rm = system.actorSelection(ActorPaths.resourceManager(rmAddr))
+        import runtime.common.messages.ProtoConversions.ActorRef._
         val probe = TestProbe()
-        rm ! smallJob.copy(jmRef = Some(probe.ref))
+        rm ! smallJob.copy(ref = Some(probe.ref))
         expectMsgType[AllocateSuccess]
         enterBarrier("allocated_slot")
       }
+
     }
 
     "handle no slot availibility" in {
@@ -45,11 +53,16 @@ class ResourceManagementSpec extends RuntimeSpec with RuntimeHelper {
         enterBarrier("allocated_slot_fail")
       }
 
-      runOn(driver) {
+      runOn(appmanager) {
         val rm = system.actorSelection(ActorPaths.resourceManager(rmAddr))
         val probe = TestProbe()
-        rm ! tooBigJob.copy(jmRef = Some(probe.ref))
-        expectMsg(NoSlotsAvailable)
+        import runtime.common.messages.ProtoConversions.ActorRef._
+        rm ! tooBigJob.copy(ref = Some(probe.ref))
+        expectMsg(NoSlotsAvailable())
+        enterBarrier("allocated_slot_fail")
+      }
+
+      runOn(statemanager) {
         enterBarrier("allocated_slot_fail")
       }
     }

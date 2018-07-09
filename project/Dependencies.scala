@@ -27,7 +27,8 @@ object Dependencies {
   val akkaDependencies: Seq[ModuleID] = Seq(
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
     "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
-    "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion
+    "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion,
+    "com.typesafe.akka" %% "akka-cluster-metrics" % akkaVersion
   )
 
   import scalapb.compiler.Version.scalapbVersion
@@ -39,14 +40,17 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-http"   % akkaHttpVersion,
     "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion,
     "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion
+  )
 
+  val sigarDependencies: Seq[ModuleID] = Seq(
+    "io.kamon" % "sigar-loader" % "1.6.6-rev002"
   )
 
   // Common libs that are used together
   val basic : Seq[ModuleID] =
     logDependencies ++ confDependencies ++ testDependencies
 
-  val runtimeDependencies: Seq[ModuleID] = basic ++
-    akkaDependencies ++ akkaHttpDependencies ++ protobufDependencies
+  val runtimeDependencies: Seq[ModuleID] = basic ++ akkaDependencies ++
+    akkaHttpDependencies ++ protobufDependencies ++ sigarDependencies
 
 }

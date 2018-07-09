@@ -19,4 +19,5 @@ class RestService(appManager: ActorRef)(implicit val ec: ExecutionContext)
         jobRoute.route
       }
     }
+
 }

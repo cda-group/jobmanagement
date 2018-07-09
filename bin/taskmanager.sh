@@ -6,9 +6,9 @@ REPO_ROOT=$(git root)
 
 if [ -z "$1" ]
 then
-    java -jar $REPO_ROOT/build/taskmanager.jar
+    java -jar -Djava.library.path=native/ $REPO_ROOT/build/taskmanager.jar
 else
-    java -jar -Dakka.remote.netty.tcp.port=$1 $REPO_ROOT/build/taskmanager.jar
+    java -jar -Dakka.remote.netty.tcp.port=$1 -Djava.library.path=native/ $REPO_ROOT/build/taskmanager.jar
 fi
 
 

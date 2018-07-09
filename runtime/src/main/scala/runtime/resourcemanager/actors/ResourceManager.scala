@@ -42,19 +42,7 @@ class ResourceManager extends Actor with ActorLogging {
       slotManager forward utm
     case job@ArcJob(_, _, _,  ref) =>
       log.info("Got a job request from an AppMaster")
-      val askRef  = sender()
-      ref match {
-        case Some(_) =>
-          slotManager ? SlotRequest(job) onComplete {
-            case Success(resp) =>
-              askRef ! resp
-            case Failure(e) =>
-              askRef ! AllocateFailure().withUnexpected(Unexpected())
-          }
-        case None =>
-          log.error("AppMaster Ref was not set in the ArcJob")
-          // Notify
-      }
+      slotManager ? SlotRequest(job) pipeTo sender()
     case _ =>
   }
 }

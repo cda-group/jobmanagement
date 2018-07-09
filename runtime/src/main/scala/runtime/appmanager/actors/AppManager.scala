@@ -1,6 +1,5 @@
 package runtime.appmanager.actors
 
-import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
 import akka.http.scaladsl.Http
@@ -57,7 +56,7 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
     case RmRemoved(rm) =>
       resourceManager = None
     case ArcJobRequest(arcJob) =>
-      // The driver has received a job request from somewhere
+      // The AppManager has received a job request from somewhere
       // whether it is through another actor, rest, or rpc...
 
       arcJob.job.tasks.foreach { t => weldTasks = weldTasks :+ t}

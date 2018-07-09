@@ -26,15 +26,15 @@ class StateManager extends Actor with ActorLogging {
   import runtime.common.messages.ProtoConversions.ActorRef._
 
   def receive = {
-    case StateManagerJob(ref) =>
-      val stateMaster = context.actorOf(StateMaster(ref), Identifiers.STATE_MASTER + stateMasterId)
+    case StateManagerJob(appMaster) =>
+      val stateMaster = context.actorOf(StateMaster(appMaster), Identifiers.STATE_MASTER + stateMasterId)
       stateMasters = stateMasters :+ stateMaster
       stateMasterId += 1
 
       // Enable deathwatch
       context watch stateMaster
 
-      // Respond to TaskManager with Ref to StateMaster
+      // Respond with Ref to StateMaster
       sender() ! StateMasterConn(stateMaster)
     case Terminated(ref) =>
       stateMasters = stateMasters.filterNot(_ == ref)

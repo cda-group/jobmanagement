@@ -7,6 +7,7 @@ import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common.messages._
+import runtime.taskmanager.actors.TaskManager.StateMasterError
 import runtime.taskmanager.utils.{ExecutionEnvironment, TaskManagerConfig}
 
 import scala.collection.mutable
@@ -57,6 +58,8 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
   var taskReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
   var taskReceiversId = 0
 
+  var stateMaster = None: Option[ActorRef]
+
 
   override def preStart(): Unit = {
     env.create() match {
@@ -81,6 +84,14 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
   }
 
   def receive = {
+    case StateMasterConn(ref) =>
+      import ProtoConversions.ActorRef._
+      log.info("Got StateMaster")
+      stateMaster = Some(ref)
+    case StateMasterError =>
+      // Failed establishing link with a stateMaster.
+      // Handle it
+      log.error("Could not fetch a StateMaster")
     case Connected(remote, local) =>
       val tr = context.actorOf(TaskReceiver(taskReceiversId.toString, env), "rec"+taskReceiversId)
       taskReceiversId += 1
@@ -97,18 +108,13 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
     case TasksCompiled() =>
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
-      import runtime.common.messages.ProtoConversions.InetAddr._
-      val askRef = sender()
-      //TODO: fetch host from config
-      IO(Tcp) ? Bind(self, new InetSocketAddress("localhost", 0)) onComplete {
-        case Success(resp) => resp match {
-          case Bound(localAddr) =>
-            askRef ! TaskTransferConn(localAddr)
-          case CommandFailed(_ :Bind) =>
-            askRef ! TaskTransferError()
-        }
-        case Failure(e) =>
-          askRef ! TaskTransferError()
+      val appMaster = sender()
+      IO(Tcp) ? Bind(self, new InetSocketAddress(hostname, 0)) map {
+        case Bound(inet) =>
+          import ProtoConversions.InetAddr._
+          appMaster ! TaskTransferConn(inet)
+        case CommandFailed(f) =>
+          appMaster ! TaskTransferError()
       }
     case VerifyHeartbeat =>
       val now = System.currentTimeMillis()

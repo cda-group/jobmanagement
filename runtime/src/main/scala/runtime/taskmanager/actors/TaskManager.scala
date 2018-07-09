@@ -1,12 +1,13 @@
 package runtime.taskmanager.actors
 
+import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancellable, Props, Terminated}
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
 import runtime.common.messages.SlotState.{ALLOCATED, FREE}
 import runtime.common.messages._
-import runtime.taskmanager.actors.TaskManager.TMNotInitialized
+import runtime.taskmanager.actors.TaskManager.{StateMasterError, TMNotInitialized}
 import runtime.taskmanager.utils.TaskManagerConfig
 
 import scala.collection.mutable
@@ -16,6 +17,7 @@ import scala.concurrent.duration._
 object TaskManager {
   def apply(): Props = Props(new TaskManager())
   case object TMNotInitialized
+  case object StateMasterError
 }
 
 /** Actor that handles TaskSlots
@@ -65,56 +67,27 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       // improve
       sender() ! AllocateFailure().withUnexpected(Unexpected())
     case Allocate(job, slots) => // TODO: Refactor
-      val targetSlots = taskSlots intersect slots
-      if (targetSlots.exists(_.state != SlotState.FREE)) {
-        // One of the slots were not free.
-        // notify requester that the allocation failed
-        sender() ! AllocateFailure().withUnexpected(Unexpected())
+      if (!slotControl(slots)) {
+        // we failed allocating the slots
+        sender() ! AllocateFailure().withUnexpected(Unexpected()) // Fix this..
       } else {
+        val resourceManager = sender()
+        val appMaster = job.ref.get
 
-        taskSlots = taskSlots.map {s =>
-          if (targetSlots.contains(s))
-            s.copy(state = ALLOCATED)
-          else
-            s
-        }
+        val tm = context.actorOf(TaskMaster(job, slots.map(_.index),
+          appMaster), Identifiers.TASK_MASTER + taskMastersId)
 
-        if (job.ref.isEmpty) {
-          // ActorRef to AppMaster was not set, something went wrong
-          // This should not happen
-          // TODO: Handle
-        } else {
-          // Set reference to actual sender to avoid problems
-          // when temporary actors are created...
-          val askRef = sender()
+        taskMasters = taskMasters :+ tm
+        taskMastersId += 1
 
-          // Check if there are any available StateManagers
-          // If there are, then send a StateManagerJob and
-          // Collect the StateMaster ref, and give it to the TaskMaster
+        // Enable DeathWatch
+        context watch tm
 
-          // If there are no StateManagers, then perhaps create an
-          // StateMaster actor remotely on the driver "instead"
-          getStateMaster(job.ref.get) map {
-            case Some(stateMaster) =>
-              val tm = context.actorOf(TaskMaster(job, slots.map(_.index),
-                job.ref.get), Identifiers.TASK_MASTER+taskMastersId)
+        // Let the requester know how to access the newly created TaskMaster
+        resourceManager ! AllocateSuccess(job, tm)
 
-              taskMasters = taskMasters :+ tm
-              taskMastersId += 1
-
-              // Enable DeathWatch
-              context watch tm
-
-              // Let AppMaster know about the allocation and how to access the TaskMaster
-              askRef ! AllocateSuccess(job, tm)
-            case None =>
-            // Could not retreive a StateMaster
-            // Either we can create a StateMaster actor remotely on the driver
-            // or we fail the Allocation..
-              sender() ! AllocateFailure().withUnexpected(Unexpected())
-          }
-
-        }
+        // Create a state master that is linked with the AppMaster and TaskMaster
+        getStateMaster(appMaster) recover {case _ => StateMasterError} pipeTo tm
       }
     case ReleaseSlots(slots) =>
       taskSlots = taskSlots.map {s =>
@@ -157,15 +130,40 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     })
   }
 
+  /** Helper method for the TaskSlot update ticker
+    * @return Seq[TaskSlot]
+    */
   private def currentSlots(): Seq[TaskSlot] = taskSlots
 
-  private def getStateMaster(amRef: ActorRef): Future[Option[ActorRef]] = {
+
+  /** Does a control check that the slots requested
+    * are in fact not occupied
+    * @param slots TaskSlots that have been requested
+    * @return true if all are free, false if any of them have an ALLOCATED state
+    */
+  private def slotControl(slots: Seq[TaskSlot]): Boolean = {
+    val targetSlots = taskSlots intersect slots
+    if (targetSlots.exists(_.state != SlotState.FREE)) {
+      false
+    } else {
+      taskSlots = taskSlots.map { s =>
+        if (targetSlots.contains(s))
+          s.copy(state = ALLOCATED)
+        else
+          s
+      }
+      true
+    }
+  }
+
+  private def getStateMaster(amRef: ActorRef): Future[StateMasterConn] = {
     val smAddr = stateManagers(stateManagerReqs % stateManagers.size)
     val smSelection = context.actorSelection(ActorPaths.stateManager(smAddr))
-    implicit val timeout = Timeout(3 seconds)
+    implicit val timeout = Timeout(2 seconds)
     smSelection ? StateManagerJob(amRef) flatMap {
-      case StateMasterConn(stateMaster) =>
-        Future.successful(Some(stateMaster))
+      case s@StateMasterConn(_) => Future.successful(s)
+    } recoverWith {
+      case t: akka.pattern.AskTimeoutException => Future.failed(t)
     }
   }
 

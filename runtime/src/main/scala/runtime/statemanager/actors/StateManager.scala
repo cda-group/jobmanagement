@@ -1,6 +1,7 @@
 package runtime.statemanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
+import akka.cluster.metrics.ClusterMetricsExtension
 import runtime.common.Identifiers
 import runtime.common.messages.{StateManagerJob, StateMasterConn}
 
@@ -24,6 +25,16 @@ class StateManager extends Actor with ActorLogging {
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
   import runtime.common.messages.ProtoConversions.ActorRef._
+
+  val metrics = ClusterMetricsExtension(context.system)
+
+  override def preStart(): Unit = {
+    metrics.subscribe(self)
+  }
+
+  override def postStop(): Unit = {
+    metrics.unsubscribe(self)
+  }
 
   def receive = {
     case StateManagerJob(appMaster) =>

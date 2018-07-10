@@ -125,11 +125,6 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       // TODO: Handle by either removing or try to wait for a reconnection
     case RemovedStateManager(manager) =>
       stateManagers = stateManagers.filterNot(_ == manager)
-    case ClusterMetricsChanged(clusterMetrics) =>
-      clusterMetrics.foreach { nodeMetrics ⇒
-        logHeap(nodeMetrics)
-        logCpu(nodeMetrics)
-      }
   }
 
   /** Starts ticker to send slot availability periodically to
@@ -182,18 +177,5 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       case t: akka.pattern.AskTimeoutException => Future.failed(t)
     }
   }
-
-  def logHeap(nodeMetrics: NodeMetrics): Unit = nodeMetrics match {
-    case HeapMemory(address, timestamp, used, committed, max) ⇒
-      log.info("Used heap: {} MB", used.doubleValue / 1024 / 1024)
-    case _ ⇒ // No heap info.
-  }
-
-  def logCpu(nodeMetrics: NodeMetrics): Unit = nodeMetrics match {
-    case Cpu(address, timestamp, Some(systemLoadAverage), cpuCombined, cpuStolen, processors) ⇒
-      log.info("Load: {} ({} processors)", systemLoadAverage, processors)
-    case _ ⇒ // No cpu info.
-  }
-
 
 }

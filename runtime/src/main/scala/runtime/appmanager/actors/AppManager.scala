@@ -2,8 +2,12 @@ package runtime.appmanager.actors
 
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
+import akka.cluster.Cluster
+import akka.cluster.metrics.StandardMetrics.{Cpu, HeapMemory}
+import akka.cluster.metrics.{ClusterMetricsChanged, ClusterMetricsExtension, NodeMetrics}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
+import runtime.appmanager.actors.MetricAccumulator.{StateManagerMetrics, TaskManagerMetrics}
 import runtime.common._
 import runtime.appmanager.rest.RestService
 import runtime.appmanager.utils.AppManagerConfig
@@ -36,11 +40,15 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
   // temp task storage
   var weldTasks = IndexedSeq.empty[WeldTask]
 
+  // MetricAccumulator
+  val metricAccumulator = context.system.actorOf(MetricAccumulator())
+
   override def preStart(): Unit = {
     log.info("Starting up REST server at " + interface + ":" + restPort)
     val rest = new RestService(self)
     Http().bindAndHandle(rest.route, interface, restPort)
   }
+
 
   // Just a single resourcemananger for now
   var resourceManager = None: Option[Address]
@@ -88,6 +96,12 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
     case Terminated(ref) =>
       // AppMaster was terminated somehow
       appMasters = appMasters.filterNot(_ == ref)
+    case t@TaskManagerMetrics =>
+      metricAccumulator forward t
+    case s@StateManagerMetrics =>
+      metricAccumulator forward s
     case _ =>
   }
+
+
 }

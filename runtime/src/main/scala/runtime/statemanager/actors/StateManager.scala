@@ -37,8 +37,9 @@ class StateManager extends Actor with ActorLogging {
   }
 
   def receive = {
-    case StateManagerJob(appMaster) =>
-      val stateMaster = context.actorOf(StateMaster(appMaster), Identifiers.STATE_MASTER + stateMasterId)
+    case StateManagerJob(appMaster, job) =>
+      val stateMaster = context.actorOf(StateMaster(appMaster, job)
+        , Identifiers.STATE_MASTER + stateMasterId)
       stateMasters = stateMasters :+ stateMaster
       stateMasterId += 1
 

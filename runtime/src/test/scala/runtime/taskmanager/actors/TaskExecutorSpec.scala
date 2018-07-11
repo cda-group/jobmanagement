@@ -23,13 +23,13 @@ class TaskExecutorSpec extends TestKit(ActorSystem("TaskExecutorSpec"))
 
     "Receive updated object" in {
       val jm = TestProbe()
-      val be = system.actorOf(TaskExecutor(program, WeldTask("", ""), jm.ref))
+      val be = system.actorOf(TaskExecutor(program, WeldTask("", "", ""), jm.ref))
       jm.expectMsgType[WeldTaskCompleted]
     }
 
     "Terminate after execution" in {
       val jm = TestProbe()
-      val be = system.actorOf(TaskExecutor(program, WeldTask("", ""), jm.ref))
+      val be = system.actorOf(TaskExecutor(program, WeldTask("", "", ""), jm.ref))
       val probe = TestProbe()
       probe watch be
       probe.expectTerminated(be, taskExecutorHealthCheck.millis + taskExecutorHealthCheck.millis)

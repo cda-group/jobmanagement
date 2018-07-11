@@ -44,6 +44,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
 
+
   // Heartbeat variables
   var heartBeatChecker = None: Option[Cancellable]
   var lastJmTs: Long = 0

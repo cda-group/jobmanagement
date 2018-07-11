@@ -18,6 +18,7 @@ class ExecutorStats(pid: Long, sigar: Sigar) extends LazyLogging {
     } catch {
       case e: SigarException =>  Right(e)
       case l: LinkageError => Right(l)
+      case o: Exception => Right(o)
     }
   }
 
@@ -34,6 +35,7 @@ class ExecutorStats(pid: Long, sigar: Sigar) extends LazyLogging {
         case ProcState.STOP => "Suspended"
         case ProcState.ZOMBIE => "Zombie"
         case ProcState.SLEEP =>  "Sleeping"
+        case _ => "Unknown"
       }
       new ProcessState(threads, priority, state)
     }

@@ -18,7 +18,7 @@ import runtime.appmanager.rest.routes.ClusterRoute.NamedMetric
 trait JsonConverter extends SprayJsonSupport with DefaultJsonProtocol {
   import spray.json._
 
-  implicit val weldTaskFormat = jsonFormat3(WeldTask.apply)
+  implicit val weldTaskFormat = jsonFormat4(WeldTask.apply)
   implicit val weldJobFormat = jsonFormat1(WeldJob.apply)
   implicit val taskReport = jsonFormat1(TaskReport.apply)
 

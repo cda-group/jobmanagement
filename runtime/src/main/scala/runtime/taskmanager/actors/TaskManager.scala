@@ -98,7 +98,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
         resourceManager ! AllocateSuccess(job, tm)
 
         // Create a state master that is linked with the AppMaster and TaskMaster
-        getStateMaster(appMaster) recover {case _ => StateMasterError} pipeTo tm
+        getStateMaster(appMaster, job) recover {case _ => StateMasterError} pipeTo tm
       }
     case ReleaseSlots(slots) =>
       taskSlots = taskSlots.map {s =>
@@ -167,11 +167,11 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     }
   }
 
-  private def getStateMaster(amRef: ActorRef): Future[StateMasterConn] = {
+  private def getStateMaster(amRef: ActorRef, job: ArcJob): Future[StateMasterConn] = {
     val smAddr = stateManagers(stateManagerReqs % stateManagers.size)
     val smSelection = context.actorSelection(ActorPaths.stateManager(smAddr))
     implicit val timeout = Timeout(2 seconds)
-    smSelection ? StateManagerJob(amRef) flatMap {
+    smSelection ? StateManagerJob(amRef, job) flatMap {
       case s@StateMasterConn(_) => Future.successful(s)
     } recoverWith {
       case t: akka.pattern.AskTimeoutException => Future.failed(t)

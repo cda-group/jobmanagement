@@ -15,7 +15,7 @@ case "$1" in
         echo -e "Adding Weld job with expr $MAP_EXPR and vector $MAP_VEC"
         echo -e "Adding Weld Job with expr $FILTER_EXPR and vector $FILTER_VEC"
         curl -H "Content-Type: application/json" -X POST \
-        -d '{"tasks":[{"expr": "'"$MAP_EXPR"'", "vec": "'"$MAP_VEC"'"}, {"expr": "'"$FILTER_EXPR"'", "vec":"'"$FILTER_VEC"'"}]}' localhost:5050/api/v1/job/submit
+        -d '{"tasks":[{"name": "mapper", "expr": "'"$MAP_EXPR"'", "vec": "'"$MAP_VEC"'"}, {"name": "filter", "expr": "'"$FILTER_EXPR"'", "vec":"'"$FILTER_VEC"'"}]}' localhost:5050/api/v1/job/submit
         ;;
 esac
 

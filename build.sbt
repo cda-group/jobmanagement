@@ -3,6 +3,9 @@ import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 
 name := "jobmanagement." + "root"
 
+
+lazy val sigarFolder = SettingKey[File]("sigar-folder", "Location of native library extracted by Sigar java agent.")
+
 def sysPropOrDefault(propName:String,default:String): String =
   Option(System.getProperty(propName)).getOrElse(default)
 
@@ -13,11 +16,22 @@ lazy val generalSettings = Seq(
   scalaVersion := "2.12.6"
 )
 
-lazy val runtimeSettings = generalSettings ++ Seq(
+lazy val sigarSettings = Seq(
+  //TODO fix
+  javaOptions in Test += s"-Djava.library.path=${"../target/native/taskmanager"}",
+)
+
+lazy val runtimeSettings = generalSettings ++ sigarSettings ++ Seq(
   fork in run := true,  // https://github.com/sbt/sbt/issues/3736#issuecomment-349993007
   cancelable in Global := true,
   version := "0.1",
-  javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled")
+  javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled"),
+  fork in Test := true,
+)
+
+lazy val runtimeMultiJvmSettings = multiJvmSettings ++ Seq(
+  // For loading Sigar
+  jvmOptions in MultiJvm += s"-Djava.library.path=${"target/native"}"
 )
 
 lazy val runtime = (project in file("runtime"))
@@ -31,7 +45,7 @@ lazy val runtime = (project in file("runtime"))
   )
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
-  .settings(multiJvmSettings: _*) // apply the default settings
+  .settings(runtimeMultiJvmSettings: _*)
 
 lazy val root = (project in file("."))
   .aggregate(runtime)

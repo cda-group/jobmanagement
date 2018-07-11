@@ -1,26 +1,47 @@
 package runtime.taskmanager.utils
 
 import com.typesafe.scalalogging.LazyLogging
-import org.hyperic.sigar.{ProcCpu, ProcMem, Sigar}
+import org.hyperic.sigar.{Cpu => _, Mem => _, _}
+import runtime.common.messages._
 
 import scala.util.{Failure, Success, Try}
 
-class ExecutorStats(pid: Long, sigar: Sigar) {
+class ExecutorStats(pid: Long, sigar: Sigar) extends LazyLogging {
+
+  /** Collects metrics from the Executor and returns
+    * an ExecutorMetric object on success, else a Throwable
+    * @return Either[ExecutorMetric, Throwable]
+    */
+  def complete(): Either[ExecutorMetric, Throwable] = {
+    try {
+      Left(ExecutorMetric(state(), cpu(), mem(), io()))
+    } catch {
+      case e: SigarException =>  Right(e)
+      case l: LinkageError => Right(l)
+    }
+  }
+
+  private def state(): ProcessState =
+    ProcessState(sigar.getProcState(pid))
+
+  private object ProcessState {
+    def apply(p: ProcState): ProcessState = {
+      val threads = p.getThreads
+      val priority = p.getPriority
+      val state = p.getState match {
+        case ProcState.IDLE => "Idle"
+        case ProcState.RUN => "Running"
+        case ProcState.STOP => "Suspended"
+        case ProcState.ZOMBIE => "Zombie"
+        case ProcState.SLEEP =>  "Sleeping"
+      }
+      new ProcessState(threads, priority, state)
+    }
+  }
 
 
-  def state(): String =
-    sigar.getProcState(pid).toString
-
-
-  def cpu(): Cpu =
+  private def cpu(): Cpu =
     Cpu(sigar.getProcCpu(pid))
-
-  case class Cpu(sys: Long,
-                 user: Long,
-                 total: Long,
-                 start: Long,
-                 last: Long,
-                 percent: Double)
 
   private object Cpu {
     def apply(p: ProcCpu): Cpu =  {
@@ -34,15 +55,8 @@ class ExecutorStats(pid: Long, sigar: Sigar) {
     }
   }
 
-  def mem(): Mem =
+  private def mem(): Mem =
     Mem(sigar.getProcMem(pid))
-
-  case class Mem(size: Long,
-                 pageFaults: Long,
-                 share: Long,
-                 minorFaults: Long,
-                 majorFaults: Long)
-
 
   private object Mem {
     def apply(p: ProcMem): Mem = {
@@ -54,6 +68,19 @@ class ExecutorStats(pid: Long, sigar: Sigar) {
       new Mem(size, pageFaults, share, minorFaults, majorFaults)
     }
   }
+
+  private def io(): IO =
+    IO(sigar.getProcDiskIO(pid))
+
+  private object IO {
+    def apply(p: ProcDiskIO): IO = {
+      val read = p.getBytesRead
+      val written = p.getBytesWritten
+      val total = p.getBytesTotal
+      new IO(read, written, total)
+    }
+  }
+
 }
 
 object ExecutorStats extends LazyLogging {
@@ -61,7 +88,7 @@ object ExecutorStats extends LazyLogging {
   def apply(pid: Long): Option[ExecutorStats] = {
     Try {
       val sigar = new Sigar
-      sigar.getCpuPerc // To force linkage error if there are any..
+      sigar.getCpuPerc // To force linkage error if there is any
 
       sigar
     } match {

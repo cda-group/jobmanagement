@@ -66,9 +66,13 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef)
 
   private def collectMetrics(stats: ExecutorStats): Unit = {
    if (process.isDefined && process.get.isAlive) {
-     log.info(stats.state())
-     log.info(stats.cpu().toString)
-     log.info(stats.mem().toString)
+     stats.complete() match {
+       case Left(metric) =>
+         log.info(metric.toString)
+         // Send Metric to StateMaster?
+       case Right(err) =>
+         log.error(err.toString)
+     }
    } else {
      shutdown()
    }

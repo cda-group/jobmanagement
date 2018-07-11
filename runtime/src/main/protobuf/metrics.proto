@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+// Brought in from scalapb-runtime
+import "scalapb/scalapb.proto";
+import "google/protobuf/wrappers.proto";
+
+
+option (scalapb.options) = {
+  package_name: "runtime.common.messages"
+  single_file: true
+  flat_package: true
+};
+
+
+message Cpu {
+    // int64 -> Long
+    int64 system = 1;
+    int64 user = 2;
+    int64 total = 3;
+    int64 start = 4;
+    int64 last = 5;
+    double percent = 6;
+}
+
+message Mem {
+    // int64 -> Long
+    int64 size = 1;
+    int64 pageFaults = 2;
+    int64 share = 3;
+    int64 minorFaults = 4;
+    int64 majorFaults = 5;
+}
+
+message IO {
+    // int64 -> Long
+    int64 bytesRead = 1;
+    int64 bytesWritten = 2;
+    int64 bytesTotal = 3;
+}
+
+message ProcessState {
+    // int64 -> Long
+    int64 threads = 1;
+    int32 priority = 2;
+    string state = 3;
+}
+
+// [(scalapb.field).no_box = true]; // Not Option[]
+message ExecutorMetric {
+    ProcessState state = 1 [(scalapb.field).no_box = true]; // Not Option[]
+    Cpu cpu = 2 [(scalapb.field).no_box = true]; // Not Option[]
+    Mem mem = 3 [(scalapb.field).no_box = true]; // Not Option[]
+    IO io = 4 [(scalapb.field).no_box = true]; // Not Option[]
+}

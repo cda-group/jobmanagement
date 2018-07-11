@@ -23,13 +23,13 @@ class ExecutorStats(pid: Long, sigar: Sigar) {
                  percent: Double)
 
   private object Cpu {
-    def apply(procCpu: ProcCpu): Cpu =  {
-      val sys = procCpu.getSys
-      val user = procCpu.getUser
-      val total = procCpu.getTotal
-      val start = procCpu.getStartTime
-      val last = procCpu.getLastTime
-      val percent = procCpu.getPercent
+    def apply(p: ProcCpu): Cpu =  {
+      val sys = p.getSys
+      val user = p.getUser
+      val total = p.getTotal
+      val start = p.getStartTime
+      val last = p.getLastTime
+      val percent = p.getPercent
       new Cpu(sys, user, total, start, last, percent)
     }
   }
@@ -45,16 +45,15 @@ class ExecutorStats(pid: Long, sigar: Sigar) {
 
 
   private object Mem {
-    def apply(procMem: ProcMem): Mem = {
-      val size = procMem.getSize
-      val pageFaults = procMem.getPageFaults
-      val share = procMem.getShare
-      val minorFaults = procMem.getMinorFaults
-      val majorFaults = procMem.getMajorFaults
+    def apply(p: ProcMem): Mem = {
+      val size = p.getSize
+      val pageFaults = p.getPageFaults
+      val share = p.getShare
+      val minorFaults = p.getMinorFaults
+      val majorFaults = p.getMajorFaults
       new Mem(size, pageFaults, share, minorFaults, majorFaults)
     }
   }
-
 }
 
 object ExecutorStats extends LazyLogging {

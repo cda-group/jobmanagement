@@ -73,6 +73,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
         context stop self
     }
 
+
     lastJmTs = System.currentTimeMillis()
     heartBeatChecker = Some(context.system.scheduler.schedule(
       0.milliseconds, taskMasterTimeout.milliseconds,

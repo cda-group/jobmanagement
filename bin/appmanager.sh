@@ -6,5 +6,5 @@ REPO_ROOT=$(git root)
 
 cd $REPO_ROOT
 
-java -jar build/appmanager.jar
+java -jar -Djava.library.path=native/ build/appmanager.jar
 

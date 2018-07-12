@@ -1,15 +1,15 @@
 package runtime.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
-import runtime.common.messages.WeldTask
+import runtime.common.messages.{ArcTaskMetric, WeldTask}
 import runtime.taskmanager.utils._
 
 import scala.concurrent.duration._
 import scala.util.Try
 
 object TaskExecutor {
-  def apply(binPath: String, task: WeldTask, aMaster: ActorRef): Props =
-    Props(new TaskExecutor(binPath, task, aMaster))
+  def apply(binPath: String, task: WeldTask, aMaster: ActorRef, sMaster: ActorRef): Props =
+    Props(new TaskExecutor(binPath, task, aMaster, sMaster))
   case object HealthCheck
   case class StdOutResult(r: String)
 }
@@ -18,7 +18,7 @@ object TaskExecutor {
   *
   * @param binPath path to the rust binary
   */
-class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef)
+class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMaster: ActorRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   var healthChecker = None: Option[Cancellable]
@@ -68,8 +68,7 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef)
    if (process.isDefined && process.get.isAlive) {
      stats.complete() match {
        case Left(metric) =>
-         log.info(metric.toString)
-         // Send Metric to StateMaster?
+         stateMaster ! ArcTaskMetric(task, metric)
        case Right(err) =>
          log.error(err.toString)
      }

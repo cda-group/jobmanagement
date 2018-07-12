@@ -2,16 +2,13 @@ package runtime.appmanager.actors
 
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
-import akka.cluster.Cluster
-import akka.cluster.metrics.StandardMetrics.{Cpu, HeapMemory}
-import akka.cluster.metrics.{ClusterMetricsChanged, ClusterMetricsExtension, NodeMetrics}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import runtime.appmanager.actors.MetricAccumulator.{StateManagerMetrics, TaskManagerMetrics}
 import runtime.common._
 import runtime.appmanager.rest.RestService
 import runtime.appmanager.utils.AppManagerConfig
-import runtime.common.messages.{ArcJob, WeldTask, WeldTaskCompleted}
+import runtime.common.messages._
 
 import scala.collection.mutable
 
@@ -23,6 +20,7 @@ object AppManager {
   case class ArcJobRequest(job: ArcJob)
   case object WeldTasksStatus
   case class TaskReport(tasks: IndexedSeq[WeldTask])
+  type ArcJobID = String
 }
 
 /**
@@ -40,7 +38,7 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
   // temp task storage
   var weldTasks = IndexedSeq.empty[WeldTask]
 
-  // MetricAccumulator
+  // MetricAccumulator (Cluster "change name?")
   val metricAccumulator = context.system.actorOf(MetricAccumulator())
 
   override def preStart(): Unit = {
@@ -54,13 +52,15 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
   var resourceManager = None: Option[Address]
   var appMasters = mutable.IndexedSeq.empty[ActorRef]
   var appMasterId: Long = 0 // unique id for each AppMaster that is created
+  var appJobMap = mutable.HashMap[ArcJobID, ActorRef]()
 
   def receive = {
     case RmRegistration(rm) =>
       resourceManager = Some(rm)
-    case UnreachableRm(rm) =>
+    case u@UnreachableRm(rm) =>
       // Foreach active AppMaster, notify status
-      resourceManager = None
+      //resourceManager = None
+      appMasters.foreach(_ forward u)
     case RmRemoved(rm) =>
       resourceManager = None
     case ArcJobRequest(arcJob) =>
@@ -75,6 +75,7 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
           val appMaster = context.actorOf(AppMaster(), Identifiers.APP_MASTER+appMasterId)
           appMasterId +=1
           appMasters = appMasters :+ appMaster
+          appJobMap.put(arcJob.id, appMaster)
 
           // Enable DeathWatch
           context watch appMaster
@@ -93,13 +94,22 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
       }
     case WeldTasksStatus =>
       sender() ! TaskReport(weldTasks)
-    case Terminated(ref) =>
-      // AppMaster was terminated somehow
-      appMasters = appMasters.filterNot(_ == ref)
     case t@TaskManagerMetrics =>
       metricAccumulator forward t
     case s@StateManagerMetrics =>
       metricAccumulator forward s
+    case r@ArcJobMetricRequest(id) =>
+      appJobMap.get(id) match {
+        case Some(aMaster) =>
+          aMaster forward r
+        case None =>
+          sender() ! ArcJobMetricFailure("Could not locate the Job on this AppManager")
+      }
+    case Terminated(ref) =>
+      // AppMaster was terminated somehow
+      appMasters = appMasters.filterNot(_ == ref)
+      appJobMap.find(_._2 == ref) map { m => appJobMap.remove(m._1) }
+
     case _ =>
   }
 

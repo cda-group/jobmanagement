@@ -103,7 +103,8 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
       import runtime.common.messages.ProtoConversions.InetAddr._
       taskReceivers.get(remote) match {
         case Some(ref) =>
-          startExecutors(ref)
+          if (stateMaster.isDefined)
+            startExecutors(ref, stateMaster.get)
         case None =>
           log.error("Was not able to locate ref for remote: " + remote)
       }
@@ -138,14 +139,14 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
   }
 
 
-  private def startExecutors(ref: ActorRef): Unit = {
-    ref ? TaskUploaded onComplete {
+  private def startExecutors(taskReceiver: ActorRef, stateMaster: ActorRef): Unit = {
+    taskReceiver ? TaskUploaded onComplete {
       case Success(resp) => resp match {
         case TaskReady(binId) =>
           // improve names...
           job.job.tasks.foreach {task =>
             // Create 1 executor for each task
-            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appMaster))
+            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appMaster, stateMaster))
             executors = executors :+ executor
             // Enable DeathWatch
             context watch executor

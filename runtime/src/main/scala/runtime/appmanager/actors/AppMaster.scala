@@ -33,6 +33,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   import AppManager._
 
   var taskMaster = None: Option[ActorRef]
+  var stateMaster = None: Option[ActorRef]
   var keepAliveTicker = None: Option[Cancellable]
 
   // For futures
@@ -70,6 +71,12 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
       // Unexpected failure by the TaskMaster
       // Handle it
       keepAliveTicker.map(_.cancel())
+    case StateMasterConn(ref) if stateMaster.isEmpty =>
+      stateMaster = Some(ref)
+    case ArcJobMetricRequest(id) if stateMaster.isDefined =>
+      (stateMaster.get ? ArcJobMetricRequest(id)) pipeTo sender()
+    case ArcJobMetricRequest(_) =>
+      sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
     case _ =>
   }
 

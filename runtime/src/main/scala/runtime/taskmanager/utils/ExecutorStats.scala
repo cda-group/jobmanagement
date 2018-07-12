@@ -6,7 +6,13 @@ import runtime.common.messages._
 
 import scala.util.{Failure, Success, Try}
 
-class ExecutorStats(pid: Long, sigar: Sigar) extends LazyLogging {
+/** ExecutorStats fetches CPU, MEM, IO and general
+  * process state metrics from process @pid.
+  * Sigar has to be loaded for this class to function.
+  * @param pid process PID
+  * @param sigar Sigar object
+  */
+class ExecutorStats(pid: Long, sigar: Sigar) {
 
   /** Collects metrics from the Executor and returns
     * an ExecutorMetric object on success, else a Throwable
@@ -14,7 +20,8 @@ class ExecutorStats(pid: Long, sigar: Sigar) extends LazyLogging {
     */
   def complete(): Either[ExecutorMetric, Throwable] = {
     try {
-      Left(ExecutorMetric(state(), cpu(), mem(), io()))
+      val ts = System.currentTimeMillis()
+      Left(ExecutorMetric(ts, state(), cpu(), mem(), io()))
     } catch {
       case e: SigarException =>  Right(e)
       case l: LinkageError => Right(l)

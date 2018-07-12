@@ -16,7 +16,6 @@ object StateMaster {
   * connected to a specific AppMaster.
   */
 class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogging {
-  import StateMaster._
   var metricMap = mutable.HashMap[WeldTask, ExecutorMetric]()
 
   // Handles implicit conversions of ActorRef and ActorRefProto
@@ -39,6 +38,8 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
       sender() ! report
     case ArcJobMetricRequest(_) =>
       sender() ! ArcJobMetricFailure("Job ID did not match up")
+    case ExecutorTaskExit(task) =>
+      // Remove or declare task as "dead"?
     case Terminated(ref) =>
       // AppMaster has been terminated
       // Handle

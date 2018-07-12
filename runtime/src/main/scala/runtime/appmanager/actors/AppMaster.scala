@@ -73,8 +73,8 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
       keepAliveTicker.map(_.cancel())
     case StateMasterConn(ref) if stateMaster.isEmpty =>
       stateMaster = Some(ref)
-    case ArcJobMetricRequest(id) if stateMaster.isDefined =>
-      (stateMaster.get ? ArcJobMetricRequest(id)) pipeTo sender()
+    case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
+      (stateMaster.get ? req) pipeTo sender()
     case ArcJobMetricRequest(_) =>
       sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
     case _ =>

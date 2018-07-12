@@ -1,12 +1,10 @@
 package runtime.appmanager.rest
 
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import runtime.appmanager.actors.AppManager.TaskReport
 import runtime.appmanager.actors.MetricAccumulator._
 import runtime.common.messages._
-import spray.json.{DefaultJsonProtocol, JsValue, JsonWriter}
+import spray.json.DefaultJsonProtocol
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
-import org.jboss.netty.handler.codec.socks.UnknownSocksMessage
 import runtime.appmanager.rest.routes.ClusterRoute.NamedMetric
 
 

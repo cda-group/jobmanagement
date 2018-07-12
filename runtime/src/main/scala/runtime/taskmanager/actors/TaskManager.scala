@@ -1,9 +1,7 @@
 package runtime.taskmanager.actors
 
-import akka.actor.Status.Failure
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancellable, Props, Terminated}
-import akka.cluster.metrics.StandardMetrics.{Cpu, HeapMemory}
-import akka.cluster.metrics.{ClusterMetricsChanged, ClusterMetricsExtension, NodeMetrics, SigarMetricsCollector}
+import akka.cluster.metrics.ClusterMetricsExtension
 import akka.pattern._
 import akka.util.Timeout
 import runtime.common._
@@ -75,9 +73,8 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     case Allocate(_,_) if !initialized =>
       sender() ! TMNotInitialized
     case Allocate(_,_) if stateManagers.isEmpty =>
-      // improve
-      sender() ! AllocateFailure().withUnexpected(Unexpected())
-    case Allocate(job, slots) => // TODO: Refactor
+      sender() ! AllocateFailure().withUnexpected(Unexpected()) //TODO: Fix
+    case Allocate(job, slots) =>
       if (!slotControl(slots)) {
         // we failed allocating the slots
         sender() ! AllocateFailure().withUnexpected(Unexpected()) // Fix this..

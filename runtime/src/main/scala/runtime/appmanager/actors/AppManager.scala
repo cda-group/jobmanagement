@@ -55,7 +55,7 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
   var appJobMap = mutable.HashMap[ArcJobID, ActorRef]()
 
   def receive = {
-    case RmRegistration(rm) =>
+    case RmRegistration(rm) if resourceManager.isEmpty =>
       resourceManager = Some(rm)
     case u@UnreachableRm(rm) =>
       // Foreach active AppMaster, notify status

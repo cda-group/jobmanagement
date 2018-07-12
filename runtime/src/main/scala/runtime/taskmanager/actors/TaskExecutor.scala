@@ -1,7 +1,7 @@
 package runtime.taskmanager.actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props}
-import runtime.common.messages.{ArcTaskMetric, WeldTask}
+import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
+import runtime.common.messages.{ArcTaskMetric, ExecutorTaskExit, WeldTask}
 import runtime.taskmanager.utils._
 
 import scala.concurrent.duration._
@@ -38,9 +38,12 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
     p match {
       case Some(pid) =>
         ExecutorStats(pid) match {
-          case Some(estats) =>
-            monitor = Some(estats)
+          case Some(execStats) =>
+            monitor = Some(execStats)
             healthChecker = scheduleCheck()
+            // Enable DeathWatch of the StateMaster
+            context watch stateMaster
+            // Create an actor to read the results from StdOut
             context.system.actorOf(TaskExecutorReader(process.get, appMaster, task))
           case None =>
             log.error("Was not able to create ExecutorStats instance")
@@ -61,6 +64,9 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
           log.info("Could not load monitor")
           shutdown()
       }
+    case Terminated(sMaster) =>
+      // StateMaster has been declared as terminated
+      // What to do?
     case _ =>
   }
 
@@ -73,6 +79,8 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
          log.error(err.toString)
      }
    } else {
+     log.info("Process is no longer alive, shutting down!")
+     stateMaster ! ExecutorTaskExit(task)
      shutdown()
    }
   }

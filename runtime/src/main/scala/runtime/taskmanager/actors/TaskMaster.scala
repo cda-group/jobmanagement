@@ -105,6 +105,8 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
         case Some(ref) =>
           if (stateMaster.isDefined)
             startExecutors(ref, stateMaster.get)
+          else
+            log.error("No StateMaster connected to the TaskMaster")
         case None =>
           log.error("Was not able to locate ref for remote: " + remote)
       }

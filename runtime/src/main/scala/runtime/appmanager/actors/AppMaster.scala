@@ -4,17 +4,21 @@ import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Cancellable, Props}
+import akka.io.Tcp.{Bind, Bound, CommandFailed}
 import akka.util.Timeout
 import akka.pattern._
+import runtime.appmanager.actors.AppMaster.ArcTask
 import runtime.common._
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.messages._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 object AppMaster {
   def apply(): Props = Props(new AppMaster)
+  type ArcTask = Array[Byte]
 }
 
 /** Actor that handles an ArcJob
@@ -29,6 +33,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   import AppManager._
 
   var taskMaster = None: Option[ActorRef]
+  var stateMaster = None: Option[ActorRef]
   var keepAliveTicker = None: Option[Cancellable]
 
   // For futures
@@ -42,27 +47,20 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   def receive = {
     case AppMasterInit(job, rmAddr) =>
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
-      val req: Future[Either[InetSocketAddress, AllocateResponse]] = allocateRequest(job, resourceManager) flatMap {
+      // Request a TaskSlot for the job
+      val req = allocateRequest(job, resourceManager) map {
         case AllocateSuccess(_, tm) =>
-          keepAliveTicker = keepAlive(tm)
           taskMaster = Some(tm)
-          requestChannel(tm) flatMap {
-            case Some(server) =>
-              Future.successful(Left(server))
-            case None =>
-              Future.successful(Right(AllocateError("Could not fetch InetSocketAddress")))
+          // start the heartbeat ticker to notify the TaskMaster that we are alive
+          // while we compile
+          keepAliveTicker = keepAlive(tm)
+          // Compile...
+          compileAndTransfer() onComplete {
+            case Success(s) => log.info("AppMaster successfully established connection with its TaskMaster")
+            case Failure(e) => log.error("Something went wrong during compileAndTransfer: " + e)
           }
-        case e@AllocateFailure(_) =>
-          Future.successful(Right(e))
-        case e@AllocateError(_) =>
-          Future.successful(Right(e))
-      }
-
-      req.map {
-        case Left(server) =>
-          taskTransfer(server, taskMaster.get)
-        case Right(e) =>
-          log.info("Allocate Request failed: " + e)
+        case err =>
+          log.error("Allocation for job: " + job.id + " failed with reason: " + err)
       }
     case r@ReleaseSlots =>
       taskMaster.foreach(_ ! r)
@@ -73,6 +71,12 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
       // Unexpected failure by the TaskMaster
       // Handle it
       keepAliveTicker.map(_.cancel())
+    case StateMasterConn(ref) if stateMaster.isEmpty =>
+      stateMaster = Some(ref)
+    case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
+      (stateMaster.get ? req) pipeTo sender()
+    case ArcJobMetricRequest(_) =>
+      sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
     case _ =>
   }
 
@@ -82,20 +86,34 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
     }
   }
 
-  private def requestChannel(tm: ActorRef): Future[Option[InetSocketAddress]] = {
-    import runtime.common.messages.ProtoConversions.InetAddr._
-    tm ? TasksCompiled() flatMap {
-      case TaskTransferConn(addr) =>
-        Future.successful(Some(addr))
-      case TaskTransferError() =>
-        Future.successful(None)
+  private def compileAndTransfer(): Future[Unit] = Future {
+   for {
+      tasks <- compilation()
+      inet <- requestChannel()
+      transfer <- taskTransfer(inet, tasks)
+    } yield  transfer
+  }
+
+  // temp method
+  private def compilation(): Future[Seq[ArcTask]] = Future {
+    // compile....
+    Seq(weldRunnerBin())
+  }
+
+  private def requestChannel(): Future[InetSocketAddress] = {
+    import ProtoConversions.InetAddr._
+    taskMaster.get ? TasksCompiled() flatMap {
+      case TaskTransferConn(inet) => Future.successful(inet)
+      case TaskTransferError() => Future.failed(new Exception("TaskMaster failed to Bind Socket"))
     }
   }
 
   // TODO: add actual logic
-  private def taskTransfer(server: InetSocketAddress, tm: ActorRef): Future[Unit] = {
+  private def taskTransfer(server: InetSocketAddress, tasks: Seq[Array[Byte]]): Future[Unit] = {
     Future {
-      val taskSender = context.actorOf(TaskSender(server, weldRunnerBin(), tm))
+      tasks.foreach { task =>
+        val taskSender = context.actorOf(TaskSender(server, task, taskMaster.get))
+      }
     }
   }
 

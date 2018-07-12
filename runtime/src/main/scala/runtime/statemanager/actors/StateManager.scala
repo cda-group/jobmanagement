@@ -1,6 +1,7 @@
 package runtime.statemanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
+import akka.cluster.metrics.ClusterMetricsExtension
 import runtime.common.Identifiers
 import runtime.common.messages.{StateManagerJob, StateMasterConn}
 
@@ -25,16 +26,27 @@ class StateManager extends Actor with ActorLogging {
   implicit val sys: ActorSystem = context.system
   import runtime.common.messages.ProtoConversions.ActorRef._
 
+  val metrics = ClusterMetricsExtension(context.system)
+
+  override def preStart(): Unit = {
+    metrics.subscribe(self)
+  }
+
+  override def postStop(): Unit = {
+    metrics.unsubscribe(self)
+  }
+
   def receive = {
-    case StateManagerJob(ref) =>
-      val stateMaster = context.actorOf(StateMaster(ref), Identifiers.STATE_MASTER + stateMasterId)
+    case StateManagerJob(appMaster, job) =>
+      val stateMaster = context.actorOf(StateMaster(appMaster, job)
+        , Identifiers.STATE_MASTER + stateMasterId)
       stateMasters = stateMasters :+ stateMaster
       stateMasterId += 1
 
       // Enable deathwatch
       context watch stateMaster
 
-      // Respond to TaskManager with Ref to StateMaster
+      // Respond with Ref to StateMaster
       sender() ! StateMasterConn(stateMaster)
     case Terminated(ref) =>
       stateMasters = stateMasters.filterNot(_ == ref)

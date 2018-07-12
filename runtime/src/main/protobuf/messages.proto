@@ -71,11 +71,12 @@ message InetProto {
 message TaskManagerInit { }
 
 
-//case class WeldTask(expr: String, vec: String, result: Option[String] = None)
+//case class WeldTask(name: String, expr: String, vec: String, result: Option[String] = None)
 message WeldTask {
-    string expr = 1;
-    string vec = 2;
-    google.protobuf.StringValue result = 3; // To make it an Option
+    string name = 1;
+    string expr = 2;
+    string vec = 3;
+    google.protobuf.StringValue result = 4; // To make it an Option
 }
 
 //case class WeldJob(tasks: Seq[WeldTask])
@@ -162,11 +163,7 @@ message AllocateError {
     string err = 1;
 }
 
-//case class TaskSlot(index: Int, profile: ArcProfile, state: SlotState = Free) {
-//def newState(s: SlotState): TaskSlot = {
-//this.copy(state = s)
-//}
-//}
+//case class TaskSlot(index: Int, profile: ArcProfile, state: SlotState = Free)
 message TaskSlot {
     int32 index = 1;
     ArcProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
@@ -192,13 +189,19 @@ message SlotUpdate {
 
 // StateManager related
 
-//case class StateManagerJob(appMasterRef: ActorRef)
+//case class StateManagerJob(appMasterRef: ActorRef, job: ArcJob)
 message StateManagerJob {
     ActorRefProto ref = 1 [(scalapb.field).no_box = true];
+    ArcJob job = 2 [(scalapb.field).no_box = true];
 }
 
 //case class StateMasterConn(stateMaster: ActorRef)
 message StateMasterConn {
     ActorRefProto ref = 1 [(scalapb.field).no_box = true];
+}
+
+//case class ExecutorTaskExit(task: WeldTask)
+message ExecutorTaskExit {
+    WeldTask task = 1 [(scalapb.field).no_box = true];
 }
 

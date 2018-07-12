@@ -4,6 +4,6 @@ REPO_ROOT=$(git root)
 
 [ -f "$REPO_ROOT"/build/statemanager.jar ] || { echo "Jar file not found, run compile.sh!" ; exit 1; }
 
-java -jar $REPO_ROOT/build/statemanager.jar
+java -jar -Djava.library.path=native/ $REPO_ROOT/build/statemanager.jar
 
 

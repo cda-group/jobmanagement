@@ -46,12 +46,20 @@ message ProcessState {
     string state = 3;
 }
 
+message Executor {
+    // Path to binary
+    string bin = 1;
+    // Akka Address for the TaskManager
+    string addr = 2;
+}
+
 message ExecutorMetric {
     int64 timestamp = 1;
     ProcessState state = 2 [(scalapb.field).no_box = true]; // Not Option[]
     Cpu cpu = 3 [(scalapb.field).no_box = true]; // Not Option[]
     Mem mem = 4 [(scalapb.field).no_box = true]; // Not Option[]
     IO io = 5 [(scalapb.field).no_box = true]; // Not Option[]
+    Executor executor = 6 [(scalapb.field).no_box = true]; // Not Option[]
 }
 
 // ArcTask and its corresponding metric set

@@ -11,8 +11,10 @@ import scala.util.{Failure, Success, Try}
   * Sigar has to be loaded for this class to function.
   * @param pid process PID
   * @param sigar Sigar object
+  * @param bin path to the binary
+  * @param addr which Akka Address the task is runing on
   */
-class ExecutorStats(pid: Long, sigar: Sigar) {
+class ExecutorStats(pid: Long, sigar: Sigar, bin: String, addr: String) {
 
   /** Collects metrics from the Executor and returns
     * an ExecutorMetric object on success, else a Throwable
@@ -21,7 +23,7 @@ class ExecutorStats(pid: Long, sigar: Sigar) {
   def complete(): Either[ExecutorMetric, Throwable] = {
     try {
       val ts = System.currentTimeMillis()
-      Left(ExecutorMetric(ts, state(), cpu(), mem(), io()))
+      Left(ExecutorMetric(ts, state(), cpu(), mem(), io(), Executor(bin, addr)))
     } catch {
       case e: SigarException =>  Right(e)
       case l: LinkageError => Right(l)
@@ -47,7 +49,6 @@ class ExecutorStats(pid: Long, sigar: Sigar) {
       new ProcessState(threads, priority, state)
     }
   }
-
 
   private def cpu(): Cpu =
     Cpu(sigar.getProcCpu(pid))
@@ -94,7 +95,7 @@ class ExecutorStats(pid: Long, sigar: Sigar) {
 
 object ExecutorStats extends LazyLogging {
 
-  def apply(pid: Long): Option[ExecutorStats] = {
+  def apply(pid: Long, bin: String, addr: String): Option[ExecutorStats] = {
     Try {
       val sigar = new Sigar
       sigar.getCpuPerc // To force linkage error if there is any
@@ -102,7 +103,7 @@ object ExecutorStats extends LazyLogging {
       sigar
     } match {
       case Success(sigar) =>
-        Some(new ExecutorStats(pid, sigar))
+        Some(new ExecutorStats(pid, sigar, bin, addr))
       case Failure(e) =>
         logger.error("Could not load Sigar")
         None

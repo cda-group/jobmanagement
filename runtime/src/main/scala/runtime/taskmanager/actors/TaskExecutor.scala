@@ -1,6 +1,7 @@
 package runtime.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
+import akka.cluster.Cluster
 import runtime.common.messages.{ArcTaskMetric, ExecutorTaskExit, WeldTask}
 import runtime.taskmanager.utils._
 
@@ -25,6 +26,10 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
   var process = None: Option[Process]
   var monitor = None: Option[ExecutorStats]
 
+  val selfAddr = Cluster(context.system)
+    .selfAddress
+    .toString
+
   import TaskExecutor._
   import context.dispatcher
 
@@ -37,7 +42,7 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
 
     p match {
       case Some(pid) =>
-        ExecutorStats(pid) match {
+        ExecutorStats(pid, binPath, selfAddr) match {
           case Some(execStats) =>
             monitor = Some(execStats)
             healthChecker = scheduleCheck()

@@ -42,7 +42,8 @@ trait JsonConverter extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val cpuFormat = jsonFormat6(Cpu.apply)
   implicit val ioFormat = jsonFormat3(IO.apply)
   implicit val memFormat = jsonFormat5(Mem.apply)
-  implicit val executorMetricFormat = jsonFormat5(ExecutorMetric.apply)
+  implicit val executorFormat = jsonFormat2(Executor.apply)
+  implicit val executorMetricFormat = jsonFormat6(ExecutorMetric.apply)
 
   // ArcJobMetric
   implicit val arcTaskMetricFormat = jsonFormat2(ArcTaskMetric.apply)

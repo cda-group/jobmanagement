@@ -1,6 +1,6 @@
 package runtime.appmanager.rest
 
-import runtime.appmanager.actors.AppManager.TaskReport
+import runtime.appmanager.actors.AppManager.ArcDeployRequest
 import runtime.appmanager.actors.MetricAccumulator._
 import runtime.common.messages._
 import spray.json.DefaultJsonProtocol
@@ -16,9 +16,11 @@ import runtime.appmanager.rest.routes.ClusterRoute.NamedMetric
 trait JsonConverter extends SprayJsonSupport with DefaultJsonProtocol {
   import spray.json._
 
-  implicit val weldTaskFormat = jsonFormat4(WeldTask.apply)
-  implicit val weldJobFormat = jsonFormat1(WeldJob.apply)
-  implicit val taskReport = jsonFormat1(TaskReport.apply)
+  implicit val arcTaskFormat = jsonFormat6(ArcTask.apply)
+  implicit val arcDeployRequest = jsonFormat1(ArcDeployRequest.apply)
+  implicit val actorRefProtoFormat = jsonFormat1(ActorRefProto.apply)
+  implicit val arcProfileFormat = jsonFormat2(ArcProfile.apply)
+  implicit val arcJobFormat = jsonFormat5(ArcJob.apply)
 
 
 

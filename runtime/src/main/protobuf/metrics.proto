@@ -2,7 +2,6 @@ syntax = "proto3";
 
 // Brought in from scalapb-runtime
 import "scalapb/scalapb.proto";
-import "google/protobuf/wrappers.proto";
 import "messages.proto";
 
 option (scalapb.options) = {
@@ -65,7 +64,7 @@ message ExecutorMetric {
 // ArcTask and its corresponding metric set
 message ArcTaskMetric {
     // Change to ARC
-    WeldTask task = 1 [(scalapb.field).no_box = true]; // Not Option[]
+    ArcTask task = 1 [(scalapb.field).no_box = true]; // Not Option[]
     ExecutorMetric executorMetric = 2 [(scalapb.field).no_box = true]; // Not Option[]
 }
 

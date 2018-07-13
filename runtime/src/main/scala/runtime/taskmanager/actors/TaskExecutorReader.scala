@@ -3,12 +3,14 @@ package runtime.taskmanager.actors
 import java.io.{BufferedReader, InputStreamReader}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import runtime.common.messages.{WeldTask, WeldTaskCompleted}
+import runtime.common.messages.{ArcTask, ArcTaskUpdate}
+import runtime.taskmanager.actors.TaskExecutorReader.Result
 
 
 object TaskExecutorReader {
-  def apply(p: Process, appMaster: ActorRef, task: WeldTask): Props =
+  def apply(p: Process, appMaster: ActorRef, task: ArcTask): Props =
     Props(new TaskExecutorReader(p, appMaster, task))
+  case class Result(s: String)
 }
 
 
@@ -16,7 +18,7 @@ object TaskExecutorReader {
   * PoC actor just for handling weld/arc results to StdOut
   * @param proc Java Process
   */
-class TaskExecutorReader(proc: Process, appMaster: ActorRef, task: WeldTask)
+class TaskExecutorReader(proc: Process, appMaster: ActorRef, task: ArcTask)
   extends Actor with ActorLogging {
 
   override def preStart(): Unit = {
@@ -24,19 +26,26 @@ class TaskExecutorReader(proc: Process, appMaster: ActorRef, task: WeldTask)
 
     var line: String = null
     var res: String = ""
-    while ({line = reader.readLine; line != null}) {
-      res = line
-      println(line)
+    import scala.util.control.Breaks._
+
+    breakable {
+      while ({line = reader.readLine; line != null}) {
+        res = line
+        println(line)
+        break
+      }
     }
 
-    val updated = task.copy(result = Some(res))
-    appMaster ! WeldTaskCompleted(updated)
-
-    // We are done
-    context stop self
+    self ! Result(res)
   }
 
   def receive = {
+    case Result(s) =>
+      val updated = task.copy(result = Some(s))
+      log.info("My parent is: " + context.parent)
+      context.parent ! ArcTaskUpdate(updated)
+      // We are done
+      context stop self
     case _ =>
   }
 }

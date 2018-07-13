@@ -37,7 +37,7 @@ class ResourceManagementSpec extends RuntimeSpec with RuntimeHelper {
         val rm = system.actorSelection(ActorPaths.resourceManager(rmAddr))
         import runtime.common.messages.ProtoConversions.ActorRef._
         val probe = TestProbe()
-        rm ! smallJob.copy(ref = Some(probe.ref))
+        rm ! smallJob.copy(appMasterRef = Some(probe.ref))
         expectMsgType[AllocateSuccess]
         enterBarrier("allocated_slot")
       }
@@ -57,7 +57,7 @@ class ResourceManagementSpec extends RuntimeSpec with RuntimeHelper {
         val rm = system.actorSelection(ActorPaths.resourceManager(rmAddr))
         val probe = TestProbe()
         import runtime.common.messages.ProtoConversions.ActorRef._
-        rm ! tooBigJob.copy(ref = Some(probe.ref))
+        rm ! tooBigJob.copy(appMasterRef = Some(probe.ref))
         expectMsg(NoSlotsAvailable())
         enterBarrier("allocated_slot_fail")
       }

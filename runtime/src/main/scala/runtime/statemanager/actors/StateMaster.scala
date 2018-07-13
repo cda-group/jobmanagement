@@ -16,7 +16,7 @@ object StateMaster {
   * connected to a specific AppMaster.
   */
 class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogging {
-  var metricMap = mutable.HashMap[WeldTask, ExecutorMetric]()
+  var metricMap = mutable.HashMap[ArcTask, ExecutorMetric]()
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
@@ -31,7 +31,6 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
 
   def receive = {
     case ArcTaskMetric(task, metric) =>
-      log.info("Received task {} with metric {}", task, metric)
       metricMap.put(task, metric)
     case ArcJobMetricRequest(id) if job.id.equals(id) =>
       val report = ArcJobMetricReport(id, metricMap.map(m => ArcTaskMetric(m._1, m._2)).toSeq)
@@ -40,6 +39,8 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
       sender() ! ArcJobMetricFailure("Job ID did not match up")
     case ExecutorTaskExit(task) =>
       // Remove or declare task as "dead"?
+    case ArcJobKilled() =>
+      // Complete shutdown or save something?
     case Terminated(ref) =>
       // AppMaster has been terminated
       // Handle

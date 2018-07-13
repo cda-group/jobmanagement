@@ -71,23 +71,22 @@ message InetProto {
 message TaskManagerInit { }
 
 
-//case class WeldTask(name: String, expr: String, vec: String, result: Option[String] = None)
-message WeldTask {
+//case class ArcTask(name: String, expr: String, vec: String,
+//result: Option[String] = None, id: Option[Int], status: Option[String)
+message ArcTask {
     string name = 1;
     string expr = 2;
     string vec = 3;
     google.protobuf.StringValue result = 4; // To make it an Option
+    google.protobuf.Int32Value id = 5; // Added when received
+    google.protobuf.StringValue status = 6; // To make it an Option
 }
 
-//case class WeldJob(tasks: Seq[WeldTask])
-message WeldJob {
-    repeated WeldTask tasks = 1;
+message ArcTaskUpdate {
+    ArcTask task = 1 [(scalapb.field).no_box = true];
 }
 
-//case class WeldTaskCompleted(task: WeldTask)
-message WeldTaskCompleted {
-    WeldTask task = 1 [(scalapb.field).no_box = true];
-}
+message ArcJobKilled {}
 
 //case class ArcProfile(cpuCores: Double, memoryInMB: Long) {
 //def matches(other: ArcProfile): Boolean =
@@ -99,12 +98,13 @@ message ArcProfile {
     int64 memoryInMb = 2; // Long
 }
 
-//case class ArcJob(id: String, profile: ArcProfile, job: WeldJob, masterRef: Option[AppMasterRef] = None)
+//case class ArcJob(id: String, profile: ArcProfile, tasks: Seq[ArcTask], masterRef: Option[AppMasterRef] = None)
 message ArcJob {
     string id = 1;
     ArcProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
-    WeldJob job = 3 [(scalapb.field).no_box = true]; // Not Option[]
-    ActorRefProto ref = 4;
+    repeated ArcTask tasks = 3;
+    ActorRefProto appMasterRef = 4;
+    google.protobuf.StringValue status = 5; // To make it an Option
 }
 
 // TaskMaster related
@@ -200,8 +200,8 @@ message StateMasterConn {
     ActorRefProto ref = 1 [(scalapb.field).no_box = true];
 }
 
-//case class ExecutorTaskExit(task: WeldTask)
+//case class ExecutorTaskExit(task: ArcTask)
 message ExecutorTaskExit {
-    WeldTask task = 1 [(scalapb.field).no_box = true];
+    ArcTask task = 1 [(scalapb.field).no_box = true];
 }
 

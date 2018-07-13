@@ -18,8 +18,11 @@ object AppManager {
   case class AppMasterInit(job: ArcJob, rmAddr: Address)
   case object ResourceManagerUnavailable
   case class ArcJobRequest(job: ArcJob)
-  case object WeldTasksStatus
-  case class TaskReport(tasks: IndexedSeq[WeldTask])
+  case class ArcDeployRequest(tasks: Seq[ArcTask])
+  case class ArcJobStatus(id: String)
+  case class KillArcJobRequest(id: String)
+  case object ListJobs
+  case object ListJobsWithDetails
   type ArcJobID = String
 }
 
@@ -34,9 +37,6 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
   implicit val materializer = ActorMaterializer()
   implicit val system = context.system
   implicit val ec = context.system.dispatcher
-
-  // temp task storage
-  var weldTasks = IndexedSeq.empty[WeldTask]
 
   // MetricAccumulator (Cluster "change name?")
   val metricAccumulator = context.system.actorOf(MetricAccumulator())
@@ -66,9 +66,6 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
     case ArcJobRequest(arcJob) =>
       // The AppManager has received a job request from somewhere
       // whether it is through another actor, rest, or rpc...
-
-      arcJob.job.tasks.foreach { t => weldTasks = weldTasks :+ t}
-
       resourceManager match {
         case Some(rm) =>
           // Rm is availalble, create a AppMaster to deal with the job
@@ -85,23 +82,28 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
         case None =>
           sender() ! ResourceManagerUnavailable
       }
-    case WeldTaskCompleted(task) =>
-      weldTasks = weldTasks.map {t =>
-        if (task.vec == t.vec && task.expr == t.expr)
-          task
-        else
-          t
+    case kill@KillArcJobRequest(id) =>
+      appJobMap.get(id) match {
+        case Some(appMaster) =>
+          appMaster forward kill
+        case None =>
+          sender() ! "Could not locate AppMaster"
       }
-    case WeldTasksStatus =>
-      sender() ! TaskReport(weldTasks)
+    case s@ArcJobStatus(id) =>
+      appJobMap.get(id) match {
+        case Some(appMaster) =>
+          appMaster forward s
+        case None =>
+          sender() ! "Fail"
+      }
     case t@TaskManagerMetrics =>
       metricAccumulator forward t
     case s@StateManagerMetrics =>
       metricAccumulator forward s
     case r@ArcJobMetricRequest(id) =>
       appJobMap.get(id) match {
-        case Some(aMaster) =>
-          aMaster forward r
+        case Some(appMaster) =>
+          appMaster forward r
         case None =>
           sender() ! ArcJobMetricFailure("Could not locate the Job on this AppManager")
       }

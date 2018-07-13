@@ -27,7 +27,7 @@ class StateMasterSpec extends TestKit(ActorSystem("StateMasterSpec"))
       val probe = TestProbe()
       val master = system.actorOf(StateMaster(appMaster.ref, testArcJob))
 
-      val task = WeldTask("test_task", " ", " ")
+      val task = ArcTask("test_task", " ", " ")
       val fakeMetric = ExecutorMetric(
         System.currentTimeMillis(),
         ProcessState(1, 20, "Running"),

@@ -4,10 +4,8 @@ import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Cancellable, Props}
-import akka.io.Tcp.{Bind, Bound, CommandFailed}
 import akka.util.Timeout
 import akka.pattern._
-import runtime.appmanager.actors.AppMaster.ArcTask
 import runtime.common._
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.messages._
@@ -18,7 +16,6 @@ import scala.util.{Failure, Success}
 
 object AppMaster {
   def apply(): Props = Props(new AppMaster)
-  type ArcTask = Array[Byte]
 }
 
 /** Actor that handles an ArcJob
@@ -34,6 +31,9 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
 
   var taskMaster = None: Option[ActorRef]
   var stateMaster = None: Option[ActorRef]
+  var arcJob = None: Option[ArcJob]
+
+  //TODO: remove and use DeathWatch instead?
   var keepAliveTicker = None: Option[Cancellable]
 
   // For futures
@@ -46,6 +46,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
 
   def receive = {
     case AppMasterInit(job, rmAddr) =>
+      arcJob = Some(job)
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
       // Request a TaskSlot for the job
       val req = allocateRequest(job, resourceManager) map {
@@ -54,23 +55,38 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
           // start the heartbeat ticker to notify the TaskMaster that we are alive
           // while we compile
           keepAliveTicker = keepAlive(tm)
+          arcJob = arcJob.map(_.copy(status = Some("deploying")))
           // Compile...
           compileAndTransfer() onComplete {
             case Success(s) => log.info("AppMaster successfully established connection with its TaskMaster")
-            case Failure(e) => log.error("Something went wrong during compileAndTransfer: " + e)
+            case Failure(e) =>
+              arcJob = arcJob.map(_.copy(status = Some("deploying")))
+              log.error("Something went wrong during compileAndTransfer: " + e)
+              keepAliveTicker.map(_.cancel())
+              // Shutdown or let it be alive until it is killed by "someone"?
+              // context stop self
           }
         case err =>
           log.error("Allocation for job: " + job.id + " failed with reason: " + err)
+          context stop self
       }
     case r@ReleaseSlots =>
       taskMaster.foreach(_ ! r)
-    case w@WeldTaskCompleted(t) =>
-      log.info("AppMaster received finished WeldTask")
-      context.parent ! w
+    case ArcJobStatus(_) =>
+      sender() ! arcJob.get
+    case ArcTaskUpdate(task) =>
+      arcJob = updateTask(task)
     case TaskMasterFailure() =>
       // Unexpected failure by the TaskMaster
       // Handle it
       keepAliveTicker.map(_.cancel())
+    case ArcJobKilled() =>
+      keepAliveTicker.map(_.cancel())
+      arcJob = arcJob.map(_.copy(status = Some("killed")))
+    case KillArcJobRequest(id) =>
+      // Shutdown
+      // Delete StateMaster
+      // Release Slots of TaskManager
     case StateMasterConn(ref) if stateMaster.isEmpty =>
       stateMaster = Some(ref)
     case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
@@ -81,7 +97,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   }
 
   private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {
-    rm ? job.copy(ref = Some(self)) flatMap {
+    rm ? job.copy(appMasterRef = Some(self)) flatMap {
       case r: AllocateResponse => Future.successful(r)
     }
   }
@@ -95,7 +111,7 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   }
 
   // temp method
-  private def compilation(): Future[Seq[ArcTask]] = Future {
+  private def compilation(): Future[Seq[Array[Byte]]] = Future {
     // compile....
     Seq(weldRunnerBin())
   }
@@ -132,14 +148,39 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
     })
   }
 
-  // Just for testing
-  private def testBinary(): Seq[Array[Byte]] = {
-    Seq(Files.readAllBytes(Paths.get("writetofile")),
-      Files.readAllBytes(Paths.get("writetofile2")))
-  }
 
   private def weldRunnerBin(): Array[Byte] =
     Files.readAllBytes(Paths.get("weldrunner"))
 
+
+  private def updateTask(task: ArcTask): Option[ArcJob] = {
+    arcJob match {
+      case Some(job) =>
+        val updatedJob = job.copy(tasks = job.tasks.map(s => if (isSameTask(s.id, task.id)) task else s))
+        val stillRunning = updatedJob
+          .tasks
+          .exists(_.result.isEmpty)
+
+        Some(
+          if (stillRunning) {
+            if (updatedJob.status.get.equals(Identifiers.ARC_JOB_DEPLOYING))
+              updatedJob.copy(status = Some(Identifiers.ARC_JOB_RUNNING))
+            else
+              updatedJob
+          }
+          else {
+            updatedJob.copy(status = Some(Identifiers.ARC_TASK_KILLED))
+          })
+      case None =>
+        None
+    }
+  }
+
+  private def isSameTask(a: Option[Int], b: Option[Int]): Boolean = {
+    (a,b) match {
+      case (Some(x), Some(z)) => x == z
+      case _ => false
+    }
+  }
 
 }

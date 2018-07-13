@@ -80,22 +80,22 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
         sender() ! AllocateFailure().withUnexpected(Unexpected()) // Fix this..
       } else {
         val resourceManager = sender()
-        val appMaster = job.ref.get
+        val appMaster = job.appMasterRef.get
 
-        val tm = context.actorOf(TaskMaster(job, slots.map(_.index),
+        val taskMaster = context.actorOf(TaskMaster(job, slots.map(_.index),
           appMaster), Identifiers.TASK_MASTER + taskMastersId)
 
-        taskMasters = taskMasters :+ tm
+        taskMasters = taskMasters :+ taskMaster
         taskMastersId += 1
 
         // Enable DeathWatch
-        context watch tm
+        context watch taskMaster
 
         // Let the requester know how to access the newly created TaskMaster
-        resourceManager ! AllocateSuccess(job, tm)
+        resourceManager ! AllocateSuccess(job, taskMaster)
 
         // Create a state master that is linked with the AppMaster and TaskMaster
-        getStateMaster(appMaster, job) recover {case _ => StateMasterError} pipeTo tm
+        getStateMaster(appMaster, job) recover {case _ => StateMasterError} pipeTo taskMaster
       }
     case ReleaseSlots(slots) =>
       taskSlots = taskSlots.map {s =>

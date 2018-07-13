@@ -1,6 +1,6 @@
 package runtime
 
-import runtime.common.messages.{ArcJob, ArcProfile, WeldJob, WeldTask}
+import runtime.common.messages.{ArcJob, ArcProfile, ArcTask}
 
 
 trait RuntimeHelper {
@@ -8,9 +8,9 @@ trait RuntimeHelper {
   val mediumProfile  = ArcProfile(4.0, 6000)
   val smallProfile = ArcProfile(1.0, 1000)
 
-  val tempJob = WeldJob(Seq(WeldTask("", "")))
+  val tempTasks  = Seq(ArcTask("", ""))
 
-  val smallJob = ArcJob("smalljob", smallProfile, tempJob)
-  val mediumJob = ArcJob("mediumjob", mediumProfile, tempJob)
-  val tooBigJob = ArcJob("bigjob", bigProfile, tempJob)
+  val smallJob = ArcJob("smalljob", smallProfile, tempTasks)
+  val mediumJob = ArcJob("mediumjob", mediumProfile, tempTasks)
+  val tooBigJob = ArcJob("bigjob", bigProfile, tempTasks)
 }

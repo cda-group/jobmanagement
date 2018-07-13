@@ -1,6 +1,7 @@
 package runtime.taskmanager.actors
 
 import java.net.InetSocketAddress
+import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import akka.io.{IO, Tcp}
@@ -136,6 +137,10 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
       // TODO: handle scenario where not all executors have been started
       if (executors.isEmpty) {
         log.info("No alive TaskExecutors left, releasing slots")
+
+        // Notify AppMaster and StateMaster that this job is being killed..
+        appMaster ! ArcJobKilled()
+        stateMaster.foreach(_ ! ArcJobKilled())
         shutdown()
       }
   }
@@ -145,10 +150,10 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
     taskReceiver ? TaskUploaded onComplete {
       case Success(resp) => resp match {
         case TaskReady(binId) =>
-          // improve names...
-          job.job.tasks.foreach {task =>
+          job.tasks.foreach {task =>
             // Create 1 executor for each task
-            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appMaster, stateMaster))
+            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appMaster, stateMaster),
+              UUID.randomUUID().toString)
             executors = executors :+ executor
             // Enable DeathWatch
             context watch executor

@@ -3,8 +3,8 @@ package runtime.appmanager.rest.routes
 import java.util.UUID
 
 import akka.actor.ActorRef
-import runtime.appmanager.actors.AppManager.{ArcJobRequest, TaskReport, WeldTasksStatus}
-import runtime.common.Utils
+import runtime.appmanager.actors.AppManager._
+import runtime.common.{Identifiers, Utils}
 import runtime.common.messages._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -20,29 +20,63 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
 
   val route: Route =
     pathPrefix("jobs") {
-      path("submit") {
-        entity(as[WeldJob]) { job =>
-          val testJob = ArcJob(UUID.randomUUID().toString, Utils.testResourceProfile(), job)
-          val jobRequest = ArcJobRequest(testJob)
-          appManager ! jobRequest
-          complete("Processing Job: " + testJob.id + "\n")
-        }
+      path("deploy") {
+        deploy
       }~
-        path("status") {
-          get {
-            onSuccess((appManager ? WeldTasksStatus).mapTo[TaskReport]) { res =>
-              complete(res)
-            }
-          }
-        }~
         path("metrics" / Segment) { jobId: String =>
           complete(fetchJobMetrics(jobId))
+        }~
+        path("kill" / Segment) { jobId: String =>
+          complete("killing job...")
+        }~
+        path("status" / Segment) { jobId: String =>
+          complete(jobStatus(jobId))
+        }~
+        path("list") {
+          complete("list all jobs")
+        }~
+        path("listfull") {
+          complete("list all jobs but with details")
         }
-    }
+      }
 
 
-  private def fetchJobMetrics(id: String): Future[ArcJobMetricResponse] = {
+  private def fetchJobMetrics(id: String): Future[ArcJobMetricResponse] =
     (appManager ? ArcJobMetricRequest(id)).mapTo[ArcJobMetricResponse]
+
+  private def killJob(id: String): Future[String] =
+    (appManager ? KillArcJobRequest(id)).mapTo[String]
+
+
+  private def jobStatus(id: String): Future[ArcJob] = {
+    (appManager ? ArcJobStatus(id)).mapTo[ArcJob]
+  }
+
+  private def listJobs(): Future[Any] = {
+    (appManager ? ListJobs).mapTo[String]
+  }
+
+
+  private def listJobsWithDetails(): Future[Any] = {
+    (appManager ? ListJobsWithDetails).mapTo[String]
+  }
+
+  /**
+    * Job Deployment Route
+    * @return Route to handle deployment
+    */
+  private def deploy: Route = {
+    entity(as[ArcDeployRequest]) { req =>
+      val indexedTasks = req.tasks
+        .zipWithIndex
+        .map(m => m._1.copy(id = Some(m._2+1)))
+
+      val arcJob = ArcJob(UUID.randomUUID().toString, Utils.testResourceProfile(),
+        indexedTasks, status = Some(Identifiers.ARC_JOB_DEPLOYING))
+      val jobRequest = ArcJobRequest(arcJob)
+      appManager ! jobRequest
+      complete("Processing Job: " + arcJob.id + "\n")
+    }
   }
 
 

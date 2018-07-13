@@ -2,29 +2,32 @@ package runtime.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import akka.cluster.Cluster
-import runtime.common.messages.{ArcTaskMetric, ExecutorTaskExit, WeldTask}
+import runtime.common.{Identifiers, messages}
+import runtime.common.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate, ExecutorTaskExit}
 import runtime.taskmanager.utils._
 
 import scala.concurrent.duration._
 import scala.util.Try
 
 object TaskExecutor {
-  def apply(binPath: String, task: WeldTask, aMaster: ActorRef, sMaster: ActorRef): Props =
+  def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
     Props(new TaskExecutor(binPath, task, aMaster, sMaster))
   case object HealthCheck
   case class StdOutResult(r: String)
+  case class CreateTaskReader(task: ArcTask)
 }
 
 /** Initial PoC for executing binaries and "monitoring" them
   *
   * @param binPath path to the rust binary
   */
-class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMaster: ActorRef)
+class TaskExecutor(binPath: String, task: ArcTask, appMaster: ActorRef, stateMaster: ActorRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   var healthChecker = None: Option[Cancellable]
   var process = None: Option[Process]
   var monitor = None: Option[ExecutorStats]
+  var arcTask = None: Option[ArcTask]
 
   val selfAddr = Cluster(context.system)
     .selfAddress
@@ -48,8 +51,11 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
             healthChecker = scheduleCheck()
             // Enable DeathWatch of the StateMaster
             context watch stateMaster
-            // Create an actor to read the results from StdOut
-            context.system.actorOf(TaskExecutorReader(process.get, appMaster, task))
+            // Update Status of the Task
+            val updatedTask = task.copy(status = Some("running"))
+            arcTask = Some(updatedTask)
+            appMaster ! ArcTaskUpdate(updatedTask)
+            self ! CreateTaskReader(updatedTask)
           case None =>
             log.error("Was not able to create ExecutorStats instance")
             shutdown()
@@ -61,6 +67,9 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
   }
 
   def receive = {
+    case CreateTaskReader(_task) =>
+      // Create an actor to read the results from StdOut
+      context.actorOf(TaskExecutorReader(process.get, appMaster, _task), "taskreader")
     case HealthCheck =>
       monitor match {
         case Some(stats) =>
@@ -69,6 +78,9 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
           log.info("Could not load monitor")
           shutdown()
       }
+    case ArcTaskUpdate(t) =>
+      // Gotten the results from the Stdout...
+      arcTask = Some(t)
     case Terminated(sMaster) =>
       // StateMaster has been declared as terminated
       // What to do?
@@ -85,7 +97,12 @@ class TaskExecutor(binPath: String, task: WeldTask, appMaster: ActorRef, stateMa
      }
    } else {
      log.info("Process is no longer alive, shutting down!")
-     stateMaster ! ExecutorTaskExit(task)
+     arcTask match {
+       case Some(t) =>
+         val updatedTask = t.copy(status = Some(Identifiers.ARC_TASK_KILLED))
+         appMaster ! ArcTaskUpdate(updatedTask)
+       case None =>
+     }
      shutdown()
    }
   }

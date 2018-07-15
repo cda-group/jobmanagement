@@ -1,22 +1,111 @@
 package runtime.appmanager.actors
 
+import java.io.FileOutputStream
 import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
+import java.util.jar.{JarEntry, JarOutputStream}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Cancellable, Props}
 import akka.util.Timeout
 import akka.pattern._
+import runtime.appmanager.actors.ArcAppManager.AppMasterInit
 import runtime.common._
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.messages._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
-object AppMaster {
-  def apply(): Props = Props(new AppMaster)
+
+/** Actor that handles an ArcJob
+  */
+abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
+  var stateMaster = None: Option[ActorRef]
+  var arcJob = None: Option[ArcJob]
+
+  def updateTask(task: ArcTask): Option[ArcJob] = {
+    arcJob match {
+      case Some(job) =>
+        val updatedJob = job.copy(tasks = job.tasks.map(s => if (isSameTask(s.id, task.id)) task else s))
+        val stillRunning = updatedJob
+          .tasks
+          .exists(_.result.isEmpty)
+
+        Some(
+          if (stillRunning) {
+            if (updatedJob.status.get.equals(Identifiers.ARC_JOB_DEPLOYING))
+              updatedJob.copy(status = Some(Identifiers.ARC_JOB_RUNNING))
+            else
+              updatedJob
+          }
+          else {
+            updatedJob.copy(status = Some(Identifiers.ARC_TASK_KILLED))
+          })
+      case None =>
+        None
+    }
+  }
+
+  private def isSameTask(a: Option[Int], b: Option[Int]): Boolean = {
+    (a,b) match {
+      case (Some(x), Some(z)) => x == z
+      case _ => false
+    }
+  }
 }
+
+/**
+  * Uses YARN to allocate resources and schedule ArcJob's.
+  */
+class YarnAppMaster(job: ArcJob) extends AppMaster {
+  private var appId = None: Option[Int]
+  //private val yarnClient = YarnClient.createYarnClient()
+  //private val hadoopConf = new YarnConfiguration()
+  //val rmClient = AMRMClient.createAMRMClient().asInstanceOf[AMRMClient[ContainerRequest]]
+
+  override def preStart(): Unit = {
+    super.preStart()
+    // Talk To ResourceManager and Allocate containers
+    // Compile Rust binaries
+    // Compress binaries using gzip and pack them in a Jar
+    // Fetch a StateMaster for the TaskExecutor's
+    // Transfer the Jar's over to container(s) in the YARN cluster
+    // Monitor the TaskExecutor through heartbeats?
+    //
+    createJar(weldRunnerBin())
+  }
+
+  def receive = {
+    case _ =>
+  }
+
+  private def createJar(bin: Array[Byte]): Unit = {
+    val target = "test.jar"
+    val out: JarOutputStream = new JarOutputStream(new FileOutputStream(target))
+    Try {
+      out.putNextEntry(new JarEntry("weldrunner"))
+      out.write(bin)
+      out.closeEntry()
+    } match {
+      case Success(_) =>
+        log.info("Created jar")
+      case Failure(_) =>
+        log.info("Failed creating jar")
+    }
+
+    out.close()
+  }
+
+  private def weldRunnerBin(): Array[Byte] =
+    Files.readAllBytes(Paths.get("weldrunner"))
+}
+
+object YarnAppMaster {
+  def apply(job: ArcJob): Props =
+    Props(new YarnAppMaster(job))
+}
+
 
 /** Actor that handles an ArcJob
   *
@@ -26,13 +115,10 @@ object AppMaster {
   * 2. Release the slots
   * 3. to be added...
   */
-class AppMaster extends Actor with ActorLogging with AppManagerConfig {
+class ArcAppMaster extends AppMaster {
   import AppManager._
 
   var taskMaster = None: Option[ActorRef]
-  var stateMaster = None: Option[ActorRef]
-  var arcJob = None: Option[ArcJob]
-
   //TODO: remove and use DeathWatch instead?
   var keepAliveTicker = None: Option[Cancellable]
 
@@ -151,36 +237,9 @@ class AppMaster extends Actor with ActorLogging with AppManagerConfig {
 
   private def weldRunnerBin(): Array[Byte] =
     Files.readAllBytes(Paths.get("weldrunner"))
+}
 
 
-  private def updateTask(task: ArcTask): Option[ArcJob] = {
-    arcJob match {
-      case Some(job) =>
-        val updatedJob = job.copy(tasks = job.tasks.map(s => if (isSameTask(s.id, task.id)) task else s))
-        val stillRunning = updatedJob
-          .tasks
-          .exists(_.result.isEmpty)
-
-        Some(
-          if (stillRunning) {
-            if (updatedJob.status.get.equals(Identifiers.ARC_JOB_DEPLOYING))
-              updatedJob.copy(status = Some(Identifiers.ARC_JOB_RUNNING))
-            else
-              updatedJob
-          }
-          else {
-            updatedJob.copy(status = Some(Identifiers.ARC_TASK_KILLED))
-          })
-      case None =>
-        None
-    }
-  }
-
-  private def isSameTask(a: Option[Int], b: Option[Int]): Boolean = {
-    (a,b) match {
-      case (Some(x), Some(z)) => x == z
-      case _ => false
-    }
-  }
-
+object ArcAppMaster {
+  def apply(): Props = Props(new ArcAppMaster())
 }

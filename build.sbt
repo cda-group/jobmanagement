@@ -26,7 +26,12 @@ lazy val runtimeSettings = generalSettings ++ sigarSettings ++ Seq(
   cancelable in Global := true,
   version := "0.1",
   javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled"),
-  fork in Test := true,
+  fork in Test := true
+  //assemblyMergeStrategy in assembly := {
+  //  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+  //  case PathList("application.conf") => MergeStrategy.discard
+  // case x => MergeStrategy.first
+  //}
 )
 
 lazy val runtimeMultiJvmSettings = multiJvmSettings ++ Seq(

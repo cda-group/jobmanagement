@@ -10,6 +10,7 @@ object Dependencies {
   val akkaVersion = "2.5.12"
   val akkaHttpVersion = "10.1.3"
   val akkaStreamsVersion = akkaVersion
+  val yarnVersion = "3.1.0"
 
 
   val testDependencies: Seq[ModuleID] = Seq(
@@ -34,6 +35,12 @@ object Dependencies {
   import scalapb.compiler.Version.scalapbVersion
   val protobufDependencies: Seq[ModuleID] = Seq(
     "com.thesamet.scalapb" %% "scalapb-runtime" % scalapbVersion % "protobuf"
+  )
+
+  val yarnDependencies: Seq[ModuleID] = Seq(
+    "org.apache.hadoop" % "hadoop-yarn-client" % yarnVersion,
+    "org.apache.hadoop" % "hadoop-yarn-api" % yarnVersion,
+    "org.apache.hadoop" % "hadoop-client" % yarnVersion
   )
 
   val akkaHttpDependencies: Seq[ModuleID] = Seq(

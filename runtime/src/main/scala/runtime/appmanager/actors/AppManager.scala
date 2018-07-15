@@ -4,6 +4,8 @@ package runtime.appmanager.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
+import runtime.appmanager.actors.AppManager.ArcJobID
+import runtime.appmanager.actors.ArcAppManager.AppMasterInit
 import runtime.appmanager.actors.MetricAccumulator.{StateManagerMetrics, TaskManagerMetrics}
 import runtime.common._
 import runtime.appmanager.rest.RestService
@@ -12,47 +14,104 @@ import runtime.common.messages._
 
 import scala.collection.mutable
 
-
 object AppManager {
-  def apply(): Props = Props(new AppManager)
-  case class AppMasterInit(job: ArcJob, rmAddr: Address)
-  case object ResourceManagerUnavailable
   case class ArcJobRequest(job: ArcJob)
   case class ArcDeployRequest(tasks: Seq[ArcTask])
   case class ArcJobStatus(id: String)
   case class KillArcJobRequest(id: String)
+  case object ResourceManagerUnavailable
   case object ListJobs
   case object ListJobsWithDetails
   type ArcJobID = String
 }
 
 /**
-  * This implementation is very experimental at this point
+  * An Abstract class that can be extended to enable support multiple
+  * for multiple cluster managers (Arc-based or YARN/Mesos)
   */
-class AppManager extends Actor with ActorLogging with AppManagerConfig {
-  import ClusterListener._
-  import AppManager._
-
-  // For Akka HTTP
+abstract class AppManager extends Actor with ActorLogging with AppManagerConfig {
+  // For Akka HTTP (REST)
   implicit val materializer = ActorMaterializer()
   implicit val system = context.system
   implicit val ec = context.system.dispatcher
 
-  // MetricAccumulator (Cluster "change name?")
-  val metricAccumulator = context.system.actorOf(MetricAccumulator())
+  // Fields
+  var appMasters = mutable.IndexedSeq.empty[ActorRef]
+  var appMasterId: Long = 0 // unique id for each AppMaster that is created
+  var appJobMap = mutable.HashMap[ArcJobID, ActorRef]()
 
+  // Initialize REST service
   override def preStart(): Unit = {
     log.info("Starting up REST server at " + interface + ":" + restPort)
     val rest = new RestService(self)
     Http().bindAndHandle(rest.route, interface, restPort)
   }
+}
 
 
-  // Just a single resourcemananger for now
+
+/**
+  * AppManager that uses YARN as its Resource Manager
+  */
+class YarnAppManager extends AppManager {
+ import AppManager._
+
+  def receive = {
+    case ArcJobRequest(arcJob) =>
+      // YarnAppMaster
+      val appMaster = context.actorOf(YarnAppMaster(arcJob), Identifiers.APP_MASTER+appMasterId)
+      appMasterId +=1
+      appMasters = appMasters :+ appMaster
+      appJobMap.put(arcJob.id, appMaster)
+
+      // Enable DeathWatch
+      context watch appMaster
+
+    // Send the job to the AppMaster actor and be done with it
+    // appMaster ! AppMasterInit(arcJob, rm)
+    case kill@KillArcJobRequest(id) =>
+      appJobMap.get(id) match {
+        case Some(appMaster) =>
+          appMaster forward kill
+        case None =>
+          sender() ! "Could not locate AppMaster"
+      }
+    case s@ArcJobStatus(id) =>
+      appJobMap.get(id) match {
+        case Some(appMaster) =>
+          appMaster forward s
+        case None =>
+          sender() ! "Fail"
+      }
+    case r@ArcJobMetricRequest(id) =>
+      appJobMap.get(id) match {
+        case Some(appMaster) =>
+          appMaster forward r
+        case None =>
+          sender() ! ArcJobMetricFailure("Could not locate the Job on this AppManager")
+      }
+    case Terminated(ref) =>
+      // AppMaster was terminated somehow
+      appMasters = appMasters.filterNot(_ == ref)
+      appJobMap.find(_._2 == ref) map { m => appJobMap.remove(m._1) }
+    case _ =>
+  }
+}
+
+object YarnAppManager {
+  case class AppMasterInit(job: ArcJob)
+  def apply(): Props = Props(new YarnAppManager())
+}
+
+
+class ArcAppManager extends AppManager{
+  import AppManager._
+  import ClusterListener._
+
   var resourceManager = None: Option[Address]
-  var appMasters = mutable.IndexedSeq.empty[ActorRef]
-  var appMasterId: Long = 0 // unique id for each AppMaster that is created
-  var appJobMap = mutable.HashMap[ArcJobID, ActorRef]()
+
+  // MetricAccumulator (Cluster "change name?")
+  val metricAccumulator = context.actorOf(MetricAccumulator())
 
   def receive = {
     case RmRegistration(rm) if resourceManager.isEmpty =>
@@ -69,8 +128,8 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
       resourceManager match {
         case Some(rm) =>
           // Rm is availalble, create a AppMaster to deal with the job
-          val appMaster = context.actorOf(AppMaster(), Identifiers.APP_MASTER+appMasterId)
-          appMasterId +=1
+          val appMaster = context.actorOf(ArcAppMaster(), Identifiers.APP_MASTER + appMasterId)
+          appMasterId += 1
           appMasters = appMasters :+ appMaster
           appJobMap.put(arcJob.id, appMaster)
 
@@ -111,9 +170,11 @@ class AppManager extends Actor with ActorLogging with AppManagerConfig {
       // AppMaster was terminated somehow
       appMasters = appMasters.filterNot(_ == ref)
       appJobMap.find(_._2 == ref) map { m => appJobMap.remove(m._1) }
-
     case _ =>
   }
+}
 
-
+object ArcAppManager {
+  case class AppMasterInit(job: ArcJob, rmAddr: Address)
+  def apply(): Props = Props(new ArcAppManager())
 }

@@ -1,5 +1,6 @@
 
 import sbt._
+import Keys._
 
 object Dependencies {
   //TODO check versions
@@ -23,6 +24,11 @@ object Dependencies {
   )
   val confDependencies: Seq[ModuleID] = Seq(
     "com.typesafe" % "config" % typeConfigVersion
+  )
+
+  val simpleAkkaDependencies: Seq[ModuleID] = Seq(
+    "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+    "com.typesafe.akka" %% "akka-testkit" % akkaVersion
   )
 
   val akkaDependencies: Seq[ModuleID] = Seq(
@@ -60,4 +66,17 @@ object Dependencies {
   val runtimeDependencies: Seq[ModuleID] = basic ++ akkaDependencies ++
     akkaHttpDependencies ++ protobufDependencies ++ sigarDependencies
 
+
+
+  // Actual Dependencies
+  val statemanagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies
+  val appmanagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies ++ akkaHttpDependencies
+  val protobufDeps: Seq[ModuleID] = testDependencies ++ protobufDependencies ++ akkaDependencies
+  val runtimeCommonDeps: Seq[ModuleID] = testDependencies ++ logDependencies ++ simpleAkkaDependencies
+
+  // Helpers
+  val statemanager = libraryDependencies ++= statemanagerDeps
+  val appmanager = libraryDependencies ++= appmanagerDeps
+  val protobuf = libraryDependencies ++= protobufDeps
+  val runtimeCommon = libraryDependencies ++= runtimeCommonDeps
 }

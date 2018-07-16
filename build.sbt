@@ -52,6 +52,44 @@ lazy val runtime = (project in file("runtime"))
   .configs(MultiJvm)
   .settings(runtimeMultiJvmSettings: _*)
 
-lazy val root = (project in file("."))
-  .aggregate(runtime)
 
+lazy val statemanager = (project in file("runtime/statemanager"))
+  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.statemanager)
+  .settings(modname("runtime.statemanager"))
+  .settings(Assembly.settings("runtime.statemanager.SmSystem", "statemanager.jar"))
+  .settings(Sigar.loader())
+
+
+lazy val appmanager = (project in file("runtime/appmanager"))
+  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.appmanager)
+  .settings(modname("runtime.appmanager"))
+  .settings(Assembly.settings("runtime.appmanager.AmSystem", "appmanager.jar"))
+  .settings(Sigar.loader())
+
+lazy val runtimeProtobuf = (project in file("runtime-protobuf"))
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.protobuf)
+  .settings(modname("runtime.protobuf"))
+  .settings(
+    PB.targets in Compile := Seq(
+      scalapb.gen() -> (sourceManaged in Compile).value
+    )
+  )
+
+lazy val runtimeCommon = (project in file("runtime-common"))
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.runtimeCommon)
+  .settings(modname("runtime.common"))
+
+lazy val root = (project in file("."))
+  .aggregate(statemanager, appmanager, runtimeProtobuf, runtimeCommon)
+
+
+def modname(m: String): Def.SettingsDefinition = {
+  val mn = "Module"
+  packageOptions in (Compile, packageBin) += Package.ManifestAttributes(mn → m)
+}

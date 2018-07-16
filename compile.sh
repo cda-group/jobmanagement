@@ -15,22 +15,22 @@ mkdir -p build
 function cpy_jars {
     case "$1" in
     "rm")
-        cp runtime/target/scala-"$SCALA_VER"/resourcemanager.jar build/resourcemanager.jar
+        cp cluster-manager/standalone/resourcemanager/target/scala-"$SCALA_VER"/resourcemanager.jar build/resourcemanager.jar
         ;;
     "tm")
-        cp runtime/target/scala-"$SCALA_VER"/taskmanager.jar build/taskmanager.jar
+        cp cluster-manager/standalone/taskmanager/target/scala-"$SCALA_VER"/taskmanager.jar build/taskmanager.jar
         ;;
     "sm")
-        cp runtime/target/scala-"$SCALA_VER"/statemanager.jar build/statemanager.jar
+        cp runtime/statemanager/target/scala-"$SCALA_VER"/statemanager.jar build/statemanager.jar
         ;;
     "am")
-        cp runtime/target/scala-"$SCALA_VER"/appmanager.jar build/appmanager.jar
+        cp runtime/appmanager/target/scala-"$SCALA_VER"/appmanager.jar build/appmanager.jar
         ;;
     "all")
-        cp runtime/target/scala-"$SCALA_VER"/appmanager.jar build/appmanager.jar
-        cp runtime/target/scala-"$SCALA_VER"/resourcemanager.jar build/resourcemanager.jar
-        cp runtime/target/scala-"$SCALA_VER"/statemanager.jar build/statemanager.jar
-        cp runtime/target/scala-"$SCALA_VER"/taskmanager.jar build/taskmanager.jar
+        cp runtime/statemanager/target/scala-"$SCALA_VER"/statemanager.jar build/statemanager.jar
+        cp runtime/appmanager/target/scala-"$SCALA_VER"/appmanager.jar build/appmanager.jar
+        cp cluster-manager/standalone/resourcemanager/target/scala-"$SCALA_VER"/resourcemanager.jar build/resourcemanager.jar
+        cp cluster-manager/standalone/taskmanager/target/scala-"$SCALA_VER"/taskmanager.jar build/taskmanager.jar
         ;;
 esac
 }
@@ -40,7 +40,7 @@ case "$1" in
     "am"|"appmanager")
         echo $GREEN"Compiling AppManager..."
         sbt_fail=0
-        (sbt -DruntimeClass=runtime.appmanager.AmSystem -DruntimeJar=appmanager.jar runtime/assembly) || sbt_fail=1
+        (sbt appmanager/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile AppManager"
@@ -53,7 +53,7 @@ case "$1" in
     "taskmanager"|"tm")
         echo $CYAN"Compiling TaskManager..."
         sbt_fail=0
-        (sbt -DruntimeClass=runtime.taskmanager.TaskManagerSystem -DruntimeJar=taskmanager.jar runtime/assembly) || sbt_fail=1
+        (sbt standaloneTaskmanager/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile TaskManager"
@@ -66,10 +66,10 @@ case "$1" in
     "resourcemanager"|"rm")
         echo $BLUE"Compiling ResourceManager..."
         sbt_fail=0
-        (sbt -DruntimeClass=runtime.resourcemanager.RmSystem -DruntimeJar=resourcemanager.jar runtime/assembly) || sbt_fail=1
+        (sbt standaloneResourcemanager/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
-            echo $RED"Failed to compile ResourecManager"
+            echo $RED"Failed to compile ResourceManager"
             exit 1
         else
             echo $BLUE"resourcemanager.jar is being moved to build/"
@@ -79,7 +79,7 @@ case "$1" in
     "statemanager"|"sm")
         echo $BLUE"Compiling StateManager..."
         sbt_fail=0
-        (sbt -DruntimeClass=runtime.statemanager.SmSystem -DruntimeJar=statemanager.jar runtime/assembly) || sbt_fail=1
+        (sbt statemanager/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile StateManager"
@@ -92,10 +92,10 @@ case "$1" in
     *)
         echo $WHITE"Compiling everything..."
         sbt_fail=0
-        (sbt -DruntimeClass=runtime.resourcemanager.RmSystem -DruntimeJar=resourcemanager.jar runtime/assembly);
-        (sbt -DruntimeClass=runtime.taskmanager.TaskManagerSystem -DruntimeJar=taskmanager.jar runtime/assembly);
-        (sbt -DruntimeClass=runtime.statemanager.SmSystem -DruntimeJar=statemanager.jar runtime/assembly);
-        (sbt -DruntimeClass=runtime.appmanager.AmSystem -DruntimeJar=appmanager.jar runtime/assembly) || sbt_fail=1
+        (sbt standaloneResourcemanager/assembly); 
+        (sbt statemanager/assembly);
+        (sbt standaloneTaskmanager/assembly);
+        (sbt appmanager/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile"

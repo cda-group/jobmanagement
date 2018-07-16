@@ -2,7 +2,7 @@ package runtime.protobuf
 
 import akka.actor.{ActorSystem, ExtendedActorSystem, ExtensionId, ExtensionIdProvider}
 
-private[runtime] object ExternalAddress extends ExtensionId[ExternalAddressExt] with ExtensionIdProvider {
+object ExternalAddress extends ExtensionId[ExternalAddressExt] with ExtensionIdProvider {
   override def lookup() = ExternalAddress
 
   override def createExtension(system: ExtendedActorSystem): ExternalAddressExt =

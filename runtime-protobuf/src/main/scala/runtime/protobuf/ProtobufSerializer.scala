@@ -12,7 +12,7 @@ import scalapb.GeneratedMessageCompanion
   * Serializer for Proto runtime.protobuf.messages in the Arc Cluster
   * Based on https://gist.github.com/thesamet/5d0349b40d3dc92859a1a2eafba448d5
   */
-private[runtime] class ProtobufSerializer(val system: ExtendedActorSystem) extends Serializer {
+class ProtobufSerializer(val system: ExtendedActorSystem) extends Serializer {
   private val classToCompanionMapRef = new AtomicReference[Map[Class[_], GeneratedMessageCompanion[_]]](Map.empty)
 
   override def includeManifest: Boolean = true

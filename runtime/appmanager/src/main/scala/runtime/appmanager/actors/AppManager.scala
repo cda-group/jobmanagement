@@ -27,7 +27,7 @@ object AppManager {
 
 /**
   * An Abstract class that can be extended to enable support multiple
-  * for multiple cluster managers (Arc-based or YARN/Mesos)
+  * for multiple cluster managers (Standalone or YARN/Mesos)
   */
 abstract class AppManager extends Actor with ActorLogging with AppManagerConfig {
   // For Akka HTTP (REST)

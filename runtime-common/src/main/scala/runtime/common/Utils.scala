@@ -1,7 +1,7 @@
 package runtime.common
 
 
-private[runtime] object Utils {
+object Utils {
 
   /*
   // For development

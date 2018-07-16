@@ -9,7 +9,7 @@ trait AppManagerConfig {
   val restPort = config.getInt("appmanager.restPort")
   val interface = config.getString("appmanager.interface")
   val restVersion = config.getString("appmanager.restVersion")
-  val resourcemanager = config.getString("appmanager.resourcemanager")
+  val resourcemanager = config.getString("appmanager.clustermanager.standalone.resourcemanager")
 
   require(config.isResolved)
   require(appMasterKeepAlive > 0)

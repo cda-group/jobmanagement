@@ -58,7 +58,7 @@ object ClusterRoute {
       new ClusterOverviewRoute(am).route()
   }
 
-  /** api/$version/cluster/taskmanager/
+  /** api/$version/cluster/clustermanager.standalone.taskmanager/
     * GET -> metrics
     * @param am ActorRef to AppManager
     */
@@ -66,7 +66,7 @@ object ClusterRoute {
     implicit val timeout = Timeout(2.seconds)
 
     def route(): Route =
-      pathPrefix("taskmanager") {
+      pathPrefix("clustermanager.standalone.taskmanager") {
         path("metrics") {
           get {
             onSuccess((am ? TaskManagerMetrics).mapTo[Seq[ExhaustiveMetric]]) { res =>

@@ -34,9 +34,13 @@ object Dependencies {
   val akkaDependencies: Seq[ModuleID] = Seq(
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
     "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
-    "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion,
     "com.typesafe.akka" %% "akka-cluster-metrics" % akkaVersion
   )
+
+  val akkaMultiNodeDependencies: Seq[ModuleID] = Seq(
+    "com.typesafe.akka" %% "akka-multi-node-testkit" % akkaVersion
+  )
+
 
   import scalapb.compiler.Version.scalapbVersion
   val protobufDependencies: Seq[ModuleID] = Seq(
@@ -63,20 +67,21 @@ object Dependencies {
   val basic : Seq[ModuleID] =
     logDependencies ++ confDependencies ++ testDependencies
 
-  val runtimeDependencies: Seq[ModuleID] = basic ++ akkaDependencies ++
-    akkaHttpDependencies ++ protobufDependencies ++ sigarDependencies
-
-
-
   // Actual Dependencies
   val statemanagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies
   val appmanagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies ++ akkaHttpDependencies
   val protobufDeps: Seq[ModuleID] = testDependencies ++ protobufDependencies ++ akkaDependencies
   val runtimeCommonDeps: Seq[ModuleID] = testDependencies ++ logDependencies ++ simpleAkkaDependencies
+  val standaloneManagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies
+  val yarnManagerDeps: Seq[ModuleID] = basic ++ yarnDependencies
+  val runtimeTestsDeps: Seq[ModuleID] = basic ++ akkaMultiNodeDependencies ++ akkaDependencies
 
   // Helpers
   val statemanager = libraryDependencies ++= statemanagerDeps
   val appmanager = libraryDependencies ++= appmanagerDeps
   val protobuf = libraryDependencies ++= protobufDeps
   val runtimeCommon = libraryDependencies ++= runtimeCommonDeps
+  val runtimeTests = libraryDependencies ++= runtimeTestsDeps
+  val standalone = libraryDependencies ++= standaloneManagerDeps
+  val yarnManager = libraryDependencies ++= yarnManagerDeps
 }

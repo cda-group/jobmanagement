@@ -5,7 +5,7 @@ import java.net.{InetSocketAddress => InetSocketAddressJava}
 import messages.{ActorRefProto, AddressProto, InetProto}
 
 
-private[runtime] object ProtoConversions {
+object ProtoConversions {
 
   object ActorRef {
     implicit def toRef(p: ActorRefProto)(implicit system: ActorSystem): ActorRef =

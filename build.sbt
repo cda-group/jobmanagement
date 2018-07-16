@@ -3,25 +3,13 @@ import com.typesafe.sbt.SbtMultiJvm.MultiJvmKeys.MultiJvm
 
 name := "jobmanagement." + "root"
 
-
-lazy val sigarFolder = SettingKey[File]("sigar-folder", "Location of native library extracted by Sigar java agent.")
-
-def sysPropOrDefault(propName:String,default:String): String =
-  Option(System.getProperty(propName)).getOrElse(default)
-
-
 lazy val generalSettings = Seq(
   // can be changed
   organization := "se.sics.cda",
   scalaVersion := "2.12.6"
 )
 
-lazy val sigarSettings = Seq(
-  //TODO fix
-  javaOptions in Test += s"-Djava.library.path=${"../target/native/taskmanager"}",
-)
-
-lazy val runtimeSettings = generalSettings ++ sigarSettings ++ Seq(
+lazy val runtimeSettings = generalSettings ++ Seq(
   fork in run := true,  // https://github.com/sbt/sbt/issues/3736#issuecomment-349993007
   cancelable in Global := true,
   version := "0.1",
@@ -39,18 +27,10 @@ lazy val runtimeMultiJvmSettings = multiJvmSettings ++ Seq(
   jvmOptions in MultiJvm += s"-Djava.library.path=${"target/native"}"
 )
 
-lazy val runtime = (project in file("runtime"))
-  .settings(runtimeSettings: _*)
-  .settings(
-    libraryDependencies ++= Dependencies.runtimeDependencies,
-    mainClass in assembly := Some(sysPropOrDefault("runtimeClass", "runtime.resourcemanager.RmSystem")),
-    assemblyJarName in assembly := sysPropOrDefault("runtimeJar", "resourcemanager.jar"),
-    test in assembly := {},
-    parallelExecution in Test := false // do not run test cases in parallel
-  )
-  .enablePlugins(MultiJvmPlugin)
-  .configs(MultiJvm)
-  .settings(runtimeMultiJvmSettings: _*)
+
+lazy val root = (project in file("."))
+  .aggregate(statemanager, appmanager, runtimeProtobuf,
+    runtimeCommon, runtimeTests, standaloneTaskmanager, standaloneResourcemanager)
 
 
 lazy val statemanager = (project in file("runtime/statemanager"))
@@ -85,8 +65,40 @@ lazy val runtimeCommon = (project in file("runtime-common"))
   .settings(Dependencies.runtimeCommon)
   .settings(modname("runtime.common"))
 
-lazy val root = (project in file("."))
-  .aggregate(statemanager, appmanager, runtimeProtobuf, runtimeCommon)
+lazy val runtimeTests = (project in file("runtime-tests"))
+  .dependsOn(
+    runtimeProtobuf, runtimeCommon % "test->test; compile->compile",
+    statemanager, appmanager % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.runtimeTests)
+  .settings(modname("runtime.tests"))
+  .enablePlugins(MultiJvmPlugin)
+  .configs(MultiJvm)
+  .settings(Sigar.loader())
+  .settings(
+    parallelExecution in Test := false // do not run test cases in
+  )
+
+lazy val standaloneTaskmanager = (project in file("cluster-manager/standalone/taskmanager"))
+  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.standalone)
+  .settings(modname("clustermanager.standalone.taskmanager"))
+  .settings(Assembly.settings("clustermanager.standalone.taskmanager.TmSystem", "taskmanager.jar"))
+  .settings(Sigar.loader())
+
+lazy val standaloneResourcemanager = (project in file("cluster-manager/standalone/resourcemanager"))
+  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.standalone)
+  .settings(modname("clustermanager.standalone.resourcemanager"))
+  .settings(Assembly.settings("clustermanager.standalone.resourcemanager.RmSystem", "resourcemanager.jar"))
+  .settings(Sigar.loader())
+
+lazy val yarnManager = (project in file("cluster-manager/yarn"))
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.yarnManager)
+  .settings(modname("clustermanager.yarn"))
 
 
 def modname(m: String): Def.SettingsDefinition = {

@@ -1,6 +1,6 @@
 package runtime.common
 
-private[runtime] object Identifiers {
+object Identifiers {
   final val RESOURCE_MANAGER = "resourcemanager"
   final val LISTENER = "listener"
   final val SLOT_MANAGER = "slotmanager"

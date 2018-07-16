@@ -3,7 +3,7 @@ package runtime.common
 import akka.actor.{ActorPath, Address, RootActorPath}
 import Identifiers._
 
-private[runtime] object ActorPaths {
+object ActorPaths {
 
   def resourceManager(member: Address): ActorPath =
     RootActorPath(member) / USER / LISTENER / RESOURCE_MANAGER

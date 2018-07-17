@@ -14,11 +14,8 @@ mkdir -p build
 
 function cpy_jars {
     case "$1" in
-    "rm")
-        cp cluster-manager/standalone/resourcemanager/target/scala-"$SCALA_VER"/resourcemanager.jar build/resourcemanager.jar
-        ;;
-    "tm")
-        cp cluster-manager/standalone/taskmanager/target/scala-"$SCALA_VER"/taskmanager.jar build/taskmanager.jar
+    "sa")
+        cp cluster-manager/standalone/target/scala-"$SCALA_VER"/standalone.jar build/standalone.jar
         ;;
     "sm")
         cp runtime/statemanager/target/scala-"$SCALA_VER"/statemanager.jar build/statemanager.jar
@@ -29,8 +26,7 @@ function cpy_jars {
     "all")
         cp runtime/statemanager/target/scala-"$SCALA_VER"/statemanager.jar build/statemanager.jar
         cp runtime/appmanager/target/scala-"$SCALA_VER"/appmanager.jar build/appmanager.jar
-        cp cluster-manager/standalone/resourcemanager/target/scala-"$SCALA_VER"/resourcemanager.jar build/resourcemanager.jar
-        cp cluster-manager/standalone/taskmanager/target/scala-"$SCALA_VER"/taskmanager.jar build/taskmanager.jar
+        cp cluster-manager/standalone/target/scala-"$SCALA_VER"/standalone.jar build/standalone.jar
         ;;
 esac
 }
@@ -50,32 +46,19 @@ case "$1" in
             cpy_jars "am"
         fi
         ;;
-    "taskmanager"|"tm")
-        echo $CYAN"Compiling TaskManager..."
+    "standalone"|"sa")
+        echo $CYAN"Compiling Standalone Cluster Manager..."
         sbt_fail=0
-        (sbt standaloneTaskmanager/assembly) || sbt_fail=1
+        (sbt standalone/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
-            echo $RED"Failed to compile TaskManager"
+            echo $RED"Failed to compile Standalone Cluster Manager"
             exit 1
         else
-            echo $CYAN"taskmanager.jar is being moved to build/"
-            cpy_jars "tm"
+            echo $CYAN"standalone.jar is being moved to build/"
+            cpy_jars "sa"
         fi
         ;;
-    "resourcemanager"|"rm")
-        echo $BLUE"Compiling ResourceManager..."
-        sbt_fail=0
-        (sbt standaloneResourcemanager/assembly) || sbt_fail=1
-        if [[ $sbt_fail -ne 0 ]];
-        then
-            echo $RED"Failed to compile ResourceManager"
-            exit 1
-        else
-            echo $BLUE"resourcemanager.jar is being moved to build/"
-            cpy_jars "rm"
-        fi
-        ;;  
     "statemanager"|"sm")
         echo $BLUE"Compiling StateManager..."
         sbt_fail=0
@@ -92,16 +75,15 @@ case "$1" in
     *)
         echo $WHITE"Compiling everything..."
         sbt_fail=0
-        (sbt standaloneResourcemanager/assembly); 
         (sbt statemanager/assembly);
-        (sbt standaloneTaskmanager/assembly);
+        (sbt standalone/assembly);
         (sbt appmanager/assembly) || sbt_fail=1
         if [[ $sbt_fail -ne 0 ]];
         then
             echo $RED"Failed to compile"
             exit 1
         else
-            echo $WHITE"Moving appmanager, taskmanager, statemanager and resourcemanager jars to build/"
+            echo $WHITE"Moving appmanager, statemanager and standalone jars to build/"
             cpy_jars "all"
         fi
         ;;

@@ -30,7 +30,7 @@ lazy val runtimeMultiJvmSettings = multiJvmSettings ++ Seq(
 
 lazy val root = (project in file("."))
   .aggregate(statemanager, appmanager, runtimeProtobuf,
-    runtimeCommon, runtimeTests, standaloneTaskmanager, standaloneResourcemanager)
+    runtimeCommon, runtimeTests, standalone)
 
 
 lazy val statemanager = (project in file("runtime/statemanager"))
@@ -79,23 +79,15 @@ lazy val runtimeTests = (project in file("runtime-tests"))
     parallelExecution in Test := false // do not run test cases in
   )
 
-lazy val standaloneTaskmanager = (project in file("cluster-manager/standalone/taskmanager"))
+lazy val standalone = (project in file("cluster-manager/standalone"))
   .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.standalone)
-  .settings(modname("clustermanager.standalone.taskmanager"))
-  .settings(Assembly.settings("clustermanager.standalone.taskmanager.TmSystem", "taskmanager.jar"))
+  .settings(modname("clustermanager.standalone"))
+  .settings(Assembly.settings("clustermanager.standalone.Standalone", "standalone.jar"))
   .settings(Sigar.loader())
 
-lazy val standaloneResourcemanager = (project in file("cluster-manager/standalone/resourcemanager"))
-  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
-  .settings(runtimeSettings: _*)
-  .settings(Dependencies.standalone)
-  .settings(modname("clustermanager.standalone.resourcemanager"))
-  .settings(Assembly.settings("clustermanager.standalone.resourcemanager.RmSystem", "resourcemanager.jar"))
-  .settings(Sigar.loader())
-
-lazy val yarnManager = (project in file("cluster-manager/yarn"))
+lazy val yarn = (project in file("cluster-manager/yarn"))
   .settings(runtimeSettings: _*)
   .settings(Dependencies.yarnManager)
   .settings(modname("clustermanager.yarn"))

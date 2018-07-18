@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package clustermanager.standalone.taskmanager.utils
+package runtime.taskmaster.common
 
 import java.io.{IOException, InputStreamReader}
 import java.util.regex.Pattern

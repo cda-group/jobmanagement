@@ -29,7 +29,7 @@ lazy val runtimeMultiJvmSettings = multiJvmSettings ++ Seq(
 
 
 lazy val root = (project in file("."))
-  .aggregate(statemanager, appmanager, runtimeProtobuf,
+  .aggregate(statemanager, appmanager, taskmaster, runtimeProtobuf,
     runtimeCommon, runtimeTests, standalone)
 
 
@@ -49,6 +49,12 @@ lazy val appmanager = (project in file("runtime/appmanager"))
   .settings(modname("runtime.appmanager"))
   .settings(Assembly.settings("runtime.appmanager.AmSystem", "appmanager.jar"))
   .settings(Sigar.loader())
+
+lazy val taskmaster = (project in file("runtime/taskmaster"))
+  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.taskmaster)
+  .settings(modname("runtime.taskmaster"))
 
 lazy val runtimeProtobuf = (project in file("runtime-protobuf"))
   .settings(runtimeSettings: _*)
@@ -80,7 +86,7 @@ lazy val runtimeTests = (project in file("runtime-tests"))
   )
 
 lazy val standalone = (project in file("cluster-manager/standalone"))
-  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, taskmaster % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.standalone)
   .settings(modname("clustermanager.standalone"))

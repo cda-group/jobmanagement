@@ -3,6 +3,7 @@ package clustermanager.standalone.taskmanager.utils
 import java.nio.file.{Files, Paths}
 
 import runtime.common.BaseSpec
+import runtime.taskmaster.ExecutionEnvironment
 
 import scala.util.{Failure, Success}
 

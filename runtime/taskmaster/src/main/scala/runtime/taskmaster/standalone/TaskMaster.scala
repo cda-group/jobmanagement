@@ -1,4 +1,4 @@
-package clustermanager.standalone.taskmanager.actors
+package runtime.taskmaster.standalone
 
 import java.net.InetSocketAddress
 import java.util.UUID
@@ -7,9 +7,8 @@ import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated
 import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.util.Timeout
-import clustermanager.standalone.taskmanager.actors.TaskManager.StateMasterError
-import clustermanager.standalone.taskmanager.utils.{ExecutionEnvironment, TaskManagerConfig}
 import runtime.protobuf.messages._
+import runtime.taskmaster.common.{ExecutionEnvironment, TaskExecutorConf, TaskMasterConf}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
@@ -17,8 +16,8 @@ import scala.util.{Failure, Success}
 
 
 object TaskMaster {
-  def apply(job: ArcJob, slots: Seq[Int], aMaster: ActorRef):Props =
-    Props(new TaskMaster(job, slots, aMaster))
+  def apply(job: ArcJob, conf: TaskMasterConf, slots: Seq[Int], aMaster: ActorRef):Props =
+    Props(new TaskMaster(job, conf, slots, aMaster))
   case object VerifyHeartbeat
   case object TaskUploaded
   case class TaskReady(id: String)
@@ -33,8 +32,8 @@ object TaskMaster {
   * the specified timeout, it will consider the job cancelled and instruct the
   * TaskManager to release the slots tied to it
   */
-class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
-  extends Actor with ActorLogging with TaskManagerConfig {
+class TaskMaster(job: ArcJob, conf: TaskMasterConf, slots: Seq[Int], appMaster: ActorRef)
+  extends Actor with ActorLogging {
 
   import TaskMaster._
   import akka.io.Tcp._
@@ -78,7 +77,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
 
     lastJmTs = System.currentTimeMillis()
     heartBeatChecker = Some(context.system.scheduler.schedule(
-      0.milliseconds, taskMasterTimeout.milliseconds,
+      0.milliseconds, conf.heartbeat.milliseconds,
       self, VerifyHeartbeat))
   }
 
@@ -91,10 +90,6 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
       import runtime.protobuf.ProtoConversions.ActorRef._
       log.info("Got StateMaster")
       stateMaster = Some(ref)
-    case StateMasterError =>
-      // Failed establishing link with a stateMaster.
-      // Handle it
-      log.error("Could not fetch a StateMaster")
     case Connected(remote, local) =>
       val tr = context.actorOf(TaskReceiver(taskReceiversId.toString, env), "rec"+taskReceiversId)
       taskReceiversId += 1
@@ -115,7 +110,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
       val appMaster = sender()
-      IO(Tcp) ? Bind(self, new InetSocketAddress(hostname, 0)) map {
+      IO(Tcp) ? Bind(self, new InetSocketAddress(conf.hostname, 0)) map {
         case Bound(inet) =>
           import runtime.protobuf.ProtoConversions.InetAddr._
           appMaster ! TaskTransferConn(inet)
@@ -125,11 +120,13 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
     case VerifyHeartbeat =>
       val now = System.currentTimeMillis()
       val time = now - lastJmTs
+      /*
       if (time > taskMasterTimeout) {
         log.info("Did not receive communication from AppMaster: " + appMaster + " within " + taskMasterTimeout + " ms")
         log.info("Releasing slots: " + slots)
         shutdown()
       }
+      */
     case TaskMasterHeartBeat() =>
       lastJmTs = System.currentTimeMillis()
     case Terminated(ref) =>
@@ -152,7 +149,8 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
         case TaskReady(binId) =>
           job.tasks.foreach {task =>
             // Create 1 executor for each task
-            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appMaster, stateMaster),
+            val conf = TaskExecutorConf(2000) // Fix
+            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appMaster, stateMaster, conf),
               UUID.randomUUID().toString)
             executors = executors :+ executor
             // Enable DeathWatch

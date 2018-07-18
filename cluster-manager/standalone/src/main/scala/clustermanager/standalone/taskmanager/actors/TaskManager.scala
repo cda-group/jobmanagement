@@ -8,6 +8,8 @@ import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import runtime.common.{ActorPaths, Identifiers}
 import runtime.protobuf.messages.SlotState.{ALLOCATED, FREE}
 import runtime.protobuf.messages._
+import runtime.taskmaster.common.TaskMasterConf
+import runtime.taskmaster.standalone.TaskMaster
 
 import scala.collection.mutable
 import scala.concurrent.Future
@@ -82,7 +84,8 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
         val resourceManager = sender()
         val appMaster = job.appMasterRef.get
 
-        val taskMaster = context.actorOf(TaskMaster(job, slots.map(_.index),
+        val conf = TaskMasterConf(taskMasterTimeout, hostname)
+        val taskMaster = context.actorOf(TaskMaster(job, conf, slots.map(_.index),
           appMaster), Identifiers.TASK_MASTER + taskMastersId)
 
         taskMasters = taskMasters :+ taskMaster

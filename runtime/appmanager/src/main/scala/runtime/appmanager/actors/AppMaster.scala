@@ -6,6 +6,7 @@ import java.nio.file.{Files, Paths}
 import java.util.jar.{JarEntry, JarOutputStream}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Cancellable, Props}
+import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
 import runtime.appmanager.actors.ArcAppManager.AppMasterInit
@@ -64,9 +65,12 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
   //private val hadoopConf = new YarnConfiguration()
   //val rmClient = AMRMClient.createAMRMClient().asInstanceOf[AMRMClient[ContainerRequest]]
 
+  val addr = Cluster(context.system).selfAddress
+
   override def preStart(): Unit = {
     super.preStart()
-    // Talk To ResourceManager and Allocate containers
+    // Start Yarn ApplicationMaster that will negotiate with the ResourceManager
+    // and allocate containers for our job
     // Compile Rust binaries
     // Fetch a StateMaster for the TaskExecutor's
     // Transfer the Jar's over to container(s) in the YARN cluster

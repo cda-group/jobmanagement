@@ -73,12 +73,14 @@ object Dependencies {
   val protobufDeps: Seq[ModuleID] = testDependencies ++ protobufDependencies ++ akkaDependencies
   val runtimeCommonDeps: Seq[ModuleID] = testDependencies ++ logDependencies ++ simpleAkkaDependencies
   val standaloneManagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies
+  val taskmasterDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies
   val yarnManagerDeps: Seq[ModuleID] = basic ++ yarnDependencies
   val runtimeTestsDeps: Seq[ModuleID] = basic ++ akkaMultiNodeDependencies ++ akkaDependencies
 
   // Helpers
   val statemanager = libraryDependencies ++= statemanagerDeps
   val appmanager = libraryDependencies ++= appmanagerDeps
+  val taskmaster = libraryDependencies ++= taskmasterDeps
   val protobuf = libraryDependencies ++= protobufDeps
   val runtimeCommon = libraryDependencies ++= runtimeCommonDeps
   val runtimeTests = libraryDependencies ++= runtimeTestsDeps

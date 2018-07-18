@@ -1,17 +1,18 @@
-package clustermanager.standalone.taskmanager.actors
+package runtime.taskmaster.standalone
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import akka.cluster.Cluster
-import clustermanager.standalone.taskmanager.utils.{ExecutorStats, TaskManagerConfig}
 import runtime.common.Identifiers
 import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate}
+import runtime.taskmaster.common.{ExecutorStats, TaskExecutorConf}
 
 import scala.concurrent.duration._
 import scala.util.Try
 
 object TaskExecutor {
-  def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
-    Props(new TaskExecutor(binPath, task, aMaster, sMaster))
+  // Refactor
+  def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef, conf: TaskExecutorConf): Props =
+    Props(new TaskExecutor(binPath, task, aMaster, sMaster, conf))
   case object HealthCheck
   case class StdOutResult(r: String)
   case class CreateTaskReader(task: ArcTask)
@@ -21,8 +22,8 @@ object TaskExecutor {
   *
   * @param binPath path to the rust binary
   */
-class TaskExecutor(binPath: String, task: ArcTask, appMaster: ActorRef, stateMaster: ActorRef)
-  extends Actor with ActorLogging with TaskManagerConfig {
+class TaskExecutor(binPath: String, task: ArcTask, appMaster: ActorRef, stateMaster: ActorRef, conf: TaskExecutorConf)
+  extends Actor with ActorLogging {
 
   var healthChecker = None: Option[Cancellable]
   var process = None: Option[Process]
@@ -122,8 +123,8 @@ class TaskExecutor(binPath: String, task: ArcTask, appMaster: ActorRef, stateMas
 
   private def scheduleCheck(): Option[Cancellable] = {
     Some(context.system.scheduler.schedule(
-      taskExecutorHealthCheck.milliseconds,
-      taskExecutorHealthCheck.milliseconds,
+      conf.monitorTicker.milliseconds,
+      conf.monitorTicker.milliseconds,
       self,
       HealthCheck
     ))

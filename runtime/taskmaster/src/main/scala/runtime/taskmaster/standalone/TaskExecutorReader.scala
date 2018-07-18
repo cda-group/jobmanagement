@@ -1,10 +1,10 @@
-package clustermanager.standalone.taskmanager.actors
+package runtime.taskmaster.standalone
 
 import java.io.{BufferedReader, InputStreamReader}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import clustermanager.standalone.taskmanager.actors.TaskExecutorReader.Result
 import runtime.protobuf.messages.{ArcTask, ArcTaskUpdate}
+import runtime.taskmaster.standalone.TaskExecutorReader.Result
 
 
 object TaskExecutorReader {

@@ -10,10 +10,10 @@ import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import akka.util.Timeout
 import clustermanager.standalone.TaskSender
 import clustermanager.standalone.taskmanager.actors.TaskMaster.{TaskReady, TaskUploaded}
-import clustermanager.standalone.taskmanager.utils.ExecutionEnvironment
 import com.typesafe.config.ConfigFactory
 import runtime.common.ActorSpec
 import runtime.protobuf.messages.TaskTransferComplete
+import runtime.taskmaster.ExecutionEnvironment
 
 import scala.concurrent.Await
 import scala.concurrent.duration._

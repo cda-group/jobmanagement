@@ -1,4 +1,4 @@
-package clustermanager.standalone.taskmanager.utils
+package runtime.taskmaster.common
 
 import com.typesafe.scalalogging.LazyLogging
 import org.hyperic.sigar.{Cpu => _, Mem => _, _}

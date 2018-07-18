@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package clustermanager.standalone.taskmanager.utils
+package runtime.taskmaster.common
 
 sealed trait Os
 case object Linux extends Os

@@ -1,9 +1,9 @@
-package clustermanager.standalone.taskmanager.actors
+package runtime.taskmaster.standalone
 
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.io.Tcp.{PeerClosed, Received}
 import akka.util.ByteString
-import clustermanager.standalone.taskmanager.utils.ExecutionEnvironment
+import runtime.taskmaster.common.ExecutionEnvironment
 
 
 object TaskReceiver {

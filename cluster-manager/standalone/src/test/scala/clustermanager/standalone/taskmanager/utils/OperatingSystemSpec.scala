@@ -1,6 +1,7 @@
 package clustermanager.standalone.taskmanager.utils
 
 import runtime.common.BaseSpec
+import runtime.taskmaster.common.{OperatingSystem, Unknown}
 
 class OperatingSystemSpec extends BaseSpec {
 

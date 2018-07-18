@@ -1,4 +1,4 @@
-package clustermanager.standalone.taskmanager.utils
+package runtime.taskmaster.common
 
 import java.nio.file.attribute.{PosixFilePermission, PosixFilePermissions}
 import java.nio.file.{Files, Paths}

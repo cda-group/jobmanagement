@@ -19,8 +19,8 @@ object Dependencies {
   )
 
   val logDependencies: Seq[ModuleID] = Seq(
-    "com.typesafe.scala-logging" %% "scala-logging" % loggingVersion,
-    "ch.qos.logback" % "logback-classic" % logbackVersion
+    "com.typesafe.scala-logging" %% "scala-logging" % loggingVersion
+    //"ch.qos.logback" % "logback-classic" % logbackVersion
   )
   val confDependencies: Seq[ModuleID] = Seq(
     "com.typesafe" % "config" % typeConfigVersion

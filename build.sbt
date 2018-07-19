@@ -43,7 +43,7 @@ lazy val statemanager = (project in file("runtime/statemanager"))
 
 
 lazy val appmanager = (project in file("runtime/appmanager"))
-  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, yarn % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.appmanager)
   .settings(modname("runtime.appmanager"))
@@ -51,10 +51,11 @@ lazy val appmanager = (project in file("runtime/appmanager"))
   .settings(Sigar.loader())
 
 lazy val taskmaster = (project in file("runtime/taskmaster"))
-  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, yarn % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.taskmaster)
   .settings(modname("runtime.taskmaster"))
+  .settings(Assembly.settings("runtime.taskmaster.yarn.TaskMasterApplication", "yarn-taskmaster.jar"))
 
 lazy val runtimeProtobuf = (project in file("runtime-protobuf"))
   .settings(runtimeSettings: _*)

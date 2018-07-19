@@ -9,9 +9,12 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, C
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
+import clustermanager.yarn.Client
+import org.apache.hadoop.yarn.api.records.ApplicationId
 import runtime.appmanager.actors.ArcAppManager.AppMasterInit
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.{ActorPaths, Identifiers}
+import runtime.protobuf.ExternalAddress
 import runtime.protobuf.messages._
 
 import scala.concurrent.Future
@@ -60,29 +63,27 @@ abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   * Uses YARN to allocate resources and schedule ArcJob's.
   */
 class YarnAppMaster(job: ArcJob) extends AppMaster {
-  private var appId = None: Option[Int]
-  //private val yarnClient = YarnClient.createYarnClient()
-  //private val hadoopConf = new YarnConfiguration()
-  //val rmClient = AMRMClient.createAMRMClient().asInstanceOf[AMRMClient[ContainerRequest]]
+  private var appId = None: Option[ApplicationId]
 
-  val addr = Cluster(context.system).selfAddress
+  val selfAddr = Cluster(context.system).selfAddress
 
   override def preStart(): Unit = {
     super.preStart()
-    // Start Yarn ApplicationMaster that will negotiate with the ResourceManager
-    // and allocate containers for our job
-    // Compile Rust binaries
-    // Fetch a StateMaster for the TaskExecutor's
-    // Transfer the Jar's over to container(s) in the YARN cluster
-    // Monitor the TaskExecutor through heartbeats?
-    //
-    createJar(weldRunnerBin())
+    val client = new Client()
+    if (client.init()) {
+      val path = self.path.toStringWithAddress(selfAddr)
+      appId = client.launchTaskMaster(path).toOption
+    } else {
+      log.error("Failed to connect to yarn")
+    }
   }
 
   def receive = {
+    case s: String => println(s)
     case _ =>
   }
 
+  // Just testing
   private def createJar(bin: Array[Byte]): Unit = {
     val target = "test.jar"
     val out: JarOutputStream = new JarOutputStream(new FileOutputStream(target))

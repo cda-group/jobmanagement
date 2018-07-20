@@ -24,9 +24,9 @@ class Client extends YarnConfig {
     }
   }
 
-  def launchTaskMaster(ref: String): Try[ApplicationId] = Try {
+  def launchTaskMaster(ref: String, jobId: String): Try[ApplicationId] = Try {
     val app = client.createApplication()
-    val taskmasterContext = YarnTaskMaster.context(ref, conf)
+    val taskmasterContext = YarnTaskMaster.context(ref, jobId, conf)
 
     val resource = Resource.newInstance(1024, 2)
     val priority = Records.newRecord(classOf[Priority])

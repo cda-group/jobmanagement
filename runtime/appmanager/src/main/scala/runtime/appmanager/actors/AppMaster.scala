@@ -9,12 +9,12 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, C
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
-import clustermanager.yarn.Client
+import _root_.clustermanager.yarn.Client
+import clustermanager.yarn.YarnUtils
 import org.apache.hadoop.yarn.api.records.ApplicationId
 import runtime.appmanager.actors.ArcAppManager.AppMasterInit
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.{ActorPaths, Identifiers}
-import runtime.protobuf.ExternalAddress
 import runtime.protobuf.messages._
 
 import scala.concurrent.Future
@@ -27,6 +27,7 @@ import scala.util.{Failure, Success, Try}
 abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   var stateMaster = None: Option[ActorRef]
   var arcJob = None: Option[ArcJob]
+
 
   def updateTask(task: ArcTask): Option[ArcJob] = {
     arcJob match {
@@ -63,25 +64,49 @@ abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   * Uses YARN to allocate resources and schedule ArcJob's.
   */
 class YarnAppMaster(job: ArcJob) extends AppMaster {
-  private var appId = None: Option[ApplicationId]
+  private var yarnAppId = None: Option[ApplicationId]
+  private var yarnTaskMaster = None: Option[ActorRef]
+  private val selfAddr = Cluster(context.system).selfAddress
 
-  val selfAddr = Cluster(context.system).selfAddress
+  // Handles implicit conversions of ActorRef and ActorRefProto
+  implicit val sys: ActorSystem = context.system
+  import runtime.protobuf.ProtoConversions.ActorRef._
+
+  implicit val timeout = Timeout(2 seconds)
+  import context.dispatcher
 
   override def preStart(): Unit = {
     super.preStart()
+
+    arcJob = Some(job)
+
     val client = new Client()
     if (client.init()) {
-      val path = self.path.toStringWithAddress(selfAddr)
-      appId = client.launchTaskMaster(path).toOption
+      val me = self.path.toStringWithAddress(selfAddr)
+      yarnAppId = client.launchTaskMaster(me, job.id).toOption
     } else {
       log.error("Failed to connect to yarn")
     }
   }
 
   def receive = {
-    case s: String => println(s)
+    case YarnTaskMasterUp(ref) =>
+      // Add some timeout, and if we don't receive this msg
+      // Fail the job?
+      yarnTaskMaster = Some(ref)
+      compileAndTransfer() pipeTo ref
+    case s: String =>
+      println(s)
     case _ =>
   }
+
+  private def compileAndTransfer(): Future[YarnTaskTransferred] = Future {
+    YarnUtils.moveToHDFS(job.id, "weldrunner") match {
+      case Some(path) => YarnTaskTransferred(path.toString, ArcProfile(1.0, 500))
+      case None => YarnTaskTransferred("nej", ArcProfile(1.0, 500))
+    }
+  }
+
 
   // Just testing
   private def createJar(bin: Array[Byte]): Unit = {

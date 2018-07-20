@@ -12,7 +12,7 @@ import org.apache.hadoop.yarn.util.{Apps, ConverterUtils, Records}
 object YarnTaskMaster extends YarnConfig {
   import collection.JavaConverters._
 
-  def context(appmasterRef: String, conf: YarnConfiguration): ContainerLaunchContext = {
+  def context(appmasterRef: String, jobId: String, conf: YarnConfiguration): ContainerLaunchContext = {
     val ctx = Records.newRecord(classOf[ContainerLaunchContext])
 
     //  Commands
@@ -21,6 +21,7 @@ object YarnTaskMaster extends YarnConfig {
         " -Xmx256M " +
         s" $taskMasterClass "+
         " " + appmasterRef +
+        " " + jobId +
         " 1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
         " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr"
     ).asJava)

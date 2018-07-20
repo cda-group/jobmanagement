@@ -14,11 +14,12 @@ import runtime.protobuf.messages.ActorRefProto
   */
 object TaskMasterApplication extends App {
 
-  if (args.length <= 0) {
+  if (args.length <= 1) {
     println("NO REF ARG APPLIED")
     System.exit(1)
   } else {
-    val ref = args(0)
+    val appMasterRef = args(0)
+    val jobId = args(1)
 
 
     val localhostname = java.net.InetAddress
@@ -33,13 +34,16 @@ object TaskMasterApplication extends App {
          | akka.actor.remote.enabled-transports = ["akka.remote.netty.tcp"]
          | akka.actor.remote.netty.tcp.hostname = $localhostname
          | akka.actor.remote.netty.tcp.port = 3000
+         | akka.actor.serializers.proto = "runtime.protobuf.ProtobufSerializer"
+         | akka.actor.serializers.java = "akka.serialization.JavaSerializer"
+         | akka.actor.serialization-bindings {"scalapb.GeneratedMessage" = proto}
     """.stripMargin))
 
     println(localhostname)
 
     import runtime.protobuf.ProtoConversions.ActorRef._
-    val pr = ActorRefProto(ref)
-    val taskmaster = system.actorOf(TaskMaster(pr))
+    val pr = ActorRefProto(appMasterRef)
+    val taskmaster = system.actorOf(TaskMaster(pr, jobId))
   }
 
 }

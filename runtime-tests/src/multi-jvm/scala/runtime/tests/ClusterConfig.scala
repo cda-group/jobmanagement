@@ -21,7 +21,6 @@ object ClusterConfig extends MultiNodeConfig {
         |akka.cluster.roles=[${Identifiers.RESOURCE_MANAGER}]
     """.stripMargin))
 
-  //|akka.cluster.metrics.native-library-extract-folder=$${user.dir}/target/native/${Identifiers.RESOURCE_MANAGER}
   nodeConfig(appmanager)(ConfigFactory.parseString(
     s"""
        |akka.cluster.roles=[${Identifiers.APP_MANAGER}]

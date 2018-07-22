@@ -2,11 +2,11 @@ package runtime.appmanager.utils
 
 import java.net.InetAddress
 
-import runtime.common.BaseSpec
+import org.scalatest.FlatSpec
 
 import scala.util.{Failure, Success, Try}
 
-class AppManagerConfigSpec extends BaseSpec with AppManagerConfig {
+class AppManagerConfigSpec extends FlatSpec with AppManagerConfig {
 
   "AppManager Config" should "be functional" in {
     assert(config.isResolved)

@@ -29,38 +29,33 @@ lazy val runtimeMultiJvmSettings = multiJvmSettings ++ Seq(
 
 
 lazy val root = (project in file("."))
-  .aggregate(statemanager, appmanager, taskmaster, runtimeProtobuf,
-    runtimeCommon, runtimeTests, standalone)
+  .aggregate(statemanager, appmanager, runtimeProtobuf,
+    runtimeCommon, runtimeTests, standalone,
+    yarnUtils, yarnExecutor, yarnMaster, clusterManagerCommon)
 
 
 lazy val statemanager = (project in file("runtime/statemanager"))
   .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.statemanager)
-  .settings(modname("runtime.statemanager"))
+  .settings(moduleName("runtime.statemanager"))
   .settings(Assembly.settings("runtime.statemanager.SmSystem", "statemanager.jar"))
   .settings(Sigar.loader())
 
 
 lazy val appmanager = (project in file("runtime/appmanager"))
-  .dependsOn(runtimeProtobuf, runtimeCommon, yarn % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, yarnUtils % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.appmanager)
-  .settings(modname("runtime.appmanager"))
+  .settings(moduleName("runtime.appmanager"))
   .settings(Assembly.settings("runtime.appmanager.AmSystem", "appmanager.jar"))
   .settings(Sigar.loader())
 
-lazy val taskmaster = (project in file("runtime/taskmaster"))
-  .dependsOn(runtimeProtobuf, runtimeCommon, yarn % "test->test; compile->compile")
-  .settings(runtimeSettings: _*)
-  .settings(Dependencies.taskmaster)
-  .settings(modname("runtime.taskmaster"))
-  .settings(Assembly.settings("runtime.taskmaster.yarn.TaskMasterApplication", "yarn-taskmaster.jar"))
 
 lazy val runtimeProtobuf = (project in file("runtime-protobuf"))
   .settings(runtimeSettings: _*)
   .settings(Dependencies.protobuf)
-  .settings(modname("runtime.protobuf"))
+  .settings(moduleName("runtime.protobuf"))
   .settings(
     PB.targets in Compile := Seq(
       scalapb.gen() -> (sourceManaged in Compile).value
@@ -70,37 +65,55 @@ lazy val runtimeProtobuf = (project in file("runtime-protobuf"))
 lazy val runtimeCommon = (project in file("runtime-common"))
   .settings(runtimeSettings: _*)
   .settings(Dependencies.runtimeCommon)
-  .settings(modname("runtime.common"))
+  .settings(moduleName("runtime.common"))
 
 lazy val runtimeTests = (project in file("runtime-tests"))
   .dependsOn(
     runtimeProtobuf, runtimeCommon % "test->test; compile->compile",
-    statemanager, appmanager % "test->test; compile->compile")
+    statemanager, appmanager, standalone % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.runtimeTests)
-  .settings(modname("runtime.tests"))
+  .settings(moduleName("runtime.tests"))
   .enablePlugins(MultiJvmPlugin)
   .configs(MultiJvm)
   .settings(Sigar.loader())
   .settings(
     parallelExecution in Test := false // do not run test cases in
   )
+lazy val clusterManagerCommon = (project in file("cluster-manager-common"))
+  .dependsOn(runtimeProtobuf % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.clusterManagerCommon)
+  .settings(moduleName("clustermanager.common"))
 
 lazy val standalone = (project in file("cluster-manager/standalone"))
-  .dependsOn(runtimeProtobuf, runtimeCommon, taskmaster % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, clusterManagerCommon % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.standalone)
-  .settings(modname("clustermanager.standalone"))
+  .settings(moduleName("clustermanager.standalone"))
   .settings(Assembly.settings("clustermanager.standalone.Standalone", "standalone.jar"))
   .settings(Sigar.loader())
 
-lazy val yarn = (project in file("cluster-manager/yarn"))
+lazy val yarnUtils = (project in file("cluster-manager/yarn/utils"))
   .settings(runtimeSettings: _*)
-  .settings(Dependencies.yarnManager)
-  .settings(modname("clustermanager.yarn"))
+  .settings(Dependencies.yarnUtils)
+  .settings(moduleName("clustermanager.yarn.utils"))
 
+lazy val yarnExecutor = (project in file("cluster-manager/yarn/taskexecutor"))
+  .dependsOn(runtimeProtobuf, runtimeCommon, yarnUtils, clusterManagerCommon % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.yarnExecutor)
+  .settings(moduleName("clustermanager.yarn.taskexecutor"))
+  .settings(Assembly.settings("clustermanager.yarn.taskexecutor.TaskExecutorApplication", "yarn-taskexecutor.jar"))
 
-def modname(m: String): Def.SettingsDefinition = {
+lazy val yarnMaster = (project in file("cluster-manager/yarn/taskmaster"))
+  .dependsOn(runtimeProtobuf, yarnUtils % "test->test; compile->compile")
+  .settings(runtimeSettings: _*)
+  .settings(Dependencies.yarnMaster)
+  .settings(moduleName("clustermanager.yarn.taskmaster"))
+  .settings(Assembly.settings("clustermanager.yarn.taskmaster.TaskMasterApplication", "yarn-taskmaster.jar"))
+
+def moduleName(m: String): Def.SettingsDefinition = {
   val mn = "Module"
   packageOptions in (Compile, packageBin) += Package.ManifestAttributes(mn → m)
 }

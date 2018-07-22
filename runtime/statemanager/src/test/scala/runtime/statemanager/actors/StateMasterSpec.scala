@@ -3,9 +3,8 @@ package runtime.statemanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import com.typesafe.config.ConfigFactory
-import runtime.common.ActorSpec
 import runtime.protobuf.messages._
-import runtime.statemanager.TestHelpers
+import runtime.statemanager.{ActorSpec, TestHelpers}
 
 
 object StateMasterSpec {

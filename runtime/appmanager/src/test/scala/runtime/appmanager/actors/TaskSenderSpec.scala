@@ -3,8 +3,7 @@ package runtime.appmanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
-import runtime.appmanager.TestHelpers
-import runtime.common.ActorSpec
+import runtime.appmanager.{ActorSpec, TestHelpers}
 
 object TaskSenderSpec {
   val actorSystem = ActorSystem("TaskSenderSpec", ConfigFactory.parseString(

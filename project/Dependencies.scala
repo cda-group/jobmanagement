@@ -22,6 +22,11 @@ object Dependencies {
     "com.typesafe.scala-logging" %% "scala-logging" % loggingVersion
     //"ch.qos.logback" % "logback-classic" % logbackVersion
   )
+
+  val logbackDependencies: Seq[ModuleID] = Seq(
+    "ch.qos.logback" % "logback-classic" % logbackVersion
+  )
+
   val confDependencies: Seq[ModuleID] = Seq(
     "com.typesafe" % "config" % typeConfigVersion
   )
@@ -35,6 +40,11 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
     "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
     "com.typesafe.akka" %% "akka-cluster-metrics" % akkaVersion
+  )
+
+  val akkaRemoteDependencies: Seq[ModuleID] = Seq(
+    "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
+    "com.typesafe.akka" %% "akka-remote" % akkaVersion
   )
 
   val akkaMultiNodeDependencies: Seq[ModuleID] = Seq(
@@ -72,18 +82,31 @@ object Dependencies {
   val appmanagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies ++ akkaHttpDependencies
   val protobufDeps: Seq[ModuleID] = testDependencies ++ protobufDependencies ++ akkaDependencies
   val runtimeCommonDeps: Seq[ModuleID] = testDependencies ++ logDependencies ++ simpleAkkaDependencies
-  val standaloneManagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies
-  val taskmasterDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies
-  val yarnManagerDeps: Seq[ModuleID] = basic ++ yarnDependencies
+  val standaloneManagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies ++ logbackDependencies
+  val taskmasterDeps: Seq[ModuleID] = basic ++ akkaRemoteDependencies
+  val taskexecutorDeps: Seq[ModuleID] = basic ++ akkaRemoteDependencies ++ sigarDependencies
   val runtimeTestsDeps: Seq[ModuleID] = basic ++ akkaMultiNodeDependencies ++ akkaDependencies
+
+  // Cluster Manager
+
+  val clusterManagerCommonDeps: Seq[ModuleID] = basic ++ sigarDependencies
+
+  val yarnUtilsDeps: Seq[ModuleID] = basic ++ yarnDependencies
+  val yarnExecutorDeps: Seq[ModuleID] = basic ++ akkaRemoteDependencies ++ sigarDependencies
+  val yarnMasterDeps: Seq[ModuleID] = basic ++ akkaRemoteDependencies
+
 
   // Helpers
   val statemanager = libraryDependencies ++= statemanagerDeps
   val appmanager = libraryDependencies ++= appmanagerDeps
   val taskmaster = libraryDependencies ++= taskmasterDeps
+  val taskexecutor = libraryDependencies ++= taskexecutorDeps
   val protobuf = libraryDependencies ++= protobufDeps
   val runtimeCommon = libraryDependencies ++= runtimeCommonDeps
   val runtimeTests = libraryDependencies ++= runtimeTestsDeps
+  val clusterManagerCommon = libraryDependencies ++= clusterManagerCommonDeps
   val standalone = libraryDependencies ++= standaloneManagerDeps
-  val yarnManager = libraryDependencies ++= yarnManagerDeps
+  val yarnUtils = libraryDependencies ++= yarnUtilsDeps
+  val yarnExecutor = libraryDependencies ++= yarnExecutorDeps
+  val yarnMaster = libraryDependencies ++= yarnMasterDeps
 }

@@ -9,8 +9,7 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, C
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
-import _root_.clustermanager.yarn.Client
-import clustermanager.yarn.YarnUtils
+import clustermanager.yarn.utils.{Client, YarnUtils}
 import org.apache.hadoop.yarn.api.records.ApplicationId
 import runtime.appmanager.actors.ArcAppManager.AppMasterInit
 import runtime.appmanager.utils.AppManagerConfig

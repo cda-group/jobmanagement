@@ -2,12 +2,12 @@ package clustermanager.standalone.taskmanager.utils
 
 import java.nio.file.{Files, Paths}
 
-import runtime.common.BaseSpec
-import runtime.taskmaster.ExecutionEnvironment
+import clustermanager.common.executor.ExecutionEnvironment
+import org.scalatest.FlatSpec
 
 import scala.util.{Failure, Success}
 
-class ExecutionEnvironmentSpec extends BaseSpec {
+class ExecutionEnvironmentSpec extends FlatSpec {
   val jobId = "testjobid"
   val env = new ExecutionEnvironment(jobId)
 

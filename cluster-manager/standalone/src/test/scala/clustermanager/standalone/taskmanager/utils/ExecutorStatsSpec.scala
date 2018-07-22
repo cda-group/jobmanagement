@@ -1,12 +1,11 @@
 package clustermanager.standalone.taskmanager.utils
 
-import akka.cluster.metrics.SigarProvider
+import clustermanager.common.executor.ExecutorStats
 import kamon.sigar.SigarProvisioner
 import org.hyperic.sigar.Sigar
-import org.scalatest.BeforeAndAfterAll
-import runtime.common.BaseSpec
+import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 
-class ExecutorStatsSpec extends BaseSpec with BeforeAndAfterAll {
+class ExecutorStatsSpec extends FlatSpec with BeforeAndAfterAll {
 
   override def beforeAll(): Unit = {
     SigarProvisioner.provision()

@@ -1,8 +1,10 @@
 package clustermanager.standalone.taskmanager.utils
 
-import runtime.common.BaseSpec
+import org.scalatest.FlatSpec
 
-class TaskManagerConfigSpec extends BaseSpec with TaskManagerConfig {
+class TaskManagerConfigSpec extends FlatSpec with TaskManagerConfig {
+
+  import org.scalatest.FlatSpec
 
   "TaskManager Config" should "be functional" in {
     assert(config.isResolved)

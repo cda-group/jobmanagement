@@ -1,8 +1,8 @@
 package runtime.statemanager.utils
 
-import runtime.common.BaseSpec
+import org.scalatest.FlatSpec
 
-class StateManagerConfigSpec extends BaseSpec with StateManagerConfig {
+class StateManagerConfigSpec extends FlatSpec with StateManagerConfig {
 
   "StateManager Config" should "be functional" in {
     assert(config.isResolved)

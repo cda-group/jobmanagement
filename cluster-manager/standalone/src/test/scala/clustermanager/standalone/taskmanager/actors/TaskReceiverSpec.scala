@@ -8,12 +8,11 @@ import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import akka.util.Timeout
-import clustermanager.standalone.TaskSender
+import clustermanager.common.executor.ExecutionEnvironment
+import clustermanager.standalone.{ActorSpec, TaskSender}
 import clustermanager.standalone.taskmanager.actors.TaskMaster.{TaskReady, TaskUploaded}
 import com.typesafe.config.ConfigFactory
-import runtime.common.ActorSpec
 import runtime.protobuf.messages.TaskTransferComplete
-import runtime.taskmaster.ExecutionEnvironment
 
 import scala.concurrent.Await
 import scala.concurrent.duration._

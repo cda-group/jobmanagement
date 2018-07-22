@@ -1,7 +1,7 @@
 package runtime.common
 
-import akka.actor.{ActorPath, Address, RootActorPath}
 import Identifiers._
+import akka.actor.{ActorPath, Address, RootActorPath}
 
 object ActorPaths {
 

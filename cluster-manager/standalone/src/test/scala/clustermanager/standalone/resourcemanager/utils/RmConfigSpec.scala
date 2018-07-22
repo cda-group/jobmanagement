@@ -1,9 +1,11 @@
 package clustermanager.standalone.resourcemanager.utils
 
-import runtime.common.BaseSpec
+import org.scalatest.FlatSpec
 
 
-class RmConfigSpec extends BaseSpec with RmConfig{
+class RmConfigSpec extends FlatSpec with RmConfig {
+
+  import org.scalatest.FlatSpec
 
   "ResourceManager Config" should "functional in" in {
     assert(config.isResolved)

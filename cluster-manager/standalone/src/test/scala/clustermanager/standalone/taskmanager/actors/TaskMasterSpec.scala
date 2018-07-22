@@ -2,9 +2,8 @@ package clustermanager.standalone.taskmanager.actors
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import clustermanager.standalone.TestHelpers
+import clustermanager.standalone.{ActorSpec, TestHelpers}
 import com.typesafe.config.ConfigFactory
-import runtime.common.ActorSpec
 import runtime.protobuf.messages.{TaskTransferConn, TasksCompiled}
 
 

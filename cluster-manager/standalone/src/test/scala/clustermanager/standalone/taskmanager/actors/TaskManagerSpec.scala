@@ -2,11 +2,10 @@ package clustermanager.standalone.taskmanager.actors
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
-import clustermanager.standalone.TestHelpers
+import clustermanager.standalone.{ActorSpec, TestHelpers}
 import clustermanager.standalone.taskmanager.actors.TaskManager.TMNotInitialized
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import com.typesafe.config.ConfigFactory
-import runtime.common.ActorSpec
 import runtime.protobuf.messages.{Allocate, SlotUpdate, TaskManagerInit}
 
 import scala.concurrent.duration._

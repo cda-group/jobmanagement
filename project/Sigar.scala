@@ -3,6 +3,9 @@ import Keys._
 
 object Sigar {
   def loader() = {
-    javaOptions in Test += s"-Djava.library.path=native/"
+    Seq(
+      javaOptions in Test += s"-Djava.library.path=native/"
+      //javaOptions in run += s"-Djava.library.path=native/"
+    )
   }
 }

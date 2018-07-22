@@ -1,10 +1,10 @@
 package clustermanager.standalone.taskmanager.utils
 
-import runtime.common.BaseSpec
-import runtime.taskmaster.common.Hardware
+import clustermanager.common.Hardware
+import org.scalatest.FlatSpec
 
 
-class HardwareSpec extends BaseSpec {
+class HardwareSpec extends FlatSpec {
 
   "CPU cores" should "have a size larger than 0" in {
     assert(Hardware.getNumberCPUCores > 0)

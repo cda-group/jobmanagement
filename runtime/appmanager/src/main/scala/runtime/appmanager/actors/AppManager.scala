@@ -124,7 +124,7 @@ class ArcAppManager extends AppManager{
       resourceManager = None
     case ArcJobRequest(arcJob) =>
       // The AppManager has received a job request from somewhere
-      // whether it is through another actor, runtime.appmanager.rest, or rpc...
+      // whether it is through another actor, rest, or rpc...
       resourceManager match {
         case Some(rm) =>
           // Rm is availalble, create a AppMaster to deal with the job

@@ -30,15 +30,15 @@ with STMultiNodeSpec with ImplicitSender {
     "set up runtime cluster" in within(15.seconds) {
 
       // Set up Listeners
-      /*
-      runOn(clustermanager.standalone.taskmanager) {
+      runOn(taskmanager) {
+        import clustermanager.standalone.taskmanager.actors.ClusterListener
         system.actorOf(ClusterListener(), Identifiers.LISTENER)
       }
 
-      runOn(clustermanager.standalone.resourcemanager) {
+      runOn(resourcemanager) {
+        import clustermanager.standalone.resourcemanager.actors.ClusterListener
         system.actorOf(ClusterListener(), Identifiers.LISTENER)
       }
-      */
 
       runOn(appmanager) {
         system.actorOf(runtime.appmanager.actors.ClusterListener(), Identifiers.LISTENER)

@@ -1,9 +1,9 @@
 package clustermanager.standalone.taskmanager.utils
 
-import runtime.common.BaseSpec
-import runtime.taskmaster.common.{OperatingSystem, Unknown}
+import clustermanager.common.{OperatingSystem, Unknown}
+import org.scalatest.FlatSpec
 
-class OperatingSystemSpec extends BaseSpec {
+class OperatingSystemSpec extends FlatSpec {
 
   "Operating System" should "not equal unknown" in {
     assert(OperatingSystem.get() != Unknown)

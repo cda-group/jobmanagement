@@ -3,7 +3,7 @@ package runtime.appmanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
-import runtime.common.ActorSpec
+import runtime.appmanager.ActorSpec
 
 object AppMasterSpec {
   val actorSystem = ActorSystem("AppMasterSpec", ConfigFactory.parseString(

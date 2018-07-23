@@ -4,7 +4,7 @@ import java.util.UUID
 
 import akka.actor.ActorRef
 import runtime.appmanager.actors.AppManager._
-import runtime.common.{Identifiers, Utils}
+import runtime.common.{IdGenerator, Identifiers, Utils}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.pattern._
@@ -71,7 +71,7 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
         .zipWithIndex
         .map(m => m._1.copy(id = Some(m._2+1)))
 
-      val arcJob = ArcJob(UUID.randomUUID().toString, testResourceProfile(),
+      val arcJob = ArcJob(IdGenerator.get, testResourceProfile(),
         indexedTasks, status = Some(Identifiers.ARC_JOB_DEPLOYING))
       val jobRequest = ArcJobRequest(arcJob)
       appManager ! jobRequest

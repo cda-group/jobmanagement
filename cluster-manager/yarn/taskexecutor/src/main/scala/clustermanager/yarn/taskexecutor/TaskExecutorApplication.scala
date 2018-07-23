@@ -1,23 +1,44 @@
 package clustermanager.yarn.taskexecutor
 
+import java.nio.file.{Files, Path, Paths}
+
 import akka.actor.ActorSystem
-import clustermanager.common.executor.ExecutionEnvironment
+import clustermanager.common.executor.{ExecutionEnvironment, Names}
 import clustermanager.yarn.utils.YarnUtils
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import kamon.sigar.SigarProvisioner
+import runtime.common.Identifiers
 import runtime.protobuf.messages.{ActorRefProto, ArcTask}
 
 private[yarn] object TaskExecutorApplication extends App with LazyLogging {
   logger.info("TaskExecutorApp started")
 
-  if (args.length > 1) {
-    val binPath = args(0)
-    val e = new ExecutionEnvironment("id")
-    YarnUtils.moveToLocal(binPath, "/home/meldrum/my_binary")
-    e.setAsExecutable("/home/meldrum/my_binary")
-    val taskMaster = args(1)
-    val stateMaster = args(2)
+  if (args.length > 3) {
+    logger.info("args: " + args)
+    val hdfsPath = args(0)
+    val jobId = args(1)
+    val taskId = args(2).toInt
+    val taskMaster = args(3)
+    val appMaster = args(4)
+    val stateMaster = args(5)
+
+    val env = new ExecutionEnvironment(jobId)
+    env.create()
+
+    val binName = Paths.get(hdfsPath)
+      .getFileName
+      .toString
+
+    val binPath = env.getJobPath + "/" + binName
+
+    if (!YarnUtils.moveToLocal(hdfsPath, binPath)) {
+      logger.error("Could not move the binary to the execution environment, shutting down!")
+      System.exit(1)
+    }
+
+    // TODO: make sure this works on all platforms including "Windows"
+    env.setAsExecutable(binPath)
 
     // Makes sure it is loaded.
     loadSigar()
@@ -27,7 +48,7 @@ private[yarn] object TaskExecutorApplication extends App with LazyLogging {
       .getHostAddress
 
     // Set up an ActorSystem that uses Remoting
-    implicit val system = ActorSystem("ArcRuntime", ConfigFactory.parseString(
+    implicit val system = ActorSystem(Identifiers.CLUSTER, ConfigFactory.parseString(
       s"""
          | akka.actor.provider = remote
          | akka.actor.remote.enabled-transports = ["akka.remote.netty.tcp"]
@@ -39,13 +60,16 @@ private[yarn] object TaskExecutorApplication extends App with LazyLogging {
     """.stripMargin))
 
     import runtime.protobuf.ProtoConversions.ActorRef._
-    val taskmasterProto = ActorRefProto(taskMaster)
-    val statemasterProto = ActorRefProto(stateMaster)
+    val appMasterProto = ActorRefProto(appMaster)
+    val taskMasterProto = ActorRefProto(taskMaster)
+    val stateMasterProto = ActorRefProto(stateMaster)
     val conf = TaskExecutorConf(1000)
-    val task = ArcTask()
-    val taskexecutor = system.actorOf(TaskExecutor("/home/meldrum/my_binary", task, taskmasterProto, statemasterProto, conf))
+    val taskexecutor = system.actorOf(TaskExecutor(binPath, taskId,
+      appMasterProto, taskMasterProto, stateMasterProto, conf), "taskexecutor")
+
+    system.whenTerminated
   } else {
-    logger.error("Args are 1. Binpath, 2. taskMaster ref, 3. stateMaster ref")
+    logger.error("Args are 1. HDFS binpath, 2. jobId, 3 appMaster Ref, 4. stateMaster ref")
   }
 
 

@@ -12,12 +12,13 @@ import runtime.protobuf.messages.ActorRefProto
   */
 private[yarn] object TaskMasterApplication extends App {
 
-  if (args.length <= 1) {
-    println("NO REF ARG APPLIED")
+  if (args.length <= 2) {
+    println("Wrong Args applied")
     System.exit(1)
   } else {
     val appMasterRef = args(0)
-    val jobId = args(1)
+    val stateMasterRef = args(1)
+    val jobId = args(2)
 
 
     val localhostname = java.net.InetAddress
@@ -38,8 +39,10 @@ private[yarn] object TaskMasterApplication extends App {
     """.stripMargin))
 
     import runtime.protobuf.ProtoConversions.ActorRef._
-    val ref = ActorRefProto(appMasterRef)
-    val taskmaster = system.actorOf(TaskMaster(ref, jobId))
+    val appMaster = ActorRefProto(appMasterRef)
+    val stateMaster = ActorRefProto(stateMasterRef)
+
+    val taskmaster = system.actorOf(TaskMaster(appMaster, stateMaster, jobId), "taskmaster")
   }
 
 }

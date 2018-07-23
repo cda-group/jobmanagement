@@ -215,4 +215,16 @@ message YarnTaskMasterUp {
 message YarnTaskTransferred {
     string binPath = 1;
     ArcProfile resourceProfile = 2 [(scalapb.field).no_box = true];
+    ArcTask task = 3 [(scalapb.field).no_box = true];
 }
+
+
+// For now as we are sending arguments to the binary
+message YarnExecutorUp {
+    int32 taskId = 1;
+}
+
+message YarnExecutorStart {
+    ArcTask task = 1 [(scalapb.field).no_box = true];
+}
+

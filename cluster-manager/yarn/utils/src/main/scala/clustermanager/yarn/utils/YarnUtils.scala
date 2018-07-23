@@ -19,15 +19,14 @@ object YarnUtils extends YarnConfig with LazyLogging {
     * @param localFilePath path to local binary
     * @return Option of the Destination path
     */
-  def moveToHDFS(jobId: String, localFilePath: String): Option[Path] = {
+  def moveToHDFS(jobId: String, taskName: String, localFilePath: String): Option[Path] = {
     val conf = new YarnConfiguration()
 
     val destFs = FileSystem.get(conf)
 
     createDirectories(destFs, jobId)
 
-    // TODO add unique identifier for each binary in a job
-    val destPath = destFs.makeQualified(new Path(jobsDir+"/"+jobId+"/"+"my_binary"))
+    val destPath = destFs.makeQualified(new Path(jobsDir+"/"+jobId+"/"+ taskName))
 
     if (destFs.exists(destPath)) {
       logger.error("copyToHDFS: Destination path already exists: " + destPath.toString)
@@ -57,14 +56,27 @@ object YarnUtils extends YarnConfig with LazyLogging {
   }
 
 
-  def moveToLocal(src: String, local: String): Unit = {
-    val conf = new YarnConfiguration()
-    val fs = FileSystem.get(conf)
-    val srcPath = new Path(src)
-    val inputStream = fs.open(srcPath)
-    val outputStream = new BufferedOutputStream(new FileOutputStream(local))
-    logger.info(s"Moving $srcPath to $local")
-    IOUtils.copyBytes(inputStream, outputStream, conf)
+  /** Writes binary to local filesystem from @HDFS
+    *
+    * @param src HDFS path to the binary
+    * @param local local path on the filesystem (in the job's executionenvironment)
+    * @return true on success, otherwise false
+    */
+  def moveToLocal(src: String, local: String): Boolean = {
+    try {
+      val conf = new YarnConfiguration()
+      val fs = FileSystem.get(conf)
+      val srcPath = new Path(src)
+      val inputStream = fs.open(srcPath)
+      val outputStream = new BufferedOutputStream(new FileOutputStream(local))
+      logger.info(s"Moving $srcPath to $local")
+      IOUtils.copyBytes(inputStream, outputStream, conf)
+      true
+    } catch {
+      case err: Exception =>
+        logger.error("Failed to move binary to local filesystem with error: " + err.toString)
+        false
+    }
   }
 
 

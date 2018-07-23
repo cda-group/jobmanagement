@@ -6,5 +6,10 @@ REPO_ROOT=$(git root)
 
 cd $REPO_ROOT
 
-java -jar -Djava.library.path=native/ "$@" build/appmanager.jar
+if [ "$1" = "--manager=yarn" ]; then
+    java -jar -Djava.library.path=native/ -Dappmanager.resourcemanager=yarn build/appmanager.jar
+else
+    java -jar -Djava.library.path=native/ build/appmanager.jar
+fi
+
 

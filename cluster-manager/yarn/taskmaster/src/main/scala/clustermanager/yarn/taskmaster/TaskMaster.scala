@@ -6,26 +6,29 @@ import java.util
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.util.Timeout
 import clustermanager.yarn.utils.YarnTaskExecutor
-import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 import org.apache.hadoop.yarn.client.api.async.{AMRMClientAsync, NMClientAsync}
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.apache.hadoop.yarn.util.Records
-import runtime.protobuf.messages.{ArcProfile, YarnTaskMasterUp, YarnTaskTransferred}
+import runtime.protobuf.ExternalAddress
+import runtime.protobuf.messages._
 
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration._
 
 
 private[yarn] object TaskMaster {
-  def apply(appmaster: ActorRef, jobId: String): Props =
-    Props(new TaskMaster(appmaster, jobId))
+  def apply(appmaster: ActorRef, statemaster: ActorRef, jobId: String): Props =
+    Props(new TaskMaster(appmaster, statemaster, jobId))
 }
 
 /**
   * The TaskMaster for Yarn will act as Yarn's ApplicationMaster
   */
-private[yarn] class TaskMaster(appmaster: ActorRef, jobId: String) extends Actor with ActorLogging {
+private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId: String)
+  extends Actor with ActorLogging {
 
   private var rmClient: AMRMClientAsync[ContainerRequest] = _
   private var nmClient: NMClientAsync = _
@@ -38,7 +41,8 @@ private[yarn] class TaskMaster(appmaster: ActorRef, jobId: String) extends Actor
   import runtime.protobuf.ProtoConversions.ActorRef._
   implicit val sys = context.system
 
-  var bin = ""
+  private val pendingTasks = mutable.Queue.empty[(ArcTask, String)]
+  private var launchedTasks = ArrayBuffer.empty[(ArcTask, Container)]
 
   implicit val timeout = Timeout(2 seconds)
 
@@ -48,12 +52,16 @@ private[yarn] class TaskMaster(appmaster: ActorRef, jobId: String) extends Actor
   }
 
   def receive = {
-    case YarnTaskTransferred(binPath, profile) =>
+    case YarnTaskTransferred(binPath, profile, task) =>
       log.info("Bin has been uploaded to: " + binPath)
-      // Request container allocation for the binary and on allocation,
-      // start an TaskExecutor with the binary as local resource?
-      bin = binPath
-      allocateContainer(profile)
+      allocateContainer(profile, task, binPath)
+    case YarnExecutorUp(taskId: Int) =>
+      launchedTasks.find(_._1.id.get == taskId) match {
+        case Some((_task, container)) =>
+          sender() ! YarnExecutorStart(_task)
+        case None =>
+          sender() ! "fail"
+      }
     case _ =>
   }
 
@@ -83,7 +91,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, jobId: String) extends Actor
   }
 
 
-  private def allocateContainer(profile: ArcProfile): Unit = {
+  private def allocateContainer(profile: ArcProfile, task: ArcTask, bin: String): Unit = {
     val reqMem = profile.memoryInMb
     val reqCores = profile.cpuCores
 
@@ -96,11 +104,12 @@ private[yarn] class TaskMaster(appmaster: ActorRef, jobId: String) extends Actor
 
         log.info("Requesting container")
         rmClient.addContainerRequest(new ContainerRequest(resource, null, null, priority))
+        pendingTasks.enqueue((task, bin))
       }
     }
   }
 
-  def shutdown(s: FinalApplicationStatus, message: String): Unit = {
+  private def shutdown(s: FinalApplicationStatus, message: String): Unit = {
     rmClient.unregisterApplicationMaster(s, message, null)
     rmClient.stop()
     nmClient.stop()
@@ -115,13 +124,23 @@ private[yarn] class TaskMaster(appmaster: ActorRef, jobId: String) extends Actor
     new AMRMClientAsync.AbstractCallbackHandler {
     override def onContainersAllocated(list: util.List[Container]): Unit = {
       log.info("Container allocated: " + list.asScala)
-      val addr = appmaster.path.address
-      val appmaterStr = appmaster.path.toStringWithAddress(addr)
-      val ctx = YarnTaskExecutor.context(appmaterStr, bin)
-
-      list.asScala.foreach { c =>
-        log.info("Starting Container")
-        nmClient.startContainerAsync(c, ctx)
+      val appMasterAddr = appmaster.path.address
+      val appMasterStr = appmaster.path.toStringWithAddress(appMasterAddr)
+      val selfAddr = ExternalAddress(context.system).addressForAkka
+      val taskMasterStr = self.path.toStringWithAddress(selfAddr)
+      val stateMasterAddr = statemaster.path.address
+      val stateMasterStr = statemaster.path.toStringWithAddress(stateMasterAddr)
+      list.asScala.foreach { container =>
+        // For now, just assume it will fit the resources
+        if (pendingTasks.nonEmpty) {
+          val (task, bin) = pendingTasks.dequeue()
+          log.info("TASK: " + task)
+          val id = task.id.getOrElse(-1)
+          val ctx = YarnTaskExecutor.context(taskMasterStr, appMasterStr, stateMasterStr, jobId, id, bin)
+          log.info("Starting Container")
+          nmClient.startContainerAsync(container, ctx)
+          launchedTasks += ((task, container))
+        }
       }
     }
     override def onContainersCompleted(list: util.List[ContainerStatus]): Unit =

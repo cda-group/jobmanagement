@@ -12,6 +12,10 @@ object ClusterListener {
   case class RmRegistration(addr: Address)
   case class UnreachableRm(addr: Address)
   case class RmRemoved(addr: Address)
+
+  case class StateManagerRegistration(addr: Address)
+  case class StateManagerRemoved(addr: Address)
+  case class StateManagerUnreachable(addr: Address)
 }
 
 class ClusterListener extends Actor
@@ -56,7 +60,12 @@ class ClusterListener extends Actor
     * ClusterListener while in YARN mode.
     */
   def yarn(appManager: ActorRef): Receive = {
-    case _ =>
+    case MemberUp(m) if m.hasRole(Identifiers.STATE_MANAGER) =>
+      appManager ! StateManagerRegistration(m.address)
+    case MemberRemoved(m, status) if m.hasRole(Identifiers.STATE_MANAGER) =>
+      appManager ! StateManagerRemoved(m.address)
+    case UnreachableMember(m) if m.hasRole(Identifiers.STATE_MANAGER) =>
+      appManager ! StateManagerUnreachable(m.address)
   }
 
 }

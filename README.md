@@ -37,7 +37,12 @@ Task Manager
 $ ./bin/standalone --taskmanager
 ```
 
-AppManager
+AppManager (Yarn)
+```
+$ ./bin/appmanager --manager=yarn
+```
+
+AppManager (Standalone)
 ```
 $ ./bin/appmanager
 ```

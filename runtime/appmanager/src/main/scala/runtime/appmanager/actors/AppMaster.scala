@@ -1,27 +1,28 @@
 package runtime.appmanager.actors
 
-import java.io.FileOutputStream
 import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
-import java.util.jar.{JarEntry, JarOutputStream}
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Cancellable, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Cancellable, Props, Terminated}
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
 import clustermanager.yarn.utils.{Client, YarnUtils}
 import org.apache.hadoop.yarn.api.records.ApplicationId
+import runtime.appmanager.actors.AppManager.ArcJobStatus
 import runtime.appmanager.actors.ArcAppManager.AppMasterInit
+import runtime.appmanager.actors.YarnAppManager.StateMasterError
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.{ActorPaths, Identifiers}
 import runtime.protobuf.messages._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 
-/** Actor that handles an ArcJob
+/**
+  * An Abstract Actor class that AppMaster's must extend
   */
 abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   var stateMaster = None: Option[ActorRef]
@@ -76,13 +77,16 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
 
   override def preStart(): Unit = {
     super.preStart()
-
     arcJob = Some(job)
+  }
 
-    val client = new Client()
-    if (client.init()) {
-      val me = self.path.toStringWithAddress(selfAddr)
-      yarnAppId = client.launchTaskMaster(me, job.id).toOption
+  private def startTaskMaster(stateMaster: ActorRef): Unit = {
+    val yarnClient = new Client()
+    if (yarnClient.init()) {
+      val meStr = self.path.toStringWithAddress(selfAddr)
+      val stateMasterAddr = stateMaster.path.address
+      val stateMasterStr = stateMaster.path.toStringWithAddress(stateMasterAddr)
+      yarnAppId = yarnClient.launchTaskMaster(meStr, stateMasterStr, job.id).toOption
     } else {
       log.error("Failed to connect to yarn")
     }
@@ -90,43 +94,47 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
 
   def receive = {
     case YarnTaskMasterUp(ref) =>
-      // Add some timeout, and if we don't receive this msg
-      // Fail the job?
+      // Enable DeathWatch of the TaskMaster
+      context watch ref
       yarnTaskMaster = Some(ref)
-      compileAndTransfer() pipeTo ref
+      // Our fake compile method
+
+      arcJob.get.tasks.foreach { t =>
+        compileAndTransfer(t) pipeTo ref
+      }
+    case StateMasterConn(ref) =>
+      stateMaster = Some(ref)
+      startTaskMaster(ref)
+    case StateMasterError  =>
+      log.error("Could not establish a StateMaster, closing down!")
+      context stop self
     case s: String =>
       println(s)
+    case ArcJobStatus(_) =>
+      sender() ! arcJob.get
+    case ArcTaskUpdate(task) =>
+      arcJob = updateTask(task)
+    case ArcJobKilled() =>
+      arcJob = arcJob.map(_.copy(status = Some("killed")))
+    case Terminated(ref) =>
+      // TaskMaster dead
+    case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
+      (stateMaster.get ? req) pipeTo sender()
+    case ArcJobMetricRequest(_) =>
+      sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
     case _ =>
   }
 
-  private def compileAndTransfer(): Future[YarnTaskTransferred] = Future {
-    YarnUtils.moveToHDFS(job.id, "weldrunner") match {
-      case Some(path) => YarnTaskTransferred(path.toString, ArcProfile(1.0, 500))
-      case None => YarnTaskTransferred("nej", ArcProfile(1.0, 500))
+  private def compileAndTransfer(task: ArcTask): Future[YarnTaskTransferred] = Future {
+    YarnUtils.moveToHDFS(job.id, task.name, "weldrunner") match {
+      case Some(path) =>
+        log.info("SENDING TASK: " + task)
+        YarnTaskTransferred(path.toString, ArcProfile(1.0, 500), task)
+      case None => YarnTaskTransferred("nej", ArcProfile(1.0, 500), task)
     }
   }
 
 
-  // Just testing
-  private def createJar(bin: Array[Byte]): Unit = {
-    val target = "test.jar"
-    val out: JarOutputStream = new JarOutputStream(new FileOutputStream(target))
-    Try {
-      out.putNextEntry(new JarEntry("weldrunner"))
-      out.write(bin)
-      out.closeEntry()
-    } match {
-      case Success(_) =>
-        log.info("Created jar")
-      case Failure(_) =>
-        log.info("Failed creating jar")
-    }
-
-    out.close()
-  }
-
-  private def weldRunnerBin(): Array[Byte] =
-    Files.readAllBytes(Paths.get("weldrunner"))
 }
 
 object YarnAppMaster {
@@ -135,13 +143,9 @@ object YarnAppMaster {
 }
 
 
-/** Actor that handles an ArcJob
-  *
-  * One AppMaster is created per ArcJob. If a slot allocation is successful,
-  * the AppMaster communicates directly with the TaskMaster and can do the following:
-  * 1. Instruct TaskMaster to execute tasks
-  * 2. Release the slots
-  * 3. to be added...
+/**
+  * Uses the Standalone Cluster Manager in order to allocate resources
+  * and schedule ArcJob's
   */
 class ArcAppMaster extends AppMaster {
   import AppManager._

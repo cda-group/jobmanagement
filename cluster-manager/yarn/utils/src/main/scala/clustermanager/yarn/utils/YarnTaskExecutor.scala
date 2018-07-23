@@ -9,7 +9,22 @@ import org.apache.hadoop.yarn.util.Records
 object YarnTaskExecutor extends YarnConfig {
   import collection.JavaConverters._
 
-  def context(taskMasterRef: String, binPath: String): ContainerLaunchContext = {
+  /** Creates a ContainerLaunchContext for our TaskExecutor
+    *
+    * @param taskMasterRef ActorRef in String
+    * @param appMasterRef ActorRef in String
+    * @param jobId job ID of Arc Job
+    * @param taskId Which id the ArcTask has
+    * @param binPath path to the binary
+    * @return ContainerLaunchContext
+    */
+  def context(taskMasterRef: String,
+              appMasterRef: String,
+              stateMasterRef: String,
+              jobId:String,
+              taskId: Int,
+              binPath: String): ContainerLaunchContext = {
+
     val conf = new YarnConfiguration()
     val ctx = Records.newRecord(classOf[ContainerLaunchContext])
 
@@ -19,8 +34,11 @@ object YarnTaskExecutor extends YarnConfig {
         " -Xmx256M " +
         s" $taskExecutorClass"+
         " " + binPath +
+        " " + jobId +
+        " " + taskId.toString +
         " " + taskMasterRef +
-        " " + taskMasterRef + // statemaster
+        " " + appMasterRef +
+        " " + stateMasterRef +
         " 1>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stdout" +
         " 2>" + ApplicationConstants.LOG_DIR_EXPANSION_VAR + "/stderr"
     ).asJava)

@@ -5,14 +5,9 @@ In early stage of development
 
 ## Building
 
-ResourceManager
+Standalone Cluster Manager
 ```
-$ ./compile.sh resourcemanager
-```
-
-TaskManager
-```
-$ ./compile.sh taskmanager
+$ ./compile.sh standalone
 ```
 
 AppManager
@@ -34,22 +29,27 @@ $ ./compile.sh
 
 Resource Manager
 ```
-$ ./bin/resourcemanager.sh
+$ ./bin/standalone --resourcemanager
 ```
 
 Task Manager
 ```
-$ ./bin/taskmanager.sh
+$ ./bin/standalone --taskmanager
 ```
 
-AppManager
+AppManager (Yarn)
 ```
-$ ./bin/appmanager.sh
+$ ./bin/appmanager --manager=yarn
+```
+
+AppManager (Standalone)
+```
+$ ./bin/appmanager
 ```
 
 StateManager
 ```
-$ ./bin/statemanager.sh
+$ ./bin/statemanager
 ```
 ## Testing
 

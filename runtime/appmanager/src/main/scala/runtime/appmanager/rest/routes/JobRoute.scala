@@ -4,7 +4,7 @@ import java.util.UUID
 
 import akka.actor.ActorRef
 import runtime.appmanager.actors.AppManager._
-import runtime.common.{IdGenerator, Identifiers, Utils}
+import runtime.common.{IdGenerator, Identifiers}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.pattern._
@@ -48,17 +48,18 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
     (appManager ? KillArcJobRequest(id)).mapTo[String]
 
 
-  private def jobStatus(id: String): Future[ArcJob] = {
+  private def jobStatus(id: String): Future[ArcJob] =
     (appManager ? ArcJobStatus(id)).mapTo[ArcJob]
-  }
 
-  private def listJobs(): Future[Any] = {
-    (appManager ? ListJobs).mapTo[String]
-  }
+  private def listJobs(): Future[Seq[ArcJobStatus]] =
+    (appManager ? ListJobs).mapTo[Seq[ArcJobStatus]]
 
-
-  private def listJobsWithDetails(): Future[Any] = {
+  private def listJobsWithDetails(): Future[Any] =
     (appManager ? ListJobsWithDetails).mapTo[String]
+
+  private def jobRequest(job: ArcJob): Future[String] = {
+    val jobRequest = ArcJobRequest(job)
+    (appManager ? jobRequest).mapTo[String]
   }
 
   /**
@@ -71,11 +72,9 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
         .zipWithIndex
         .map(m => m._1.copy(id = Some(m._2+1)))
 
-      val arcJob = ArcJob(IdGenerator.get, testResourceProfile(),
+      val arcJob = ArcJob(IdGenerator.get(), testResourceProfile(),
         indexedTasks, status = Some(Identifiers.ARC_JOB_DEPLOYING))
-      val jobRequest = ArcJobRequest(arcJob)
-      appManager ! jobRequest
-      complete("Processing Job: " + arcJob.id + "\n")
+      complete(jobRequest(arcJob))
     }
   }
 

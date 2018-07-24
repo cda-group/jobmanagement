@@ -3,7 +3,7 @@ package clustermanager.yarn.taskexecutor
 import java.nio.file.{Files, Path, Paths}
 
 import akka.actor.ActorSystem
-import clustermanager.common.executor.{ExecutionEnvironment, Names}
+import clustermanager.common.executor.ExecutionEnvironment
 import clustermanager.yarn.utils.YarnUtils
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging

@@ -35,6 +35,7 @@ object YarnUtils extends YarnConfig with LazyLogging {
       logger.info(s"Transfering $localFilePath to $destPath")
       try {
         // False means to not remove the file from the local system
+        // Which we might wanna change to true in the future
         destFs.copyFromLocalFile(false, new Path(localFilePath),  destPath)
         Some(destPath)
       } catch {
@@ -45,6 +46,11 @@ object YarnUtils extends YarnConfig with LazyLogging {
     }
   }
 
+  /** Helper Method to create directory for a certain job
+    * in HDFS if it does not exist already.
+    * @param destFs Hadoop FileSystem
+    * @param jobId Id of the Arc Job
+    */
   private def createDirectories(destFs:FileSystem, jobId: String): Unit = {
     val jobRootPath = destFs.makeQualified(new Path(jobsDir))
     if (!destFs.exists(jobRootPath))
@@ -56,7 +62,7 @@ object YarnUtils extends YarnConfig with LazyLogging {
   }
 
 
-  /** Writes binary to local filesystem from @HDFS
+  /** Writes binary to local filesystem from HDFS
     *
     * @param src HDFS path to the binary
     * @param local local path on the filesystem (in the job's executionenvironment)
@@ -80,6 +86,12 @@ object YarnUtils extends YarnConfig with LazyLogging {
   }
 
 
+  /**
+    *
+    * @param path
+    * @param conf
+    * @return
+    */
   def setLocalResource(path: Path, conf: YarnConfiguration): LocalResource = {
     val stat = FileSystem.get(conf).getFileStatus(path)
     val resource = Records.newRecord(classOf[LocalResource])
@@ -92,6 +104,11 @@ object YarnUtils extends YarnConfig with LazyLogging {
     resource
   }
 
+  /** Set's the Environment for a
+    * ContainerLaunchContext
+    * @param conf YarnConfiguration
+    * @return Environment Map
+    */
   def setEnv(conf: YarnConfiguration): Map[String, String] = {
     import collection.JavaConverters._
     val classpath = conf.getStrings(YarnConfiguration.YARN_APPLICATION_CLASSPATH, YarnConfiguration.DEFAULT_YARN_APPLICATION_CLASSPATH: _*)

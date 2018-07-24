@@ -16,7 +16,7 @@ object StateMaster {
   * connected to a specific AppMaster.
   */
 class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogging {
-  var metricMap = mutable.HashMap[ArcTask, ExecutorMetric]()
+  private var metricMap = mutable.HashMap[ArcTask, ExecutorMetric]()
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system

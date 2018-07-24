@@ -29,7 +29,7 @@ class ClusterListener extends Actor
         yarn(context.actorOf(YarnAppManager(), Identifiers.APP_MANAGER))
       case _ =>
         log.info("Using Standalone Cluster Manager")
-        arc(context.actorOf(ArcAppManager(), Identifiers.APP_MANAGER))
+        standalone(context.actorOf(StandaloneAppManager(), Identifiers.APP_MANAGER))
     }
   }
 
@@ -45,7 +45,7 @@ class ClusterListener extends Actor
   /**
     * ClusterListener while in Standalone mode.
     */
-  def arc(appManager: ActorRef): Receive = {
+  def standalone(appManager: ActorRef): Receive = {
     case MemberUp(member) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>
       appManager ! RmRegistration(member.address)
     case UnreachableMember(member) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>

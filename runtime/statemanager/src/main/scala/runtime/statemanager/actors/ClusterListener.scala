@@ -24,7 +24,6 @@ class ClusterListener extends Actor with ActorLogging {
     case MemberUp(member) =>
     case UnreachableMember(member) =>
     case MemberRemoved(member, previousStatus) =>
-    case _ =>
   }
 
 }

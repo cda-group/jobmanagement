@@ -24,8 +24,12 @@ private[yarn] object TaskMaster {
     Props(new TaskMaster(appmaster, statemaster, jobId))
 }
 
-/**
-  * The TaskMaster for Yarn will act as Yarn's ApplicationMaster
+
+/** Actor that is responsible for allocating containers from the
+  * YARN resource manager and then launching them onto NodeManager's.
+  * @param appmaster ActorRef of its AppMaster in String format
+  * @param statemaster ActorRef of its StateMaster in String format
+  * @param jobId ID for the Job
   */
 private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId: String)
   extends Actor with ActorLogging {
@@ -41,20 +45,30 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   import runtime.protobuf.ProtoConversions.ActorRef._
   implicit val sys = context.system
 
-  private val pendingTasks = mutable.Queue.empty[(ArcTask, String)]
+  private var pendingTasks = mutable.HashMap[Long, (ArcTask, String)]()
   private var launchedTasks = ArrayBuffer.empty[(ArcTask, Container)]
+
+  // ActorRefs to be passed on
+  private val appMasterStr = appmaster.path.
+    toStringWithAddress(appmaster.path.address)
+  private val stateMasterStr = statemaster.path
+    .toStringWithAddress(statemaster.path.address)
+  private val selfAddr = ExternalAddress(context.system).addressForAkka
+  private val taskMasterStr = self.path.
+    toStringWithAddress(selfAddr)
 
   implicit val timeout = Timeout(2 seconds)
 
   override def preStart(): Unit = {
     initYarnClients()
+    // Once we have started, let the Appmaster know that we are alive.
     appmaster ! YarnTaskMasterUp(self)
   }
 
   def receive = {
-    case YarnTaskTransferred(binPath, profile, task) =>
-      log.info("Bin has been uploaded to: " + binPath)
-      allocateContainer(profile, task, binPath)
+    case YarnTaskTransferred(binPath, task) =>
+      log.info("Binary has been uploaded to: " + binPath)
+      allocateContainer(task, binPath)
     case YarnExecutorUp(taskId: Int) =>
       launchedTasks.find(_._1.id.get == taskId) match {
         case Some((_task, container)) =>
@@ -91,21 +105,31 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   }
 
 
-  private def allocateContainer(profile: ArcProfile, task: ArcTask, bin: String): Unit = {
-    val reqMem = profile.memoryInMb
-    val reqCores = profile.cpuCores
-
+  /** Creates a Container request for the task that
+    * was just transferred
+    * @param task ArcTask
+    * @param bin HDFS binary path to the corresponding ArcTask binary
+    */
+  private def allocateContainer(task: ArcTask, bin: String): Unit = {
     if (maxMemory.isDefined && maxCores.isDefined) {
-      if (profile.cpuCores <= maxCores.get && profile.memoryInMb <= maxMemory.get) {
-        val resource = Resource.newInstance(reqMem, reqCores.toInt)
+      if (task.cores <= maxCores.get && task.memory <= maxMemory.get) {
+        val resource = Resource.newInstance(task.memory, task.cores)
         val priority = Records.newRecord(classOf[Priority])
         // hardcoded for now
         priority.setPriority(1)
 
-        log.info("Requesting container")
-        rmClient.addContainerRequest(new ContainerRequest(resource, null, null, priority))
-        pendingTasks.enqueue((task, bin))
+        log.info("Requesting container for task: " + task)
+        val allocationId = task.id
+          .get
+          .toLong
+
+        rmClient.addContainerRequest(new ContainerRequest(resource, null, null, priority, allocationId))
+        pendingTasks.put(allocationId, (task, bin))
+      } else {
+        log.error("Current resources are not enough to request a container for this task")
       }
+    } else {
+      log.error("Either maxMemory or maxCores has not been set. Cannot allocate container!")
     }
   }
 
@@ -116,30 +140,27 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   }
 
 
+
   // AMRM Client Async Callbacks
 
   import scala.collection.JavaConverters._
 
   private def AMRMHandler: AMRMClientAsync.AbstractCallbackHandler =
     new AMRMClientAsync.AbstractCallbackHandler {
-    override def onContainersAllocated(list: util.List[Container]): Unit = {
-      log.info("Container allocated: " + list.asScala)
-      val appMasterAddr = appmaster.path.address
-      val appMasterStr = appmaster.path.toStringWithAddress(appMasterAddr)
-      val selfAddr = ExternalAddress(context.system).addressForAkka
-      val taskMasterStr = self.path.toStringWithAddress(selfAddr)
-      val stateMasterAddr = statemaster.path.address
-      val stateMasterStr = statemaster.path.toStringWithAddress(stateMasterAddr)
-      list.asScala.foreach { container =>
-        // For now, just assume it will fit the resources
-        if (pendingTasks.nonEmpty) {
-          val (task, bin) = pendingTasks.dequeue()
-          log.info("TASK: " + task)
-          val id = task.id.getOrElse(-1)
-          val ctx = YarnTaskExecutor.context(taskMasterStr, appMasterStr, stateMasterStr, jobId, id, bin)
-          log.info("Starting Container")
-          nmClient.startContainerAsync(container, ctx)
-          launchedTasks += ((task, container))
+    override def onContainersAllocated(containers: util.List[Container]): Unit = {
+      log.info("Containers allocated: " + containers.asScala)
+      containers.asScala.foreach { container =>
+        val allocId = container.getAllocationRequestId
+        pendingTasks.get(allocId) match {
+          case Some((task: ArcTask, bin:String)) =>
+            val ctx = YarnTaskExecutor.context(taskMasterStr, appMasterStr,
+              stateMasterStr, jobId, allocId.toInt, bin)
+            log.info("Starting Container with task: " + task)
+            nmClient.startContainerAsync(container, ctx)
+            launchedTasks += ((task, container))
+            pendingTasks.remove(allocId)
+          case None =>
+            log.error("Could not locate task for this allocationRequestId")
         }
       }
     }

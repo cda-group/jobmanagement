@@ -1,5 +1,6 @@
 package clustermanager.yarn.utils
 
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.YarnClient
 import org.apache.hadoop.yarn.conf.YarnConfiguration
@@ -8,7 +9,7 @@ import org.apache.hadoop.yarn.util.Records
 import scala.util.Try
 
 
-class Client extends YarnConfig {
+class Client extends YarnConfig with LazyLogging {
   private val conf = new YarnConfiguration()
   private val client = YarnClient.createYarnClient()
 
@@ -19,7 +20,7 @@ class Client extends YarnConfig {
       true
     } catch {
       case err: Exception =>
-        println(err)
+        logger.error(err.toString)
         false
     }
   }
@@ -28,9 +29,9 @@ class Client extends YarnConfig {
     val app = client.createApplication()
     val taskmasterContext = YarnTaskMaster.context(appMaster, stateMaster, jobId, conf)
 
-    val resource = Resource.newInstance(1024, 2)
+    val resource = Resource.newInstance(taskMasterMemory, taskMasterCores)
     val priority = Records.newRecord(classOf[Priority])
-    priority.setPriority(1)
+    priority.setPriority(taskMasterPriority)
 
     val ctx = app.getApplicationSubmissionContext
     ctx.setAMContainerSpec(taskmasterContext)

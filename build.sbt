@@ -15,11 +15,6 @@ lazy val runtimeSettings = generalSettings ++ Seq(
   version := "0.1",
   javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:+CMSClassUnloadingEnabled"),
   fork in Test := true
-  //assemblyMergeStrategy in assembly := {
-  //  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-  //  case PathList("application.conf") => MergeStrategy.discard
-  // case x => MergeStrategy.first
-  //}
 )
 
 lazy val runtimeMultiJvmSettings = multiJvmSettings ++ Seq(
@@ -107,7 +102,7 @@ lazy val yarnExecutor = (project in file("cluster-manager/yarn/taskexecutor"))
   .settings(Assembly.settings("clustermanager.yarn.taskexecutor.TaskExecutorApplication", "yarn-taskexecutor.jar"))
 
 lazy val yarnMaster = (project in file("cluster-manager/yarn/taskmaster"))
-  .dependsOn(runtimeProtobuf, yarnUtils % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, yarnUtils % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.yarnMaster)
   .settings(moduleName("clustermanager.yarn.taskmaster"))

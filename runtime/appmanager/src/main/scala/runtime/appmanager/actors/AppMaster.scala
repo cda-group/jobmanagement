@@ -10,7 +10,7 @@ import akka.pattern._
 import clustermanager.yarn.utils.{Client, YarnUtils}
 import org.apache.hadoop.yarn.api.records.ApplicationId
 import runtime.appmanager.actors.AppManager.ArcJobStatus
-import runtime.appmanager.actors.ArcAppManager.AppMasterInit
+import runtime.appmanager.actors.StandaloneAppManager.AppMasterInit
 import runtime.appmanager.actors.YarnAppManager.StateMasterError
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.{ActorPaths, Identifiers}
@@ -125,12 +125,13 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
     case _ =>
   }
 
+  //TODO: fix
   private def compileAndTransfer(task: ArcTask): Future[YarnTaskTransferred] = Future {
     YarnUtils.moveToHDFS(job.id, task.name, "weldrunner") match {
       case Some(path) =>
         log.info("SENDING TASK: " + task)
-        YarnTaskTransferred(path.toString, ArcProfile(1.0, 500), task)
-      case None => YarnTaskTransferred("nej", ArcProfile(1.0, 500), task)
+        YarnTaskTransferred(path.toString, task)
+      case None => YarnTaskTransferred("nej", task)
     }
   }
 
@@ -147,8 +148,9 @@ object YarnAppMaster {
   * Uses the Standalone Cluster Manager in order to allocate resources
   * and schedule ArcJob's
   */
-class ArcAppMaster extends AppMaster {
+class StandaloneAppMaster extends AppMaster {
   import AppManager._
+  import StandaloneAppMaster._
 
   var taskMaster = None: Option[ActorRef]
   //TODO: remove and use DeathWatch instead?
@@ -272,6 +274,6 @@ class ArcAppMaster extends AppMaster {
 }
 
 
-object ArcAppMaster {
-  def apply(): Props = Props(new ArcAppMaster())
+object StandaloneAppMaster {
+  def apply(): Props = Props(new StandaloneAppMaster())
 }

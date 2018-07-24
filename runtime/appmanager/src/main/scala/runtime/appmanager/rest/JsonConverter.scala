@@ -16,12 +16,12 @@ import runtime.protobuf.messages._
 trait JsonConverter extends SprayJsonSupport with DefaultJsonProtocol {
   import spray.json._
 
-  implicit val arcTaskFormat = jsonFormat6(ArcTask.apply)
+  // ArcTask/ArcJob
+  implicit val arcTaskFormat = jsonFormat8(ArcTask.apply)
   implicit val arcDeployRequest = jsonFormat1(ArcDeployRequest.apply)
   implicit val actorRefProtoFormat = jsonFormat1(ActorRefProto.apply)
   implicit val arcProfileFormat = jsonFormat2(ArcProfile.apply)
   implicit val arcJobFormat = jsonFormat5(ArcJob.apply)
-
 
 
   // Runtime Metrics

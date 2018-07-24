@@ -9,6 +9,14 @@ import org.apache.hadoop.yarn.util.Records
 object YarnTaskMaster extends YarnConfig {
   import collection.JavaConverters._
 
+  /** Creates a ContainerLaunchContext for a YARN
+    * ApplicationMaster, in our case a TaskMaster.
+    * @param appmasterRef ActorRef in String format
+    * @param stateMasterRef ActorRef in String format
+    * @param jobId Job ID of the Arc JOb
+    * @param conf
+    * @return
+    */
   def context(appmasterRef: String,
               stateMasterRef: String,
               jobId: String,

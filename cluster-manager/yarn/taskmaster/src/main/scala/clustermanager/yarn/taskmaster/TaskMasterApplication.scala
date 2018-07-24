@@ -5,10 +5,10 @@ import com.typesafe.config.ConfigFactory
 import runtime.protobuf.messages.ActorRefProto
 
 
-/**
-  *  Jar that will be sent into the Yarn Cluster.
-  *  It is responsible for talking to Yarn's RM and NM
-  *  to fix containers for the tasks.
+/** YARN ApplicationMaster.
+  *
+  * Each time a new job is deployed, the TaskMasterApplication
+  * is created on one of the machines in the YARN cluster.
   */
 private[yarn] object TaskMasterApplication extends App {
 

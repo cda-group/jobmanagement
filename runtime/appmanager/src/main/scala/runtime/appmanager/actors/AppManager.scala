@@ -109,9 +109,9 @@ abstract class AppManager extends Actor with ActorLogging with AppManagerConfig 
     *
     * @return Future containing statuses
     */
-  protected def gatherJobs(): Future[Seq[ArcJobStatus]] = {
+  protected def gatherJobs(): Future[Seq[ArcJob]] = {
     Future.sequence(appJobMap.map { job =>
-      (job._2 ? ArcJobStatus(job._1)).mapTo[ArcJobStatus]
+      (job._2 ? ArcJobStatus(job._1)).mapTo[ArcJob]
     }.toSeq)
   }
 
@@ -156,7 +156,6 @@ class YarnAppManager extends AppManager {
 }
 
 object YarnAppManager {
-  case class AppMasterInit(job: ArcJob)
   def apply(): Props = Props(new YarnAppManager())
 }
 

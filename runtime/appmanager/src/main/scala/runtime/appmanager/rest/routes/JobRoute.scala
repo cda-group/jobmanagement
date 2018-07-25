@@ -33,7 +33,7 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
           complete(jobStatus(jobId))
         }~
         path("list") {
-          complete("list all jobs")
+          complete(listJobs())
         }~
         path("listfull") {
           complete("list all jobs but with details")
@@ -47,12 +47,11 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
   private def killJob(id: String): Future[String] =
     (appManager ? KillArcJobRequest(id)).mapTo[String]
 
-
   private def jobStatus(id: String): Future[ArcJob] =
     (appManager ? ArcJobStatus(id)).mapTo[ArcJob]
 
-  private def listJobs(): Future[Seq[ArcJobStatus]] =
-    (appManager ? ListJobs).mapTo[Seq[ArcJobStatus]]
+  private def listJobs(): Future[Seq[ArcJob]] =
+    (appManager ? ListJobs).mapTo[Seq[ArcJob]]
 
   private def listJobsWithDetails(): Future[Any] =
     (appManager ? ListJobsWithDetails).mapTo[String]

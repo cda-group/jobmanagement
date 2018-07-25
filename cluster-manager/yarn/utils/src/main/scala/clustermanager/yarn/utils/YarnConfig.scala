@@ -33,7 +33,7 @@ trait YarnConfig {
   require(taskExecutorJarPath.nonEmpty, "TaskExecutor's Jar Path is not defined")
 
 
-  require(taskMasterMemory <= 0, "TaskMaster's memory is not defined")
+  require(taskMasterMemory > 0, "TaskMaster's memory is not defined")
   require(taskMasterCores > 0, "TaskMaster's cores is not defined")
   require(taskMasterPriority > 0, "TaskMaster's priority is not defined")
 }

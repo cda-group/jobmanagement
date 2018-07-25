@@ -5,7 +5,7 @@ import java.util
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.util.Timeout
-import clustermanager.yarn.utils.YarnTaskExecutor
+import clustermanager.yarn.utils.{YarnTaskExecutor, YarnUtils}
 import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 import org.apache.hadoop.yarn.client.api.async.{AMRMClientAsync, NMClientAsync}
@@ -22,6 +22,7 @@ import scala.concurrent.duration._
 private[yarn] object TaskMaster {
   def apply(appmaster: ActorRef, statemaster: ActorRef, jobId: String): Props =
     Props(new TaskMaster(appmaster, statemaster, jobId))
+  case class LaunchedTask(containerId: ContainerId, task: ArcTask, container: Container)
 }
 
 
@@ -32,7 +33,9 @@ private[yarn] object TaskMaster {
   * @param jobId ID for the Job
   */
 private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId: String)
-  extends Actor with ActorLogging {
+  extends Actor with ActorLogging with TaskMasterConfig  {
+
+  import TaskMaster._
 
   private var rmClient: AMRMClientAsync[ContainerRequest] = _
   private var nmClient: NMClientAsync = _
@@ -46,7 +49,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   implicit val sys = context.system
 
   private var pendingTasks = mutable.HashMap[Long, (ArcTask, String)]()
-  private var launchedTasks = ArrayBuffer.empty[(ArcTask, Container)]
+  private var launchedTasks = ArrayBuffer.empty[LaunchedTask]
 
   // ActorRefs to be passed on
   private val appMasterStr = appmaster.path.
@@ -60,6 +63,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   implicit val timeout = Timeout(2 seconds)
 
   override def preStart(): Unit = {
+    log.info(s"Starting up TaskMaster for job $jobId")
     initYarnClients()
     // Once we have started, let the Appmaster know that we are alive.
     appmaster ! YarnTaskMasterUp(self)
@@ -70,18 +74,19 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
       log.info("Binary has been uploaded to: " + binPath)
       allocateContainer(task, binPath)
     case YarnExecutorUp(taskId: Int) =>
-      launchedTasks.find(_._1.id.get == taskId) match {
-        case Some((_task, container)) =>
-          sender() ! YarnExecutorStart(_task)
+      launchedTasks.find(_.task.id.get == taskId) match {
+        case Some(launchedTask) =>
+          sender() ! YarnExecutorStart(launchedTask.task)
         case None =>
+          // Should not happen but handle it
           sender() ! "fail"
       }
     case _ =>
   }
 
   private def initYarnClients(): Unit = {
-    val heartbeatInterval = 1000
-    rmClient = AMRMClientAsync.createAMRMClientAsync[ContainerRequest](heartbeatInterval, AMRMHandler)
+    log.info(s"Creating AMRM client with heartbeat interval of $AMRMHeartbeatInterval")
+    rmClient = AMRMClientAsync.createAMRMClientAsync[ContainerRequest](AMRMHeartbeatInterval, AMRMHandler)
     rmClient.init(conf)
     rmClient.start()
 
@@ -95,7 +100,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
 
 
     log.info("Registering ApplicationMaster")
-    val res = rmClient.registerApplicationMaster("somename", 0, "")
+    val res = rmClient.registerApplicationMaster(jobId, 0, "")
     val mem = res.getMaximumResourceCapability.getMemorySize
     val cpu = res.getMaximumResourceCapability.getVirtualCores
     log.info(s"TaskMaster currently has $mem memory and $cpu cores available")
@@ -123,6 +128,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
           .get
           .toLong
 
+        // We add an AllocationID to know which future container is for what task
         rmClient.addContainerRequest(new ContainerRequest(resource, null, null, priority, allocationId))
         pendingTasks.put(allocationId, (task, bin))
       } else {
@@ -137,8 +143,12 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
     rmClient.unregisterApplicationMaster(s, message, null)
     rmClient.stop()
     nmClient.stop()
-  }
 
+    if (YarnUtils.cleanJob(jobId))
+      log.info(s"Cleaned HDFS directory for Job $jobId")
+    else
+      log.error(s"Was not able to clean the HDFS directory for job $jobId")
+  }
 
 
   // AMRM Client Async Callbacks
@@ -148,8 +158,9 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   private def AMRMHandler: AMRMClientAsync.AbstractCallbackHandler =
     new AMRMClientAsync.AbstractCallbackHandler {
     override def onContainersAllocated(containers: util.List[Container]): Unit = {
-      log.info("Containers allocated: " + containers.asScala)
-      containers.asScala.foreach { container =>
+      val scalaContainers = containers.asScala
+      log.info("Containers allocated: " + scalaContainers)
+      scalaContainers.foreach { container =>
         val allocId = container.getAllocationRequestId
         pendingTasks.get(allocId) match {
           case Some((task: ArcTask, bin:String)) =>
@@ -157,7 +168,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
               stateMasterStr, jobId, allocId.toInt, bin)
             log.info("Starting Container with task: " + task)
             nmClient.startContainerAsync(container, ctx)
-            launchedTasks += ((task, container))
+            launchedTasks += LaunchedTask(container.getId, task, container)
             pendingTasks.remove(allocId)
           case None =>
             log.error("Could not locate task for this allocationRequestId")
@@ -169,11 +180,13 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
     override def onContainersUpdated(list: util.List[UpdatedContainer]): Unit =
       log.info("On containers updated: $list")
     override def onShutdownRequest(): Unit =
-      log.info("Request shutdown was called")
+      shutdown(FinalApplicationStatus.FAILED, "KILLED")
     override def getProgress: Float = 100
     override def onNodesUpdated(list: util.List[NodeReport]): Unit = {}
-    override def onError(throwable: Throwable): Unit =
+    override def onError(throwable: Throwable): Unit = {
       log.info("Error: " + throwable.toString)
+      shutdown(FinalApplicationStatus.FAILED, throwable.toString)
+    }
   }
 
   // NM Async client Callbacks

@@ -12,7 +12,7 @@ import runtime.common.Identifiers
 import runtime.protobuf.messages.{ActorRefProto, ArcTask}
 
 private[yarn] object TaskExecutorApplication extends App with LazyLogging {
-  logger.info("TaskExecutorApp started")
+  logger.info("TaskExecutorApplication starting up")
 
   if (args.length > 3) {
     logger.info("args: " + args)
@@ -23,6 +23,7 @@ private[yarn] object TaskExecutorApplication extends App with LazyLogging {
     val appMaster = args(4)
     val stateMaster = args(5)
 
+    // Set up execution environment on the local filesystem
     val env = new ExecutionEnvironment(jobId)
     env.create()
 
@@ -63,9 +64,8 @@ private[yarn] object TaskExecutorApplication extends App with LazyLogging {
     val appMasterProto = ActorRefProto(appMaster)
     val taskMasterProto = ActorRefProto(taskMaster)
     val stateMasterProto = ActorRefProto(stateMaster)
-    val conf = TaskExecutorConf(1000)
     val taskexecutor = system.actorOf(TaskExecutor(binPath, taskId,
-      appMasterProto, taskMasterProto, stateMasterProto, conf), "taskexecutor")
+      appMasterProto, taskMasterProto, stateMasterProto), "taskexecutor")
 
     system.whenTerminated
   } else {

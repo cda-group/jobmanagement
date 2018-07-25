@@ -47,20 +47,20 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
 
 
   // Heartbeat variables
-  var heartBeatChecker = None: Option[Cancellable]
-  var lastJmTs: Long = 0
+  private var heartBeatChecker = None: Option[Cancellable]
+  private var lastJmTs: Long = 0
 
   // Execution Environment
-  val env = new ExecutionEnvironment(job.id)
+  private val env = new ExecutionEnvironment(job.id)
 
   // TaskExecutor
-  var executors = mutable.IndexedSeq.empty[ActorRef]
+  private var executors = mutable.IndexedSeq.empty[ActorRef]
 
   // TaskReceiver
-  var taskReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
-  var taskReceiversId = 0
+  private var taskReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
+  private var taskReceiversId = 0
 
-  var stateMaster = None: Option[ActorRef]
+  private var stateMaster = None: Option[ActorRef]
 
 
   override def preStart(): Unit = {

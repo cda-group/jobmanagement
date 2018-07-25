@@ -3,49 +3,51 @@ package clustermanager.yarn.taskexecutor
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import clustermanager.common.executor.ExecutorStats
 import runtime.common.Identifiers
+import runtime.protobuf.ExternalAddress
 import runtime.protobuf.messages._
 
 import scala.concurrent.duration._
 import scala.util.Try
 
 private[yarn] object TaskExecutor {
-  // Refactor
   def apply(binPath: String,
             taskId: Int,
             appMaster: ActorRef,
             taskMaster: ActorRef,
-            stateMaster: ActorRef,
-            conf: TaskExecutorConf): Props =
-    Props(new TaskExecutor(binPath, taskId, appMaster, taskMaster, stateMaster, conf))
+            stateMaster: ActorRef): Props =
+    Props(new TaskExecutor(binPath, taskId, appMaster, taskMaster, stateMaster))
   case object HealthCheck
   case class StdOutResult(r: String)
   case class CreateTaskReader(task: ArcTask)
 }
 
-/** Initial PoC for executing binaries and "monitoring" them
-  *
-  * @param binPath path to the rust binary
+/** Actor that is responsible for executing
+  * and monitoring a binary
+  * @param binPath path to the binary on the local filesystem
+  * @param taskId ID of the task
+  * @param appMaster ActorRef of AppMaster
+  * @param taskMaster ActorRef of TaskMaster
+  * @param stateMaster ActorRef of StateMaster
   */
 private[yarn] class TaskExecutor(binPath: String,
                                  taskId: Int,
                                  appMaster: ActorRef,
                                  taskMaster: ActorRef,
                                  stateMaster: ActorRef,
-                                 conf: TaskExecutorConf
-                                ) extends Actor with ActorLogging {
+                                ) extends Actor with ActorLogging with TaskExecutorConfig {
 
-  var healthChecker = None: Option[Cancellable]
-  var process = None: Option[Process]
-  var monitor = None: Option[ExecutorStats]
-  var arcTask = None: Option[ArcTask]
-
-  val selfAddr = self.path
-    .toStringWithAddress(self.path.address)
+  private var healthChecker = None: Option[Cancellable]
+  private var process = None: Option[Process]
+  private var monitor = None: Option[ExecutorStats]
+  private var arcTask = None: Option[ArcTask]
+  private val selfAddr = self.path.
+    toStringWithAddress(ExternalAddress(context.system).addressForAkka)
 
   import TaskExecutor._
   import context.dispatcher
 
   override def preStart(): Unit = {
+    // Let our TaskMaster know that we are ready to receive our Task
     taskMaster ! YarnExecutorUp(taskId)
   }
 
@@ -67,11 +69,14 @@ private[yarn] class TaskExecutor(binPath: String,
       // Gotten the results from the Stdout...
       arcTask = Some(t)
     case Terminated(sMaster) =>
-      // StateMaster has been declared as terminated
-      // What to do?
+      log.info(s"Lost Contact with our StateMaster $stateMaster")
+      // Handle?
     case _ =>
   }
 
+  /** Executes @binPath and initializes the monitoring service
+    * @param task ArcTask
+    */
   private def execute(task: ArcTask): Unit = {
     val pb = new ProcessBuilder(binPath, task.expr, task.vec)
     process = Some(pb.start())
@@ -86,7 +91,7 @@ private[yarn] class TaskExecutor(binPath: String,
             monitor = Some(execStats)
             healthChecker = scheduleCheck()
             // Enable DeathWatch of the StateMaster
-            //context watch stateMaster
+            context watch stateMaster
             // Update Status of the Task
             val updatedTask = task.copy(status = Some("running"))
             arcTask = Some(updatedTask)
@@ -103,6 +108,10 @@ private[yarn] class TaskExecutor(binPath: String,
 
   }
 
+  /** Uses ExecutorStats to gather process metrics
+    * to then send to a StateMaster
+    * @param stats ExecutorStats instance
+    */
   private def collectMetrics(stats: ExecutorStats): Unit = {
    if (process.isDefined && process.get.isAlive) {
      stats.complete() match {
@@ -138,8 +147,8 @@ private[yarn] class TaskExecutor(binPath: String,
 
   private def scheduleCheck(): Option[Cancellable] = {
     Some(context.system.scheduler.schedule(
-      conf.monitorTicker.milliseconds,
-      conf.monitorTicker.milliseconds,
+      monitorInterval.milliseconds,
+      monitorInterval.milliseconds,
       self,
       HealthCheck
     ))
@@ -149,6 +158,7 @@ private[yarn] class TaskExecutor(binPath: String,
     * Stop the health ticker and instruct the actor to close down.
     */
   private def shutdown(): Unit = {
+    log.info("Shutting down TaskExecutor")
     healthChecker.map(_.cancel())
     context.stop(self)
   }

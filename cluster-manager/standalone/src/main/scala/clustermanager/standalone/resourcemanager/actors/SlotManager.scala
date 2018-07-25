@@ -19,9 +19,9 @@ class SlotManager extends Actor with ActorLogging {
   import ClusterListener._
   import ResourceManager._
 
-  var taskManagers = mutable.IndexedSeq.empty[Address]
-  val slots = mutable.HashMap[Address, Seq[TaskSlot]]()
-  var roundNumber = 0
+  private var taskManagers = mutable.IndexedSeq.empty[Address]
+  private val slots = mutable.HashMap[Address, Seq[TaskSlot]]()
+  private var roundNumber = 0
 
 
   def receive = {

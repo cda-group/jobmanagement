@@ -10,6 +10,8 @@ import org.apache.hadoop.yarn.api.records.{LocalResource, LocalResourceType, Loc
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.apache.hadoop.yarn.util.{Apps, ConverterUtils, Records}
 
+import scala.util.Try
+
 object YarnUtils extends YarnConfig with LazyLogging {
 
 
@@ -83,6 +85,22 @@ object YarnUtils extends YarnConfig with LazyLogging {
         logger.error("Failed to move binary to local filesystem with error: " + err.toString)
         false
     }
+  }
+
+  /** Deletes a jobs directory on HDFS,
+    * i.e., removes the binaries after the job has
+    * exited/finished.
+    * @param jobId ID of the job
+    * @return true on success, otherwise false
+    */
+  def cleanJob(jobId: String): Boolean = {
+    Try {
+      val conf = new YarnConfiguration()
+      val fs = FileSystem.get(conf)
+      val dirPath = new Path(jobsDir + "/" + jobId)
+      if (fs.exists(dirPath))
+        fs.delete(dirPath, true)
+    }.isSuccess
   }
 
 

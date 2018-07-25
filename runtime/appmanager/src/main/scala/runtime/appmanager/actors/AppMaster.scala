@@ -9,9 +9,8 @@ import akka.util.Timeout
 import akka.pattern._
 import clustermanager.yarn.utils.{Client, YarnUtils}
 import org.apache.hadoop.yarn.api.records.ApplicationId
-import runtime.appmanager.actors.AppManager.ArcJobStatus
+import runtime.appmanager.actors.AppManager.{ArcJobStatus, StateMasterError}
 import runtime.appmanager.actors.StandaloneAppManager.AppMasterInit
-import runtime.appmanager.actors.YarnAppManager.StateMasterError
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.{ActorPaths, Identifiers}
 import runtime.protobuf.messages._
@@ -25,11 +24,26 @@ import scala.util.{Failure, Success}
   * An Abstract Actor class that AppMaster's must extend
   */
 abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
-  var stateMaster = None: Option[ActorRef]
-  var arcJob = None: Option[ArcJob]
+  protected var stateMaster = None: Option[ActorRef]
+  protected var arcJob = None: Option[ArcJob]
 
+  protected implicit val timeout = Timeout(2 seconds)
+  import context.dispatcher
 
-  def updateTask(task: ArcTask): Option[ArcJob] = {
+  def receive: Receive =  {
+    case ArcJobStatus(_) =>
+      sender() ! arcJob.get
+    case ArcTaskUpdate(task) =>
+      arcJob = updateTask(task)
+    case ArcJobKilled() =>
+      arcJob = arcJob.map(_.copy(status = Some("killed")))
+    case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
+      (stateMaster.get ? req) pipeTo sender()
+    case ArcJobMetricRequest(_) =>
+      sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
+  }
+
+  protected def updateTask(task: ArcTask): Option[ArcJob] = {
     arcJob match {
       case Some(job) =>
         val updatedJob = job.copy(tasks = job.tasks.map(s => if (isSameTask(s.id, task.id)) task else s))
@@ -72,7 +86,7 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
   implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
-  implicit val timeout = Timeout(2 seconds)
+  // Futures
   import context.dispatcher
 
   override def preStart(): Unit = {
@@ -81,6 +95,7 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
   }
 
   private def startTaskMaster(stateMaster: ActorRef): Unit = {
+    log.info("Launching TaskMaster onto the YARN cluster")
     val yarnClient = new Client()
     if (yarnClient.init()) {
       val meStr = self.path.toStringWithAddress(selfAddr)
@@ -88,11 +103,11 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
       val stateMasterStr = stateMaster.path.toStringWithAddress(stateMasterAddr)
       yarnAppId = yarnClient.launchTaskMaster(meStr, stateMasterStr, job.id).toOption
     } else {
-      log.error("Failed to connect to yarn")
+      log.error("Could not establish connection with YARN")
     }
   }
 
-  def receive = {
+  override def receive = super.receive orElse {
     case YarnTaskMasterUp(ref) =>
       // Enable DeathWatch of the TaskMaster
       context watch ref
@@ -108,20 +123,8 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
     case StateMasterError  =>
       log.error("Could not establish a StateMaster, closing down!")
       context stop self
-    case s: String =>
-      println(s)
-    case ArcJobStatus(_) =>
-      sender() ! arcJob.get
-    case ArcTaskUpdate(task) =>
-      arcJob = updateTask(task)
-    case ArcJobKilled() =>
-      arcJob = arcJob.map(_.copy(status = Some("killed")))
     case Terminated(ref) =>
       // TaskMaster dead
-    case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
-      (stateMaster.get ? req) pipeTo sender()
-    case ArcJobMetricRequest(_) =>
-      sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
     case _ =>
   }
 
@@ -150,28 +153,29 @@ object YarnAppMaster {
   */
 class StandaloneAppMaster extends AppMaster {
   import AppManager._
-  import StandaloneAppMaster._
 
-  var taskMaster = None: Option[ActorRef]
+  private var taskMaster = None: Option[ActorRef]
   //TODO: remove and use DeathWatch instead?
-  var keepAliveTicker = None: Option[Cancellable]
-
-  // For futures
-  implicit val timeout = Timeout(2 seconds)
-  import context.dispatcher
+  private var keepAliveTicker = None: Option[Cancellable]
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
-  def receive = {
-    case AppMasterInit(job, rmAddr) =>
+  // Futures
+  import context.dispatcher
+
+  override def receive = super.receive orElse {
+    case AppMasterInit(job, rmAddr, sMaster) =>
+      stateMaster = Some(sMaster)
       arcJob = Some(job)
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
       // Request a TaskSlot for the job
       val req = allocateRequest(job, resourceManager) map {
         case AllocateSuccess(_, tm) =>
           taskMaster = Some(tm)
+          // Send responsible StateMaster to the TaskMaster
+          taskMaster.get ! StateMasterConn(sMaster)
           // start the heartbeat ticker to notify the TaskMaster that we are alive
           // while we compile
           keepAliveTicker = keepAlive(tm)
@@ -192,10 +196,6 @@ class StandaloneAppMaster extends AppMaster {
       }
     case r@ReleaseSlots =>
       taskMaster.foreach(_ ! r)
-    case ArcJobStatus(_) =>
-      sender() ! arcJob.get
-    case ArcTaskUpdate(task) =>
-      arcJob = updateTask(task)
     case TaskMasterFailure() =>
       // Unexpected failure by the TaskMaster
       // Handle it
@@ -207,13 +207,6 @@ class StandaloneAppMaster extends AppMaster {
       // Shutdown
       // Delete StateMaster
       // Release Slots of TaskManager
-    case StateMasterConn(ref) if stateMaster.isEmpty =>
-      stateMaster = Some(ref)
-    case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
-      (stateMaster.get ? req) pipeTo sender()
-    case ArcJobMetricRequest(_) =>
-      sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
-    case _ =>
   }
 
   private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {

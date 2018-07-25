@@ -7,7 +7,7 @@ import scala.collection.mutable
 
 
 object StateMaster {
-  def apply(implicit appMaster: ActorRef, job: ArcJob): Props =
+  def apply(appMaster: ActorRef, job: ArcJob): Props =
     Props(new StateMaster(appMaster, job))
 }
 
@@ -23,8 +23,6 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
   import runtime.protobuf.ProtoConversions.ActorRef._
 
   override def preStart(): Unit = {
-    // Let appMaster know how to fetch metrics....
-    appMaster ! StateMasterConn(self)
     // enable DeathWatch
     context watch appMaster
   }

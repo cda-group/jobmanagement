@@ -1,13 +1,10 @@
 package runtime.appmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Address, Props, Terminated}
-import akka.cluster.Cluster
-import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp, UnreachableMember}
 import akka.http.scaladsl.Http
 import akka.pattern._
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
-import runtime.appmanager.actors.AppManager.{ArcJobID, ArcJobStatus}
 import runtime.appmanager.actors.MetricAccumulator.{StateManagerMetrics, TaskManagerMetrics}
 import runtime.appmanager.rest.RestService
 import runtime.appmanager.utils.AppManagerConfig
@@ -17,6 +14,7 @@ import runtime.protobuf.messages._
 import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.{Failure, Success}
 
 object AppManager {
   case class ArcJobRequest(job: ArcJob)
@@ -26,6 +24,7 @@ object AppManager {
   case object ResourceManagerUnavailable
   case object ListJobs
   case object ListJobsWithDetails
+  case object StateMasterError
   type ArcJobID = String
 }
 
@@ -35,25 +34,28 @@ object AppManager {
   */
 abstract class AppManager extends Actor with ActorLogging with AppManagerConfig {
   import AppManager._
+  import ClusterListener._
   // For Akka HTTP (REST)
-  implicit val materializer = ActorMaterializer()
-  implicit val system = context.system
-  implicit val ec = context.system.dispatcher
+  protected implicit val materializer = ActorMaterializer()
+  protected implicit val system = context.system
+  protected implicit val ec = context.system.dispatcher
 
   // Timeout for Futures
-  implicit val timeout = Timeout(2.seconds)
+  protected implicit val timeout = Timeout(2.seconds)
 
   // Fields
-  var appMasters = mutable.IndexedSeq.empty[ActorRef]
-  var appMasterId: Long = 0 // unique id for each AppMaster that is created
-  var appJobMap = mutable.HashMap[ArcJobID, ActorRef]()
+  protected var appMasters = mutable.IndexedSeq.empty[ActorRef]
+  protected var appMasterId: Long = 0 // unique id for each AppMaster that is created
+  protected var appJobMap = mutable.HashMap[ArcJobID, ActorRef]()
 
+  protected var stateManagers = mutable.IndexedSeq.empty[Address]
+  protected var stateManagerReqs: Int = 0
 
   /**
     * In Yarn mode, only metrics from StateManagers are gathered,
     * while in Standalone, TaskManagers and StateManagers.
     */
-  val metricAccumulator = context.actorOf(MetricAccumulator())
+  protected val metricAccumulator = context.actorOf(MetricAccumulator())
 
   // Initialize REST service
   override def preStart(): Unit = {
@@ -91,6 +93,12 @@ abstract class AppManager extends Actor with ActorLogging with AppManagerConfig 
       }
     case ListJobs =>
       gatherJobs() pipeTo sender()
+    case StateManagerRegistration(addr) =>
+      stateManagers = stateManagers :+ addr
+    case StateManagerRemoved(addr) =>
+      stateManagers = stateManagers.filterNot(_ == addr)
+    case StateManagerUnreachable(addr) =>
+    // Handle
     case Terminated(ref) =>
       // AppMaster was terminated somehow
       appMasters = appMasters.filterNot(_ == ref)
@@ -101,36 +109,35 @@ abstract class AppManager extends Actor with ActorLogging with AppManagerConfig 
     *
     * @return Future containing statuses
     */
-  def gatherJobs(): Future[Seq[ArcJobStatus]] = {
+  protected def gatherJobs(): Future[Seq[ArcJobStatus]] = {
     Future.sequence(appJobMap.map { job =>
       (job._2 ? ArcJobStatus(job._1)).mapTo[ArcJobStatus]
     }.toSeq)
   }
-}
 
+  protected def getStateMaster(amRef: ActorRef, job: ArcJob): Future[StateMasterConn] = {
+    val smAddr = stateManagers(stateManagerReqs % stateManagers.size)
+    val smSelection = context.actorSelection(ActorPaths.stateManager(smAddr))
+    import runtime.protobuf.ProtoConversions.ActorRef._
+    smSelection ? StateManagerJob(amRef, job) flatMap {
+      case s@StateMasterConn(_) => Future.successful(s)
+    } recoverWith {
+      case t: akka.pattern.AskTimeoutException => Future.failed(t)
+    }
+  }
+}
 
 
 /**
   * AppManager that uses YARN as its Cluster Manager
   */
 class YarnAppManager extends AppManager {
-  import ClusterListener._
   import AppManager._
-  import YarnAppManager._
   import akka.pattern._
-  import scala.concurrent.duration._
-
-  private var stateManagers = mutable.IndexedSeq.empty[Address]
-  private var stateManagerReqs: Int = 0
-
-  private implicit val sys = context.system
-  import runtime.protobuf.ProtoConversions.ActorRef._
-  private val cluster = Cluster(sys)
-
 
   override def receive = super.receive orElse {
     case ArcJobRequest(_) if stateManagers.isEmpty =>
-      sender() ! "No stateManagers available"
+      sender() ! "No StateManagers available"
     case ArcJobRequest(arcJob) =>
       val appMaster = context.actorOf(YarnAppMaster(arcJob), Identifiers.APP_MASTER+appMasterId)
       appMasterId +=1
@@ -143,33 +150,12 @@ class YarnAppManager extends AppManager {
       // Create a state master that is linked with the AppMaster and TaskMaster
       getStateMaster(appMaster, arcJob) recover {case _ => StateMasterError} pipeTo appMaster
 
-      val response = "Processing job: " + arcJob.id
+      val response = "Processing job: " + arcJob.id + "\n"
       sender() ! response
-    case StateManagerRegistration(addr) =>
-      stateManagers = stateManagers :+ addr
-    case StateManagerRemoved(addr) =>
-      stateManagers = stateManagers.filterNot(_ == addr)
-    case StateManagerUnreachable(addr) =>
-      // Handle
-    case _ =>
-  }
-
-  // Already defined in Standalone
-  // TODO: remove duplication
-  private def getStateMaster(amRef: ActorRef, job: ArcJob): Future[StateMasterConn] = {
-    val smAddr = stateManagers(stateManagerReqs % stateManagers.size)
-    val smSelection = context.actorSelection(ActorPaths.stateManager(smAddr))
-    implicit val timeout: Timeout = Timeout(2.seconds)
-    smSelection ? StateManagerJob(amRef, job) flatMap {
-      case s@StateMasterConn(_) => Future.successful(s)
-    } recoverWith {
-      case t: akka.pattern.AskTimeoutException => Future.failed(t)
-    }
   }
 }
 
 object YarnAppManager {
-  case object StateMasterError
   case class AppMasterInit(job: ArcJob)
   def apply(): Props = Props(new YarnAppManager())
 }
@@ -183,11 +169,13 @@ class StandaloneAppManager extends AppManager{
   import StandaloneAppManager._
   import ClusterListener._
 
-  var resourceManager = None: Option[Address]
+  private var resourceManager = None: Option[Address]
 
   override def receive = super.receive orElse {
     case RmRegistration(rm) if resourceManager.isEmpty =>
       resourceManager = Some(rm)
+    case ArcJobRequest(_) if stateManagers.isEmpty =>
+      sender() ! "No StateManagers available"
     case ArcJobRequest(arcJob) =>
       // The AppManager has received a job request from somewhere
       // whether it is through another actor, rest, or rpc...
@@ -202,11 +190,23 @@ class StandaloneAppManager extends AppManager{
           // Enable DeathWatch
           context watch appMaster
 
-          // Send the job to the AppMaster actor and be done with it
-          appMaster ! AppMasterInit(arcJob, rm)
+          // Save ActorRef of sender as we don't want to mix it up in temporary actors
+          val requester = sender()
 
-          val response = "Processing job: " + arcJob.id
-          sender() ! response
+          import runtime.protobuf.ProtoConversions.ActorRef._
+          // Create a state master that is linked with the AppMaster and TaskMaster
+          (getStateMaster(appMaster, arcJob) recover {case _ => StateMasterError}) onComplete {
+            case Success(s@StateMasterConn(ref)) =>
+              // Send the job to the AppMaster actor and be done with it
+              appMaster ! AppMasterInit(arcJob, rm, ref)
+
+              val response = "Processing job: " + arcJob.id + "\n"
+              requester ! response
+            case Success(_) =>
+              requester ! s"Failed fetching a StateMaster for job ${arcJob.id}"
+            case Failure(_) =>
+              requester ! s"Failed fetching a StateMaster for job ${arcJob.id}"
+          }
         case None =>
           sender() ! "No ResourceManager available"
       }
@@ -220,6 +220,6 @@ class StandaloneAppManager extends AppManager{
 }
 
 object StandaloneAppManager {
-  case class AppMasterInit(job: ArcJob, rmAddr: Address)
+  case class AppMasterInit(job: ArcJob, rmAddr: Address, stateMaster: ActorRef)
   def apply(): Props = Props(new StandaloneAppManager())
 }

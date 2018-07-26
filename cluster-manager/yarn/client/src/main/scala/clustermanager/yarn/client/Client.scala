@@ -4,6 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.YarnClient
 import org.apache.hadoop.yarn.conf.YarnConfiguration
+import org.apache.hadoop.yarn.exceptions.YarnException
 import org.apache.hadoop.yarn.util.Records
 
 import scala.util.Try
@@ -50,6 +51,21 @@ class Client extends YarnConfig with LazyLogging {
     client.submitApplication(ctx)
 
     appId
+  }
+
+
+  /** Fetches the current state of the job on YARN
+    * @param id ID of the YARN job
+    * @return Current State
+    */
+  def getAppStatus(id: ApplicationId): Option[YarnApplicationState] = {
+    try {
+      Some(client.getApplicationReport(id).getYarnApplicationState)
+    } catch {
+      case err: Exception =>
+        logger.error(err.toString)
+        None
+    }
   }
 
 }

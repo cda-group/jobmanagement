@@ -60,7 +60,8 @@ object Dependencies {
   val yarnDependencies: Seq[ModuleID] = Seq(
     "org.apache.hadoop" % "hadoop-yarn-client" % yarnVersion,
     "org.apache.hadoop" % "hadoop-yarn-api" % yarnVersion,
-    "org.apache.hadoop" % "hadoop-client" % yarnVersion
+    "org.apache.hadoop" % "hadoop-client" % yarnVersion,
+    "org.apache.hadoop" % "hadoop-hdfs"  % yarnVersion % Test classifier "tests"
   )
 
   val akkaHttpDependencies: Seq[ModuleID] = Seq(

@@ -7,7 +7,8 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, C
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
-import org.apache.hadoop.yarn.api.records.ApplicationId
+import clustermanager.yarn.client.Client
+import org.apache.hadoop.yarn.api.records.{ApplicationId, YarnApplicationState}
 import runtime.appmanager.actors.AppManager.{ArcJobStatus, StateMasterError}
 import runtime.appmanager.actors.StandaloneAppManager.AppMasterInit
 import runtime.appmanager.utils.AppManagerConfig
@@ -80,6 +81,7 @@ abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
 class YarnAppMaster(job: ArcJob) extends AppMaster {
   private var yarnAppId = None: Option[ApplicationId]
   private val selfAddr = Cluster(context.system).selfAddress
+  private val yarnClient = new Client()
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
@@ -97,7 +99,6 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
 
   private def startTaskMaster(stateMaster: ActorRef): Unit = {
     log.info("Launching TaskMaster onto the YARN cluster")
-    val yarnClient = new Client()
     if (yarnClient.init()) {
       // Format ActorRefs into Strings
       val meStr = self.path.
@@ -114,9 +115,10 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
     case YarnTaskMasterUp(ref) =>
       // Enable DeathWatch of the TaskMaster
       context watch ref
-      taskMaster = Some(ref)
-      // Our fake compile method
 
+      taskMaster = Some(ref)
+
+      // Our fake compile method
       arcJob.get.tasks.foreach { t =>
         compileAndTransfer(ref, t)
       }
@@ -127,7 +129,12 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
       log.error("Could not establish a StateMaster, closing down!")
       context stop self
     case Terminated(ref) =>
-      // TaskMaster dead
+      yarnAppId match {
+        case Some(id) =>
+          handleTaskMasterFailure(id)
+        case None =>
+          log.error("YARN ApplicationID is not defined, shutting down!")
+      }
     case _ =>
   }
 
@@ -140,6 +147,26 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
       case None =>
         self ! ArcTaskUpdate(task.copy(status = Some(Identifiers.ARC_TASK_TRANSFER_ERROR)))
     }
+  }
+
+  /** TaskMaster has been terminated. Fetch Application Status
+    * from YARN and react accordingly.
+    * @param id ApplicationId
+    */
+  private def handleTaskMasterFailure(id: ApplicationId): Unit = yarnClient.getAppStatus(id) match {
+    case Some(YarnApplicationState.FAILED) =>
+      // It is in failed state, clean and launch a new taskMaster?
+    case Some(YarnApplicationState.KILLED) =>
+      // Killed, then clean here
+    case Some(YarnApplicationState.RUNNING) =>
+      // It is still running, perhaps a network split between AppMaster and TaskMaster
+    case Some(YarnApplicationState.SUBMITTED) =>
+      // It is submitted but we don't have contact with the TaskMaster
+      // Clean and submit again?
+    case Some(YarnApplicationState.FINISHED) =>
+      // Finished, clean up here
+    case None =>
+      log.error("Could not fetch YarnApplicationState from YARN, shutting down!")
   }
 
 

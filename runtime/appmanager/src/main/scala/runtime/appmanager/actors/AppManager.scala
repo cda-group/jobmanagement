@@ -173,41 +173,35 @@ class StandaloneAppManager extends AppManager{
   override def receive = super.receive orElse {
     case RmRegistration(rm) if resourceManager.isEmpty =>
       resourceManager = Some(rm)
-    case ArcJobRequest(_) if stateManagers.isEmpty =>
-      sender() ! "No StateManagers available"
+    case ArcJobRequest(_) if resourceManager.isEmpty =>
+      sender() ! ResourceManagerUnavailable
     case ArcJobRequest(arcJob) =>
       // The AppManager has received a job request from somewhere
       // whether it is through another actor, rest, or rpc...
-      resourceManager match {
-        case Some(rm) =>
-          // Rm is availalble, create an AppMaster to deal with the job
-          val appMaster = context.actorOf(StandaloneAppMaster(), Identifiers.APP_MASTER + appMasterId)
-          appMasterId += 1
-          appMasters = appMasters :+ appMaster
-          appJobMap.put(arcJob.id, appMaster)
+      val appMaster = context.actorOf(StandaloneAppMaster(), Identifiers.APP_MASTER + appMasterId)
+      appMasterId += 1
+      appMasters = appMasters :+ appMaster
+      appJobMap.put(arcJob.id, appMaster)
 
-          // Enable DeathWatch
-          context watch appMaster
+      // Enable DeathWatch
+      context watch appMaster
 
-          // Save ActorRef of sender as we don't want to mix it up in temporary actors
-          val requester = sender()
+      // Save ActorRef of sender as we don't want to mix it up in temporary actors
+      val requester = sender()
 
-          import runtime.protobuf.ProtoConversions.ActorRef._
-          // Create a state master that is linked with the AppMaster and TaskMaster
-          (getStateMaster(appMaster, arcJob) recover {case _ => StateMasterError}) onComplete {
-            case Success(s@StateMasterConn(ref)) =>
-              // Send the job to the AppMaster actor and be done with it
-              appMaster ! AppMasterInit(arcJob, rm, ref)
+      import runtime.protobuf.ProtoConversions.ActorRef._
+      // Create a state master that is linked with the AppMaster and TaskMaster
+      (getStateMaster(appMaster, arcJob) recover {case _ => StateMasterError}) onComplete {
+        case Success(s@StateMasterConn(ref)) =>
+          // Send the job to the AppMaster actor and be done with it
+          appMaster ! AppMasterInit(arcJob, resourceManager.get, ref)
 
-              val response = "Processing job: " + arcJob.id + "\n"
-              requester ! response
-            case Success(_) =>
-              requester ! s"Failed fetching a StateMaster for job ${arcJob.id}"
-            case Failure(_) =>
-              requester ! s"Failed fetching a StateMaster for job ${arcJob.id}"
-          }
-        case None =>
-          sender() ! "No ResourceManager available"
+          val response = "Processing job: " + arcJob.id + "\n"
+          requester ! response
+        case Success(_) =>
+          requester ! s"Failed fetching a StateMaster for job ${arcJob.id}"
+        case Failure(_) =>
+          requester ! s"Failed fetching a StateMaster for job ${arcJob.id}"
       }
     case u@UnreachableRm(rm) =>
       // Foreach active AppMaster, notify status

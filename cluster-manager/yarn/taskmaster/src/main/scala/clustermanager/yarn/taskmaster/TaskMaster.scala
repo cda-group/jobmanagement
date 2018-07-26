@@ -3,7 +3,7 @@ package clustermanager.yarn.taskmaster
 import java.nio.ByteBuffer
 import java.util
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
 import akka.util.Timeout
 import clustermanager.yarn.utils.{YarnTaskExecutor, YarnUtils}
 import org.apache.hadoop.yarn.api.records._
@@ -11,6 +11,7 @@ import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 import org.apache.hadoop.yarn.client.api.async.{AMRMClientAsync, NMClientAsync}
 import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.apache.hadoop.yarn.util.Records
+import runtime.common.Identifiers
 import runtime.protobuf.ExternalAddress
 import runtime.protobuf.messages._
 
@@ -23,6 +24,8 @@ private[yarn] object TaskMaster {
   def apply(appmaster: ActorRef, statemaster: ActorRef, jobId: String): Props =
     Props(new TaskMaster(appmaster, statemaster, jobId))
   case class LaunchedTask(containerId: ContainerId, task: ArcTask, container: Container)
+  type AllocationID = Long
+  type BinaryPath = String
 }
 
 
@@ -37,6 +40,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
 
   import TaskMaster._
 
+  // YARN
   private var rmClient: AMRMClientAsync[ContainerRequest] = _
   private var nmClient: NMClientAsync = _
   private val conf = new YarnConfiguration()
@@ -46,9 +50,10 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   private var maxCores = None: Option[Int]
 
   import runtime.protobuf.ProtoConversions.ActorRef._
-  implicit val sys = context.system
+  private implicit val sys = context.system
 
-  private var pendingTasks = mutable.HashMap[Long, (ArcTask, String)]()
+  // Helpers to keep track of tasks
+  private var pendingTasks = mutable.HashMap[AllocationID, (ArcTask, BinaryPath)]()
   private var launchedTasks = ArrayBuffer.empty[LaunchedTask]
 
   // ActorRefs to be passed on
@@ -67,6 +72,13 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
     initYarnClients()
     // Once we have started, let the Appmaster know that we are alive.
     appmaster ! YarnTaskMasterUp(self)
+
+    // Enable DeathWatch for the AppMaster
+    context watch appmaster
+  }
+
+  override def postStop(): Unit = {
+    // Clean resources
   }
 
   def receive = {
@@ -81,6 +93,8 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
           // Should not happen but handle it
           sender() ! "fail"
       }
+    case Terminated(ref) =>
+      // AppMaster has terminated, whattodo?
     case _ =>
   }
 
@@ -139,8 +153,31 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
     }
   }
 
-  private def shutdown(s: FinalApplicationStatus, message: String): Unit = {
-    rmClient.unregisterApplicationMaster(s, message, null)
+  /** Container(s) have been allocated, now tasks can
+    * be launched onto them.
+    * @param containers YARN containers
+    */
+  private def startContainer(containers: Seq[Container]): Unit = {
+    log.info("Containers allocated: " + containers)
+    containers.foreach { container =>
+      val allocId = container.getAllocationRequestId
+      pendingTasks.get(allocId) match {
+        case Some((task: ArcTask, bin:String)) =>
+          val ctx = YarnTaskExecutor.context(taskMasterStr, appMasterStr,
+            stateMasterStr, jobId, allocId.toInt, bin)
+          log.info("Starting Container with task: " + task)
+          nmClient.startContainerAsync(container, ctx)
+          launchedTasks += LaunchedTask(container.getId, task, container)
+          pendingTasks.remove(allocId)
+        case None =>
+          log.error("Could not locate task for this allocationRequestId")
+      }
+    }
+
+  }
+
+  private def shutdown(status: FinalApplicationStatus, message: String): Unit = {
+    rmClient.unregisterApplicationMaster(status, message, null)
     rmClient.stop()
     nmClient.stop()
 
@@ -148,33 +185,34 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
       log.info(s"Cleaned HDFS directory for Job $jobId")
     else
       log.error(s"Was not able to clean the HDFS directory for job $jobId")
+
+
+    status match {
+      case FinalApplicationStatus.FAILED =>
+        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
+      case FinalApplicationStatus.KILLED =>
+        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
+      case FinalApplicationStatus.SUCCEEDED =>
+        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_SUCCEEDED)
+      case FinalApplicationStatus.ENDED =>
+        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_SUCCEEDED)
+      case FinalApplicationStatus.UNDEFINED =>
+        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
+    }
+
+    // Shut down the ActorSystem
+    context.system.terminate()
   }
 
 
-  // AMRM Client Async Callbacks
+  // ApplicationMaster ResourceManager Client Async Callbacks
 
   import scala.collection.JavaConverters._
 
   private def AMRMHandler: AMRMClientAsync.AbstractCallbackHandler =
     new AMRMClientAsync.AbstractCallbackHandler {
-    override def onContainersAllocated(containers: util.List[Container]): Unit = {
-      val scalaContainers = containers.asScala
-      log.info("Containers allocated: " + scalaContainers)
-      scalaContainers.foreach { container =>
-        val allocId = container.getAllocationRequestId
-        pendingTasks.get(allocId) match {
-          case Some((task: ArcTask, bin:String)) =>
-            val ctx = YarnTaskExecutor.context(taskMasterStr, appMasterStr,
-              stateMasterStr, jobId, allocId.toInt, bin)
-            log.info("Starting Container with task: " + task)
-            nmClient.startContainerAsync(container, ctx)
-            launchedTasks += LaunchedTask(container.getId, task, container)
-            pendingTasks.remove(allocId)
-          case None =>
-            log.error("Could not locate task for this allocationRequestId")
-        }
-      }
-    }
+    override def onContainersAllocated(containers: util.List[Container]): Unit =
+      startContainer(containers.asScala)
     override def onContainersCompleted(list: util.List[ContainerStatus]): Unit =
       log.info(s"Containers completed $list")
     override def onContainersUpdated(list: util.List[UpdatedContainer]): Unit =
@@ -189,7 +227,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
     }
   }
 
-  // NM Async client Callbacks
+  // NodeManager Async client Callbacks
 
   private def NMHandler: NMClientAsync.AbstractCallbackHandler = new NMClientAsync.AbstractCallbackHandler {
     override def onGetContainerStatusError(containerId: ContainerId, throwable: Throwable): Unit =

@@ -24,6 +24,7 @@ import scala.util.{Failure, Success}
   * An Abstract Actor class that AppMaster's must extend
   */
 abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
+  protected var taskMaster = None: Option[ActorRef]
   protected var stateMaster = None: Option[ActorRef]
   protected var arcJob = None: Option[ArcJob]
 
@@ -35,8 +36,8 @@ abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
       sender() ! arcJob.get
     case ArcTaskUpdate(task) =>
       arcJob = updateTask(task)
-    case ArcJobKilled() =>
-      arcJob = arcJob.map(_.copy(status = Some("killed")))
+    case TaskMasterStatus(_status) =>
+      arcJob = arcJob.map(_.copy(status = Some(_status)))
     case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
       (stateMaster.get ? req) pipeTo sender()
     case ArcJobMetricRequest(_) =>
@@ -79,7 +80,6 @@ abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   */
 class YarnAppMaster(job: ArcJob) extends AppMaster {
   private var yarnAppId = None: Option[ApplicationId]
-  private var yarnTaskMaster = None: Option[ActorRef]
   private val selfAddr = Cluster(context.system).selfAddress
 
   // Handles implicit conversions of ActorRef and ActorRefProto
@@ -98,9 +98,11 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
     log.info("Launching TaskMaster onto the YARN cluster")
     val yarnClient = new Client()
     if (yarnClient.init()) {
-      val meStr = self.path.toStringWithAddress(selfAddr)
-      val stateMasterAddr = stateMaster.path.address
-      val stateMasterStr = stateMaster.path.toStringWithAddress(stateMasterAddr)
+      // Format ActorRefs into Strings
+      val meStr = self.path.
+        toStringWithAddress(selfAddr)
+      val stateMasterStr = stateMaster.path.
+        toStringWithAddress(stateMaster.path.address)
       yarnAppId = yarnClient.launchTaskMaster(meStr, stateMasterStr, job.id).toOption
     } else {
       log.error("Could not establish connection with YARN")
@@ -111,11 +113,11 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
     case YarnTaskMasterUp(ref) =>
       // Enable DeathWatch of the TaskMaster
       context watch ref
-      yarnTaskMaster = Some(ref)
+      taskMaster = Some(ref)
       // Our fake compile method
 
       arcJob.get.tasks.foreach { t =>
-        compileAndTransfer(t) pipeTo ref
+        compileAndTransfer(ref, t)
       }
     case StateMasterConn(ref) =>
       stateMaster = Some(ref)
@@ -128,13 +130,14 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
     case _ =>
   }
 
-  //TODO: fix
-  private def compileAndTransfer(task: ArcTask): Future[YarnTaskTransferred] = Future {
+  //TODO: Implement real logic
+  // Simulation for now
+  private def compileAndTransfer(tMaster: ActorRef, task: ArcTask): Future[Unit] = Future {
     YarnUtils.moveToHDFS(job.id, task.name, "weldrunner") match {
       case Some(path) =>
-        log.info("SENDING TASK: " + task)
-        YarnTaskTransferred(path.toString, task)
-      case None => YarnTaskTransferred("nej", task)
+        tMaster ! YarnTaskTransferred(path.toString, task)
+      case None =>
+        self ! ArcTaskUpdate(task.copy(status = Some(Identifiers.ARC_TASK_TRANSFER_ERROR)))
     }
   }
 
@@ -154,7 +157,6 @@ object YarnAppMaster {
 class StandaloneAppMaster extends AppMaster {
   import AppManager._
 
-  private var taskMaster = None: Option[ActorRef]
   //TODO: remove and use DeathWatch instead?
   private var keepAliveTicker = None: Option[Cancellable]
 
@@ -196,13 +198,6 @@ class StandaloneAppMaster extends AppMaster {
       }
     case r@ReleaseSlots =>
       taskMaster.foreach(_ ! r)
-    case TaskMasterFailure() =>
-      // Unexpected failure by the TaskMaster
-      // Handle it
-      keepAliveTicker.map(_.cancel())
-    case ArcJobKilled() =>
-      keepAliveTicker.map(_.cancel())
-      arcJob = arcJob.map(_.copy(status = Some("killed")))
     case KillArcJobRequest(id) =>
       // Shutdown
       // Delete StateMaster

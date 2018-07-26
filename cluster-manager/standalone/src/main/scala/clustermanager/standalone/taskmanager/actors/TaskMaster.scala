@@ -9,6 +9,7 @@ import akka.pattern._
 import akka.util.Timeout
 import clustermanager.common.executor.ExecutionEnvironment
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
+import runtime.common.Identifiers
 import runtime.protobuf.messages._
 
 import scala.collection.mutable
@@ -70,7 +71,7 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
       case Failure(e) =>
         log.error("Failed to create job environment with path: " + env.getJobPath)
         // Notify AppMaster
-        appMaster ! TaskMasterFailure()
+        appMaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
         // Shut down
         context stop self
     }
@@ -135,8 +136,8 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
         log.info("No alive TaskExecutors left, releasing slots")
 
         // Notify AppMaster and StateMaster that this job is being killed..
-        appMaster ! ArcJobKilled()
-        stateMaster.foreach(_ ! ArcJobKilled())
+        appMaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
+        stateMaster.foreach(_ ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED))
         shutdown()
       }
   }

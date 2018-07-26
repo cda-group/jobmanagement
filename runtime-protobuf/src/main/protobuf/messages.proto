@@ -88,8 +88,6 @@ message ArcTaskUpdate {
     ArcTask task = 1 [(scalapb.field).no_box = true];
 }
 
-message ArcJobKilled {}
-
 //case class ArcProfile(cpuCores: Double, memoryInMB: Long) {
 //def matches(other: ArcProfile): Boolean =
 //this.cpuCores >= other.cpuCores && this.memoryInMB >= other.memoryInMB
@@ -114,8 +112,11 @@ message ArcJob {
 //case class TaskMasterHeartBeat
 message TaskMasterHeartBeat {}
 
-//case class TaskMasterFailure
-message TaskMasterFailure {}
+//case class TaskMasterStatus(status: String)
+message TaskMasterStatus {
+    // FAILED, KILLED, SUCCEEDED
+    string status = 1;
+}
 
 //case class TaskTransferConn(inet: InetSocketAddress)
 message TaskTransferConn {

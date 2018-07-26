@@ -73,6 +73,7 @@ private[yarn] object TaskExecutorApplication extends App with LazyLogging {
   }
 
 
+
   private def loadSigar(): Unit = {
     try {
       if (!SigarProvisioner.isNativeLoaded)

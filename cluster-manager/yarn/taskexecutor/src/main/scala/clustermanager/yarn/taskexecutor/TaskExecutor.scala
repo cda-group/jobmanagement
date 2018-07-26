@@ -160,7 +160,7 @@ private[yarn] class TaskExecutor(binPath: String,
   private def shutdown(): Unit = {
     log.info("Shutting down TaskExecutor")
     healthChecker.map(_.cancel())
-    context.stop(self)
+    context.system.terminate()
   }
 
 }

@@ -26,7 +26,7 @@ lazy val runtimeMultiJvmSettings = multiJvmSettings ++ Seq(
 lazy val root = (project in file("."))
   .aggregate(statemanager, appmanager, runtimeProtobuf,
     runtimeCommon, runtimeTests, standalone,
-    yarnUtils, yarnExecutor, yarnMaster, clusterManagerCommon)
+    yarnClient, yarnExecutor, yarnMaster, clusterManagerCommon)
 
 
 lazy val statemanager = (project in file("runtime/statemanager"))
@@ -39,7 +39,7 @@ lazy val statemanager = (project in file("runtime/statemanager"))
 
 
 lazy val appmanager = (project in file("runtime/appmanager"))
-  .dependsOn(runtimeProtobuf, runtimeCommon, yarnUtils % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, yarnClient % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.appmanager)
   .settings(moduleName("runtime.appmanager"))
@@ -89,20 +89,20 @@ lazy val standalone = (project in file("cluster-manager/standalone"))
   .settings(Assembly.settings("clustermanager.standalone.Standalone", "standalone.jar"))
   .settings(Sigar.loader())
 
-lazy val yarnUtils = (project in file("cluster-manager/yarn/utils"))
+lazy val yarnClient = (project in file("cluster-manager/yarn/client"))
   .settings(runtimeSettings: _*)
-  .settings(Dependencies.yarnUtils)
-  .settings(moduleName("clustermanager.yarn.utils"))
+  .settings(Dependencies.yarnClient)
+  .settings(moduleName("clustermanager.yarn.client"))
 
 lazy val yarnExecutor = (project in file("cluster-manager/yarn/taskexecutor"))
-  .dependsOn(runtimeProtobuf, runtimeCommon, yarnUtils, clusterManagerCommon % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, yarnClient, clusterManagerCommon % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.yarnExecutor)
   .settings(moduleName("clustermanager.yarn.taskexecutor"))
   .settings(Assembly.settings("clustermanager.yarn.taskexecutor.TaskExecutorApplication", "yarn-taskexecutor.jar"))
 
 lazy val yarnMaster = (project in file("cluster-manager/yarn/taskmaster"))
-  .dependsOn(runtimeProtobuf, runtimeCommon, yarnUtils % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, yarnClient % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.yarnMaster)
   .settings(moduleName("clustermanager.yarn.taskmaster"))

@@ -1,4 +1,4 @@
-package clustermanager.yarn.utils
+package clustermanager.yarn.client
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.yarn.api.ApplicationConstants

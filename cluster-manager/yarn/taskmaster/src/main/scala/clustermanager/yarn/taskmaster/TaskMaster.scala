@@ -3,9 +3,8 @@ package clustermanager.yarn.taskmaster
 import java.nio.ByteBuffer
 import java.util
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, Props, Terminated}
 import akka.util.Timeout
-import clustermanager.yarn.utils.{YarnTaskExecutor, YarnUtils}
 import org.apache.hadoop.yarn.api.records._
 import org.apache.hadoop.yarn.client.api.AMRMClient.ContainerRequest
 import org.apache.hadoop.yarn.client.api.async.{AMRMClientAsync, NMClientAsync}
@@ -39,6 +38,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   extends Actor with ActorLogging with TaskMasterConfig  {
 
   import TaskMaster._
+  import clustermanager.yarn.client._
 
   // YARN
   private var rmClient: AMRMClientAsync[ContainerRequest] = _

@@ -1,10 +1,10 @@
 package clustermanager.yarn.taskexecutor
 
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.Paths
 
 import akka.actor.ActorSystem
 import clustermanager.common.executor.ExecutionEnvironment
-import clustermanager.yarn.utils.YarnUtils
+import clustermanager.yarn.client._
 import com.typesafe.config.ConfigFactory
 import com.typesafe.scalalogging.LazyLogging
 import kamon.sigar.SigarProvisioner

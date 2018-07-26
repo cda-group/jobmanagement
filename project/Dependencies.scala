@@ -91,7 +91,7 @@ object Dependencies {
 
   val clusterManagerCommonDeps: Seq[ModuleID] = basic ++ sigarDependencies
 
-  val yarnUtilsDeps: Seq[ModuleID] = basic ++ yarnDependencies
+  val yarnClientDeps: Seq[ModuleID] = basic ++ yarnDependencies
   val yarnExecutorDeps: Seq[ModuleID] = basic ++ akkaRemoteDependencies ++ sigarDependencies
   val yarnMasterDeps: Seq[ModuleID] = basic ++ akkaRemoteDependencies
 
@@ -106,7 +106,7 @@ object Dependencies {
   val runtimeTests = libraryDependencies ++= runtimeTestsDeps
   val clusterManagerCommon = libraryDependencies ++= clusterManagerCommonDeps
   val standalone = libraryDependencies ++= standaloneManagerDeps
-  val yarnUtils = libraryDependencies ++= yarnUtilsDeps
+  val yarnClient = libraryDependencies ++= yarnClientDeps
   val yarnExecutor = libraryDependencies ++= yarnExecutorDeps
   val yarnMaster = libraryDependencies ++= yarnMasterDeps
 }

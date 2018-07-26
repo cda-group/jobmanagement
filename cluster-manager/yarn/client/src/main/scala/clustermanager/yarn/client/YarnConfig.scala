@@ -1,4 +1,4 @@
-package clustermanager.yarn.utils
+package clustermanager.yarn.client
 
 import com.typesafe.config.ConfigFactory
 

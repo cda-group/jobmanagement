@@ -1,4 +1,4 @@
-package clustermanager.yarn.utils
+package clustermanager.yarn.client
 
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.hadoop.yarn.api.records._
@@ -25,6 +25,13 @@ class Client extends YarnConfig with LazyLogging {
     }
   }
 
+  /** TaskMaster --> YARN ApplicationMaster
+    *
+    * @param appMaster ActorRef in String format
+    * @param stateMaster ActorRef in String format
+    * @param jobId ID of the Job
+    * @return ApplicationID
+    */
   def launchTaskMaster(appMaster: String, stateMaster: String, jobId: String): Try[ApplicationId] = Try {
     val app = client.createApplication()
     val taskmasterContext = YarnTaskMaster.context(appMaster, stateMaster, jobId, conf)

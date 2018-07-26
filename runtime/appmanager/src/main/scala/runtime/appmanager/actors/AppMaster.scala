@@ -7,7 +7,6 @@ import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, C
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
-import clustermanager.yarn.utils.{Client, YarnUtils}
 import org.apache.hadoop.yarn.api.records.ApplicationId
 import runtime.appmanager.actors.AppManager.{ArcJobStatus, StateMasterError}
 import runtime.appmanager.actors.StandaloneAppManager.AppMasterInit
@@ -88,6 +87,8 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
 
   // Futures
   import context.dispatcher
+
+  import clustermanager.yarn.client._
 
   override def preStart(): Unit = {
     super.preStart()

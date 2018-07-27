@@ -71,13 +71,8 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
         .zipWithIndex
         .map(m => m._1.copy(id = Some(m._2+1)))
 
-      val arcJob = ArcJob(IdGenerator.get(), testResourceProfile(),
-        indexedTasks, status = Some(Identifiers.ARC_JOB_DEPLOYING))
+      val arcJob = ArcJob(IdGenerator.get(), indexedTasks, status = Some(Identifiers.ARC_JOB_DEPLOYING))
       complete(jobRequest(arcJob))
     }
   }
-
-  def testResourceProfile(): ArcProfile =
-    ArcProfile(2.0, 2000) // 2.0 cpu core & 2000MB mem
-
 }

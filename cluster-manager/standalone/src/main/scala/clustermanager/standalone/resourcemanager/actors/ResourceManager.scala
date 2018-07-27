@@ -39,7 +39,7 @@ class ResourceManager extends Actor with ActorLogging {
       slotManager forward tmr
     case utm@UnreachableTaskManager(_) =>
       slotManager forward utm
-    case job@ArcJob(_, _, _, _, _) =>
+    case job@ArcJob(_, _, _, _) =>
       log.info("Got a job request from an AppMaster")
       slotManager ? SlotRequest(job) pipeTo sender()
     case _ =>

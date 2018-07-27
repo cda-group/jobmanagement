@@ -73,6 +73,7 @@ class SlotManager extends Actor with ActorLogging {
 
 
   //TODO: Make more readable?
+  // Yes, redo this whole thing.
   private def handleSlotRequest(req: SlotRequest): SlotRequestResp = {
     if (roundNumber > taskManagers.size-1)
       roundNumber = 0
@@ -87,14 +88,14 @@ class SlotManager extends Actor with ActorLogging {
             NoSlotsAvailable()
           else {
             val resources = freeSlots.foldLeft((ArcProfile(0.0, 0), Seq[TaskSlot]())) { (x, y) =>
-              if (x._1.matches(req.job.profile))
+              if (x._1.matches(buildProfile(req.job.tasks)))
                 x
               else
                 (x._1.copy(cpuCores = x._1.cpuCores + y.profile.cpuCores,
                   memoryInMb = x._1.memoryInMb + y.profile.memoryInMb), x._2 :+ y)
             }
 
-            if (resources._1.matches(req.job.profile)) {
+            if (resources._1.matches(buildProfile(req.job.tasks))) {
               import runtime.protobuf.ProtoConversions.Address._
               SlotAvailable(resources._2, taskManagers(roundNumber))
             } else {
@@ -107,5 +108,12 @@ class SlotManager extends Actor with ActorLogging {
     } else {
       NoSlotsAvailable()
     }
+  }
+
+  private def buildProfile(tasks: Seq[ArcTask]): ArcProfile = {
+    val (memory, cores) = tasks.foldLeft(0,0) { (x,y) =>
+      (x._1 + y.memory, x._2 + y.cores)
+    }
+    ArcProfile(cores.toDouble, memory)
   }
 }

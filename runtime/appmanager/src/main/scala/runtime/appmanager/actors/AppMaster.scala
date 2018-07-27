@@ -165,6 +165,9 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
       // Clean and submit again?
     case Some(YarnApplicationState.FINISHED) =>
       // Finished, clean up here
+    case Some(YarnApplicationState.NEW) =>
+    case Some(YarnApplicationState.NEW_SAVING) =>
+    case Some(YarnApplicationState.ACCEPTED) =>
     case None =>
       log.error("Could not fetch YarnApplicationState from YARN, shutting down!")
   }

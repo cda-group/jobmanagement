@@ -98,13 +98,12 @@ message ArcProfile {
     int64 memoryInMb = 2; // Long
 }
 
-//case class ArcJob(id: String, profile: ArcProfile, tasks: Seq[ArcTask], masterRef: Option[AppMasterRef] = None)
+//case class ArcJob(id: String, tasks: Seq[ArcTask], masterRef: Option[AppMasterRef] = None, status: Option[String])
 message ArcJob {
     string id = 1;
-    ArcProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
-    repeated ArcTask tasks = 3;
-    ActorRefProto appMasterRef = 4;
-    google.protobuf.StringValue status = 5; // To make it an Option
+    repeated ArcTask tasks = 2;
+    ActorRefProto appMasterRef = 3;
+    google.protobuf.StringValue status = 4; // To make it an Option
 }
 
 // TaskMaster related

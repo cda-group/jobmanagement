@@ -25,11 +25,11 @@ class ResourceManager extends Actor with ActorLogging {
   import ClusterListener._
   import ResourceManager._
 
-  val activeAppMasters = mutable.HashSet[ActorRef]()
-  val slotManager = context.actorOf(SlotManager(), Identifiers.SLOT_MANAGER)
+  private[this] val activeAppMasters = mutable.HashSet[ActorRef]()
+  private[this] val slotManager = context.actorOf(SlotManager(), Identifiers.SLOT_MANAGER)
 
   // For futures
-  implicit val timeout = Timeout(2 seconds)
+  private implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
 
   def receive = {

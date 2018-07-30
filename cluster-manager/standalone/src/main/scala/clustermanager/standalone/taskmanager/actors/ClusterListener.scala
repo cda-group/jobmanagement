@@ -11,11 +11,6 @@ object ClusterListener {
   case class UnreachableResourceManager(addr: Address)
   case class RemovedResourceManager(addr: Address)
   case class ResourceManagerUp(addr: Address)
-
-  // StateManager
-  case class UnreachableStateManager(addr: Address)
-  case class RemovedStateManager(addr: Address)
-  case class StateManagerUp(addr: Address)
 }
 
 class ClusterListener extends Actor with ActorLogging {
@@ -37,13 +32,6 @@ class ClusterListener extends Actor with ActorLogging {
       taskManager ! UnreachableResourceManager(member.address)
     case MemberRemoved(member, previousStatus) if member.hasRole(Identifiers.RESOURCE_MANAGER) =>
       taskManager ! RemovedResourceManager(member.address)
-      // StateManager
-    case MemberUp(member) if member.hasRole(Identifiers.STATE_MANAGER) =>
-      taskManager ! StateManagerUp(member.address)
-    case UnreachableMember(member) if member.hasRole(Identifiers.STATE_MANAGER) =>
-      taskManager ! UnreachableStateManager(member.address)
-    case MemberRemoved(member,_) if member.hasRole(Identifiers.STATE_MANAGER) =>
-      taskManager ! RemovedStateManager(member.address)
   }
 
 }

@@ -34,24 +34,18 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
-  var slotTicker = None: Option[Cancellable]
-  var taskSlots = mutable.IndexedSeq.empty[TaskSlot]
-  var initialized = false
-  var resourceManager = None: Option[ActorRef]
-
-  var taskMasters = mutable.IndexedSeq.empty[ActorRef]
-  var taskMastersId: Long = 0
-
-  var stateManagers = mutable.IndexedSeq.empty[Address]
-  var stateManagerReqs: Int = 0
+  private[this] var slotTicker = None: Option[Cancellable]
+  private[this] var taskSlots = mutable.IndexedSeq.empty[TaskSlot]
+  private[this] var initialized = false
+  private[this] var resourceManager = None: Option[ActorRef]
+  private[this] var taskMasters = mutable.IndexedSeq.empty[ActorRef]
+  private[this] var taskMastersId: Long = 0
 
   import context.dispatcher
-
-  val extension = ClusterMetricsExtension(context.system)
-
+  private val metrics = ClusterMetricsExtension(context.system)
 
   override def preStart(): Unit = {
-   extension.subscribe(self)
+   metrics.subscribe(self)
 
     // Static number of fake slots for now
     for (i <- 1 to nrOfSlots) {
@@ -61,7 +55,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   }
 
   override def postStop(): Unit = {
-    extension.unsubscribe(self)
+    metrics.unsubscribe(self)
   }
 
 
@@ -72,8 +66,6 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       slotTicker = startUpdateTicker(sender())
     case Allocate(_,_) if !initialized =>
       sender() ! TMNotInitialized
-    case Allocate(_,_) if stateManagers.isEmpty =>
-      sender() ! AllocateFailure().withUnexpected(Unexpected()) //TODO: Fix
     case Allocate(job, slots) =>
       if (!slotControl(slots)) {
         // we failed allocating the slots
@@ -113,12 +105,6 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     case ResourceManagerUp(manager) =>
     // RM is up.
     // This is not important at this current stage.
-    case StateManagerUp(manager) =>
-      stateManagers = stateManagers :+ manager
-    case UnreachableStateManager(manager) =>
-      // TODO: Handle by either removing or try to wait for a reconnection
-    case RemovedStateManager(manager) =>
-      stateManagers = stateManagers.filterNot(_ == manager)
   }
 
   /** Starts ticker to send slot availability periodically to

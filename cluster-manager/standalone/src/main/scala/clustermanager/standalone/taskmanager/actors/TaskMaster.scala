@@ -17,7 +17,7 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 
-object TaskMaster {
+private[standalone] object TaskMaster {
   def apply(job: ArcJob, slots: Seq[Int], aMaster: ActorRef):Props =
     Props(new TaskMaster(job, slots, aMaster))
   case object VerifyHeartbeat
@@ -34,7 +34,7 @@ object TaskMaster {
   * the specified timeout, it will consider the job cancelled and instruct the
   * TaskManager to release the slots tied to it
   */
-class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
+private[standalone] class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskMaster._
@@ -45,11 +45,6 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
   // For futures
   implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
-
-
-  // Heartbeat variables
-  private var heartBeatChecker = None: Option[Cancellable]
-  private var lastJmTs: Long = 0
 
   // Execution Environment
   private val env = new ExecutionEnvironment(job.id)
@@ -75,12 +70,6 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
         // Shut down
         context stop self
     }
-
-
-    lastJmTs = System.currentTimeMillis()
-    heartBeatChecker = Some(context.system.scheduler.schedule(
-      0.milliseconds, taskMasterTimeout.milliseconds,
-      self, VerifyHeartbeat))
   }
 
   override def postStop(): Unit = {
@@ -119,16 +108,6 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
         case CommandFailed(f) =>
           appMaster ! TaskTransferError()
       }
-    case VerifyHeartbeat =>
-      val now = System.currentTimeMillis()
-      val time = now - lastJmTs
-      if (time > taskMasterTimeout) {
-        log.info("Did not receive communication from AppMaster: " + appMaster + " within " + taskMasterTimeout + " ms")
-        log.info("Releasing slots: " + slots)
-        shutdown()
-      }
-    case TaskMasterHeartBeat() =>
-      lastJmTs = System.currentTimeMillis()
     case Terminated(ref) =>
       executors = executors.filterNot(_ == ref)
       // TODO: handle scenario where not all executors have been started
@@ -164,9 +143,6 @@ class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
   }
 
   private def shutdown(): Unit = {
-    // Cancel ticker
-    heartBeatChecker.map(_.cancel())
-
     // Notify parent and shut down the actor
     context.parent ! ReleaseSlots(slots)
     context.stop(self)

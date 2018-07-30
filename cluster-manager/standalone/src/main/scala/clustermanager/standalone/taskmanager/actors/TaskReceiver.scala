@@ -6,7 +6,7 @@ import akka.util.ByteString
 import clustermanager.common.executor.ExecutionEnvironment
 
 
-object TaskReceiver {
+private[standalone] object TaskReceiver {
   def apply(id: String, env: ExecutionEnvironment): Props =
     Props(new TaskReceiver(id, env))
 }
@@ -19,7 +19,7 @@ object TaskReceiver {
   * and write the binary to file in the specified Execution
   * Environment
   */
-class TaskReceiver(id: String, env: ExecutionEnvironment)
+private[standalone] class TaskReceiver(id: String, env: ExecutionEnvironment)
   extends Actor with ActorLogging {
 
   import TaskMaster._

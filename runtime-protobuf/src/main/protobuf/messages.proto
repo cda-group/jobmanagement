@@ -107,10 +107,6 @@ message ArcJob {
 }
 
 // TaskMaster related
-
-//case class TaskMasterHeartBeat
-message TaskMasterHeartBeat {}
-
 //case class TaskMasterStatus(status: String)
 message TaskMasterStatus {
     // FAILED, KILLED, SUCCEEDED

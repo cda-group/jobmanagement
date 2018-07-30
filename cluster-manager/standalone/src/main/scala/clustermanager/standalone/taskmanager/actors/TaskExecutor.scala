@@ -9,7 +9,7 @@ import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate}
 import scala.concurrent.duration._
 import scala.util.Try
 
-object TaskExecutor {
+private[standalone] object TaskExecutor {
   // Refactor
   def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
     Props(new TaskExecutor(binPath, task, aMaster, sMaster))
@@ -22,7 +22,7 @@ object TaskExecutor {
   *
   * @param binPath path to the rust binary
   */
-class TaskExecutor(binPath: String,
+private[standalone] class TaskExecutor(binPath: String,
                    task: ArcTask,
                    appMaster: ActorRef,
                    stateMaster: ActorRef

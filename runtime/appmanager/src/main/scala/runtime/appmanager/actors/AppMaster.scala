@@ -96,21 +96,6 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
     super.preStart()
     arcJob = Some(job)
   }
-
-  private def startTaskMaster(stateMaster: ActorRef): Unit = {
-    log.info("Launching TaskMaster onto the YARN cluster")
-    if (yarnClient.init()) {
-      // Format ActorRefs into Strings
-      val meStr = self.path.
-        toStringWithAddress(selfAddr)
-      val stateMasterStr = stateMaster.path.
-        toStringWithAddress(stateMaster.path.address)
-      yarnAppId = yarnClient.launchTaskMaster(meStr, stateMasterStr, job.id).toOption
-    } else {
-      log.error("Could not establish connection with YARN")
-    }
-  }
-
   override def receive = super.receive orElse {
     case YarnTaskMasterUp(ref) =>
       // Enable DeathWatch of the TaskMaster
@@ -136,6 +121,20 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
           log.error("YARN ApplicationID is not defined, shutting down!")
       }
     case _ =>
+  }
+
+  private def startTaskMaster(stateMaster: ActorRef): Unit = {
+    log.info("Launching TaskMaster onto the YARN cluster")
+    if (yarnClient.init()) {
+      // Format ActorRefs into Strings
+      val meStr = self.path.
+        toStringWithAddress(selfAddr)
+      val stateMasterStr = stateMaster.path.
+        toStringWithAddress(stateMaster.path.address)
+      yarnAppId = yarnClient.launchTaskMaster(meStr, stateMasterStr, job.id).toOption
+    } else {
+      log.error("Could not establish connection with YARN")
+    }
   }
 
   //TODO: Implement real logic
@@ -188,9 +187,6 @@ object YarnAppMaster {
 class StandaloneAppMaster extends AppMaster {
   import AppManager._
 
-  //TODO: remove and use DeathWatch instead?
-  private var keepAliveTicker = None: Option[Cancellable]
-
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
@@ -211,7 +207,6 @@ class StandaloneAppMaster extends AppMaster {
           taskMaster.get ! StateMasterConn(sMaster)
           // start the heartbeat ticker to notify the TaskMaster that we are alive
           // while we compile
-          keepAliveTicker = keepAlive(tm)
           arcJob = arcJob.map(_.copy(status = Some("deploying")))
           // Compile...
           compileAndTransfer() onComplete {
@@ -219,7 +214,6 @@ class StandaloneAppMaster extends AppMaster {
             case Failure(e) =>
               arcJob = arcJob.map(_.copy(status = Some("deploying")))
               log.error("Something went wrong during compileAndTransfer: " + e)
-              keepAliveTicker.map(_.cancel())
               // Shutdown or let it be alive until it is killed by "someone"?
               // context stop self
           }
@@ -271,22 +265,6 @@ class StandaloneAppMaster extends AppMaster {
       }
     }
   }
-
-  /**
-    * While compilation of binaries is in progress, notify
-    * the TaskMaster to keep the slot contract alive.
-    * @param taskMaster ActorRef to the TaskMaster
-    * @return Cancellable Option
-    */
-  private def keepAlive(taskMaster: ActorRef): Option[Cancellable] = {
-    Some(context.
-      system.scheduler.schedule(
-      0.milliseconds,
-      appMasterKeepAlive.milliseconds) {
-      taskMaster ! TaskMasterHeartBeat()
-    })
-  }
-
 
   private def weldRunnerBin(): Array[Byte] =
     Files.readAllBytes(Paths.get("weldrunner"))

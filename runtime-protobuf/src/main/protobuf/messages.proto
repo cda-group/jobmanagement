@@ -20,32 +20,26 @@ option (scalapb.options) = {
 
 // SlotState
 
-enum SlotState {
+enum SliceState {
     FREE = 0;
     ALLOCATED = 1;
+    OFFERED = 2;
 }
 
-// SlotRequestResp
-
-message NoSlotsAvailable {
-    option (scalapb.message).extends = "SlotRequestResp";
+message AcceptedOffer {
+    SlotOffer offer = 1 [(scalapb.field).no_box = true];
+    ActorRefProto appmaster = 2 [(scalapb.field).no_box = true];
 }
 
-message NoTaskManagerAvailable {
-    option (scalapb.message).extends = "SlotRequestResp";
+message SlotOffer {
+    AddressProto taskmanager = 1 [(scalapb.field).no_box = true];
+    repeated ContainerSlice slots = 2;
+    string jobId = 3;
 }
 
-message Unexpected {
-    option (scalapb.message).extends = "SlotRequestResp";
+message CancelOffer {
+    SlotOffer offer = 1 [(scalapb.field).no_box = true];
 }
-
-//case class SlotAvailable(taskSlot: Seq[TaskSlot], addr: Address) extends SlotRequestResp
-message SlotAvailable {
-    option (scalapb.message).extends = "SlotRequestResp";
-    repeated TaskSlot taskSlot = 1;
-    AddressProto addr = 2 [(scalapb.field).no_box = true];
-}
-
 
 // Represents a Remote ActorRef
 message ActorRefProto {
@@ -88,22 +82,19 @@ message ArcTaskUpdate {
     ArcTask task = 1 [(scalapb.field).no_box = true];
 }
 
-//case class ArcProfile(cpuCores: Double, memoryInMB: Long) {
-//def matches(other: ArcProfile): Boolean =
-//this.cpuCores >= other.cpuCores && this.memoryInMB >= other.memoryInMB
-//}
-message ArcProfile {
+message ResourceProfile {
     option (scalapb.message).extends = "runtime.protobuf.messages.ProfileMatcher";
-    double cpuCores = 1;
+    int32 cpuCores = 1;
     int64 memoryInMb = 2; // Long
 }
 
-//case class ArcJob(id: String, tasks: Seq[ArcTask], masterRef: Option[AppMasterRef] = None, status: Option[String])
 message ArcJob {
     string id = 1;
     repeated ArcTask tasks = 2;
-    ActorRefProto appMasterRef = 3;
-    google.protobuf.StringValue status = 4; // To make it an Option
+    int32 priority = 3;
+    bool locality = 4;
+    ActorRefProto appMasterRef = 5;
+    google.protobuf.StringValue status = 6; // To make it an Option
 }
 
 // TaskMaster related
@@ -138,50 +129,36 @@ message TasksCompiled {}
 
 // TaskManager related
 
-//case class AllocateSuccess(job: ArcJob, ref: ActorRef) extends AllocateResponse
-message AllocateSuccess {
-    option (scalapb.message).extends = "AllocateResponse";
-    ArcJob job = 1 [(scalapb.field).no_box = true]; // Not Option[]
-    ActorRefProto ref = 2 [(scalapb.field).no_box = true]; // Not Option[]
+message TaskMasterUp {
+    Container container = 1 [(scalapb.field).no_box = true];
+    ActorRefProto taskmaster = 2 [(scalapb.field).no_box = true];
 }
 
-//case class AllocateFailure(resp: SlotRequestResp) extends AllocateResponse
-message AllocateFailure{
-    option (scalapb.message).extends = "AllocateResponse";
-    oneof resp {
-        NoSlotsAvailable no_slots = 2;
-        NoTaskManagerAvailable no_manager = 3;
-        Unexpected unexpected= 4;
-    }
+message ReleaseSlices {
+    repeated int32 sliceIndexes = 1;
 }
 
-//case class AllocateError(err:  String) extends AllocateResponse
-message AllocateError {
-    option (scalapb.message).extends = "AllocateResponse";
-    string err = 1;
-}
-
-//case class TaskSlot(index: Int, profile: ArcProfile, state: SlotState = Free)
-message TaskSlot {
+message ContainerSlice {
     int32 index = 1;
-    ArcProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
-    SlotState state = 3 [(scalapb.field).no_box = true]; // Not Option[]
+    ResourceProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
+    SliceState state = 3 [(scalapb.field).no_box = true]; // Not Option[]
 }
 
-//case class Allocate(job: ArcJob, slots: Seq[TaskSlot])
-message Allocate {
-    ArcJob job = 1 [(scalapb.field).no_box = true]; // Not Option[]
-    repeated TaskSlot slots = 2;
+message Container {
+    string jobId = 1;
+    ActorRefProto appmaster = 2 [(scalapb.field).no_box = true];
+    AddressProto taskmanager = 3 [(scalapb.field).no_box = true];
+    repeated ContainerSlice slices = 4;
+    repeated ArcTask tasks = 5;
 }
 
-//case class ReleaseSlots(slotIndxes: Seq[Int])
-message ReleaseSlots {
-    repeated int32 slotIndexes = 1;
+message ContainerAllocation {
+    string allocationId = 1;
+    Container container = 2 [(scalapb.field).no_box = true];
 }
 
-//case class SlotUpdate(slots: Seq[TaskSlot])
-message SlotUpdate {
-    repeated TaskSlot slots = 1;
+message SliceUpdate {
+    repeated ContainerSlice slices = 1;
 }
 
 

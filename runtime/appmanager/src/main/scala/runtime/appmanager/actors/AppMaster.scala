@@ -3,7 +3,7 @@ package runtime.appmanager.actors
 import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Cancellable, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Address, Cancellable, Props, Terminated}
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
@@ -184,7 +184,7 @@ object YarnAppMaster {
   * Uses the Standalone Cluster Manager in order to allocate resources
   * and schedule ArcJob's
   */
-class StandaloneAppMaster extends AppMaster {
+private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends AppMaster {
   import AppManager._
 
   // Handles implicit conversions of ActorRef and ActorRefProto
@@ -194,52 +194,36 @@ class StandaloneAppMaster extends AppMaster {
   // Futures
   import context.dispatcher
 
+  override def preStart(): Unit = {
+    super.preStart()
+    arcJob = Some(job)
+  }
+
   override def receive = super.receive orElse {
-    case AppMasterInit(job, rmAddr, sMaster) =>
-      stateMaster = Some(sMaster)
-      arcJob = Some(job)
+    case StateMasterConn(ref) =>
+      stateMaster = Some(ref)
+      // Start Request...
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
-      // Request a TaskSlot for the job
-      val req = allocateRequest(job, resourceManager) map {
-        case AllocateSuccess(_, tm) =>
-          taskMaster = Some(tm)
-          // Send responsible StateMaster to the TaskMaster
-          taskMaster.get ! StateMasterConn(sMaster)
-          // start the heartbeat ticker to notify the TaskMaster that we are alive
-          // while we compile
-          arcJob = arcJob.map(_.copy(status = Some("deploying")))
-          // Compile...
-          compileAndTransfer() onComplete {
-            case Success(s) => log.info("AppMaster successfully established connection with its TaskMaster")
-            case Failure(e) =>
-              arcJob = arcJob.map(_.copy(status = Some("deploying")))
-              log.error("Something went wrong during compileAndTransfer: " + e)
-              // Shutdown or let it be alive until it is killed by "someone"?
-              // context stop self
-          }
-        case err =>
-          log.error("Allocation for job: " + job.id + " failed with reason: " + err)
-          context stop self
+      resourceManager ! job.copy(appMasterRef = Some(self))
+    case StateMasterError =>
+      log.error("Something went wrong while fetching StateMaster, shutting down!")
+      context stop self
+    case TaskMasterUp(container, ref) if stateMaster.nonEmpty =>
+      sender() ! StateMasterConn(stateMaster.get)
+      taskMaster = Some(ref)
+      compileAndTransfer(ref) onComplete {
+        case Success(v) =>
+          log.info(v.toString)
+        case Failure(e) =>
+          log.error(e.toString)
       }
-    case r@ReleaseSlots =>
-      taskMaster.foreach(_ ! r)
-    case KillArcJobRequest(id) =>
-      // Shutdown
-      // Delete StateMaster
-      // Release Slots of TaskManager
   }
 
-  private def allocateRequest(job: ArcJob, rm: ActorSelection): Future[AllocateResponse] = {
-    rm ? job.copy(appMasterRef = Some(self)) flatMap {
-      case r: AllocateResponse => Future.successful(r)
-    }
-  }
-
-  private def compileAndTransfer(): Future[Unit] = Future {
+  private def compileAndTransfer(tMaster: ActorRef): Future[Unit] = Future {
    for {
       tasks <- compilation()
-      inet <- requestChannel()
-      transfer <- taskTransfer(inet, tasks)
+      inet <- requestChannel(tMaster)
+      transfer <- taskTransfer(inet, tasks, tMaster)
     } yield  transfer
   }
 
@@ -249,19 +233,19 @@ class StandaloneAppMaster extends AppMaster {
     Seq(weldRunnerBin())
   }
 
-  private def requestChannel(): Future[InetSocketAddress] = {
+  private def requestChannel(tMaster: ActorRef): Future[InetSocketAddress] = {
     import runtime.protobuf.ProtoConversions.InetAddr._
-    taskMaster.get ? TasksCompiled() flatMap {
+    tMaster ? TasksCompiled() flatMap {
       case TaskTransferConn(inet) => Future.successful(inet)
       case TaskTransferError() => Future.failed(new Exception("TaskMaster failed to Bind Socket"))
     }
   }
 
   // TODO: add actual logic
-  private def taskTransfer(server: InetSocketAddress, tasks: Seq[Array[Byte]]): Future[Unit] = {
+  private def taskTransfer(server: InetSocketAddress, tasks: Seq[Array[Byte]], tMaster: ActorRef): Future[Unit] = {
     Future {
       tasks.foreach { task =>
-        val taskSender = context.actorOf(TaskSender(server, task, taskMaster.get))
+        val taskSender = context.actorOf(TaskSender(server, task, tMaster))
       }
     }
   }
@@ -271,6 +255,7 @@ class StandaloneAppMaster extends AppMaster {
 }
 
 
-object StandaloneAppMaster {
-  def apply(): Props = Props(new StandaloneAppMaster())
+private[runtime] object StandaloneAppMaster {
+  def apply(job: ArcJob, resourceManagerAddr: Address): Props =
+    Props(new StandaloneAppMaster(job, resourceManagerAddr))
 }

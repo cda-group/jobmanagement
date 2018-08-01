@@ -1,6 +1,5 @@
 package runtime.appmanager.rest.routes
 
-import java.util.UUID
 
 import akka.actor.ActorRef
 import runtime.appmanager.actors.AppManager._
@@ -10,7 +9,7 @@ import akka.http.scaladsl.server.Route
 import akka.pattern._
 import akka.util.Timeout
 import runtime.appmanager.rest.JsonConverter
-import runtime.protobuf.messages.{ArcJob, ArcJobMetricRequest, ArcJobMetricResponse, ArcProfile}
+import runtime.protobuf.messages.{ArcJob, ArcJobMetricRequest, ArcJobMetricResponse}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -71,7 +70,8 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
         .zipWithIndex
         .map(m => m._1.copy(id = Some(m._2+1)))
 
-      val arcJob = ArcJob(IdGenerator.get(), indexedTasks, status = Some(Identifiers.ARC_JOB_DEPLOYING))
+      val arcJob = ArcJob(IdGenerator.get(), indexedTasks, req.priority, true,
+        status = Some(Identifiers.ARC_JOB_DEPLOYING))
       complete(jobRequest(arcJob))
     }
   }

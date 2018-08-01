@@ -22,7 +22,7 @@ class ClusterListener extends Actor
   with ActorLogging with AppManagerConfig {
   import ClusterListener._
 
-  val appManagerMode: Receive = {
+  private val appManagerMode: Receive = {
     resourcemanager match {
       case "yarn" =>
         log.info("Using YARN as Cluster Manager")

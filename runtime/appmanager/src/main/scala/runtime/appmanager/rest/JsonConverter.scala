@@ -18,11 +18,11 @@ trait JsonConverter extends SprayJsonSupport with DefaultJsonProtocol {
 
   // ArcTask/ArcJob
   implicit val arcTaskFormat = jsonFormat8(ArcTask.apply)
-  implicit val arcDeployRequest = jsonFormat1(ArcDeployRequest.apply)
+  implicit val arcDeployRequest = jsonFormat3(ArcDeployRequest.apply)
   implicit val actorRefProtoFormat = jsonFormat1(ActorRefProto.apply)
-  implicit val arcProfileFormat = jsonFormat2(ArcProfile.apply)
-  implicit val arcJobFormat = jsonFormat4(ArcJob.apply)
+  implicit val arcJobFormat = jsonFormat6(ArcJob.apply)
 
+  implicit val resourceProfileFormat= jsonFormat2(ResourceProfile.apply)
 
   // Runtime Metrics
   implicit val cpuMetricFormat = jsonFormat2(CpuMetric.apply)

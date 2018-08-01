@@ -18,7 +18,7 @@ import scala.util.{Failure, Success}
 
 object AppManager {
   case class ArcJobRequest(job: ArcJob)
-  case class ArcDeployRequest(tasks: Seq[ArcTask])
+  case class ArcDeployRequest(priority: Int, locality: Boolean, tasks: Seq[ArcTask])
   case class ArcJobStatus(id: String)
   case class KillArcJobRequest(id: String)
   case object ResourceManagerUnavailable
@@ -66,6 +66,8 @@ abstract class AppManager extends Actor with ActorLogging with AppManagerConfig 
 
   // Common Messages
   def receive = {
+    case ArcJobRequest(_) if stateManagers.isEmpty =>
+      sender() ! "No StateManagers available"
     case kill@KillArcJobRequest(id) =>
       appJobMap.get(id) match {
         case Some(appMaster) =>
@@ -136,8 +138,6 @@ class YarnAppManager extends AppManager {
   import akka.pattern._
 
   override def receive = super.receive orElse {
-    case ArcJobRequest(_) if stateManagers.isEmpty =>
-      sender() ! "No StateManagers available"
     case ArcJobRequest(arcJob) =>
       val appMaster = context.actorOf(YarnAppMaster(arcJob), Identifiers.APP_MASTER+appMasterId)
       appMasterId +=1
@@ -163,7 +163,7 @@ object YarnAppManager {
 /**
   * AppManager that uses the Standalone Cluster Manager
   */
-class StandaloneAppManager extends AppManager{
+class StandaloneAppManager extends AppManager {
   import AppManager._
   import StandaloneAppManager._
   import ClusterListener._
@@ -178,7 +178,8 @@ class StandaloneAppManager extends AppManager{
     case ArcJobRequest(arcJob) =>
       // The AppManager has received a job request from somewhere
       // whether it is through another actor, rest, or rpc...
-      val appMaster = context.actorOf(StandaloneAppMaster(), Identifiers.APP_MASTER + appMasterId)
+      val appMaster = context.actorOf(StandaloneAppMaster(arcJob, resourceManager.get)
+        , Identifiers.APP_MASTER + appMasterId)
       appMasterId += 1
       appMasters = appMasters :+ appMaster
       appJobMap.put(arcJob.id, appMaster)
@@ -186,23 +187,11 @@ class StandaloneAppManager extends AppManager{
       // Enable DeathWatch
       context watch appMaster
 
-      // Save ActorRef of sender as we don't want to mix it up in temporary actors
-      val requester = sender()
-
-      import runtime.protobuf.ProtoConversions.ActorRef._
       // Create a state master that is linked with the AppMaster and TaskMaster
-      (getStateMaster(appMaster, arcJob) recover {case _ => StateMasterError}) onComplete {
-        case Success(s@StateMasterConn(ref)) =>
-          // Send the job to the AppMaster actor and be done with it
-          appMaster ! AppMasterInit(arcJob, resourceManager.get, ref)
+      getStateMaster(appMaster, arcJob) recover {case _ => StateMasterError} pipeTo appMaster
 
-          val response = "Processing job: " + arcJob.id + "\n"
-          requester ! response
-        case Success(_) =>
-          requester ! s"Failed fetching a StateMaster for job ${arcJob.id}"
-        case Failure(_) =>
-          requester ! s"Failed fetching a StateMaster for job ${arcJob.id}"
-      }
+      val response = "Processing job: " + arcJob.id + "\n"
+      sender() ! response
     case u@UnreachableRm(rm) =>
       // Foreach active AppMaster, notify status
       //resourceManager = None

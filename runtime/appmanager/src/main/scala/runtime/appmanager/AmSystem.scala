@@ -2,7 +2,7 @@ package runtime.appmanager
 
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
-import runtime.appmanager.actors.ClusterListener
+import runtime.appmanager.actors.{ClusterListener, StandaloneAppManager}
 import runtime.common.Identifiers
 import utils.AppManagerConfig
 

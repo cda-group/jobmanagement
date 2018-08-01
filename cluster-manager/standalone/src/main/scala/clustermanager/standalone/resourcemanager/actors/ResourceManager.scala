@@ -3,30 +3,41 @@ package clustermanager.standalone.resourcemanager.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
 import akka.pattern._
 import akka.util.Timeout
+import clustermanager.standalone.resourcemanager.utils.RmConfig
 import runtime.common.Identifiers
 import runtime.protobuf.messages.ArcJob
 
 import scala.collection.mutable
 import scala.concurrent.duration._
 
-object ResourceManager {
+private[resourcemanager] object ResourceManager {
   def apply(): Props = Props(new ResourceManager)
   case class SlotRequest(job: ArcJob)
+  case class ResourceRequest(job: ArcJob)
 }
 
 /**
   * The ResourceManager is responsible for handling the
-  * computing resources in the Arc Cluster.
+  * computing resources in the Standalone Cluster
   * 1. Receives Jobs from AppMasters
   * 2. Utilises a SlotManager in order to keep track of free slots
   */
-class ResourceManager extends Actor with ActorLogging {
+private[resourcemanager] class ResourceManager extends Actor with ActorLogging with RmConfig {
 
   import ClusterListener._
   import ResourceManager._
 
-  private[this] val activeAppMasters = mutable.HashSet[ActorRef]()
-  private[this] val slotManager = context.actorOf(SlotManager(), Identifiers.SLOT_MANAGER)
+  private[this] val scheduler = {
+    try {
+      val clazz = Class.forName(schedulerFQCN).asInstanceOf[Class[Scheduler]]
+      context.actorOf(Props.apply(clazz), Identifiers.SCHEDULER)
+    } catch {
+      case err: Exception =>
+        log.error(err.toString)
+        log.info("Using the default scheduler: RoundRobinScheduler")
+        context.actorOf(Props(new RoundRobinScheduler), Identifiers.SCHEDULER)
+    }
+  }
 
   // For futures
   private implicit val timeout = Timeout(2 seconds)
@@ -34,14 +45,15 @@ class ResourceManager extends Actor with ActorLogging {
 
   def receive = {
     case tmr@TaskManagerRegistration(_) =>
-      slotManager forward tmr
+      scheduler forward tmr
     case tmr@TaskManagerRemoved(_) =>
-      slotManager forward tmr
+      scheduler forward tmr
     case utm@UnreachableTaskManager(_) =>
-      slotManager forward utm
-    case job@ArcJob(_, _, _, _) =>
+      scheduler forward utm
+    case job@ArcJob(_, _, _, _, _ ,_) =>
       log.info("Got a job request from an AppMaster")
-      slotManager ? SlotRequest(job) pipeTo sender()
+      scheduler forward ResourceRequest(job)
+      //slotManager ? SlotRequest(job) pipeTo sender()
     case _ =>
   }
 }

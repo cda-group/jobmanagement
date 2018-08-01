@@ -13,13 +13,14 @@ import runtime.common.Identifiers
 import runtime.protobuf.messages._
 
 import scala.collection.mutable
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 
 private[standalone] object TaskMaster {
-  def apply(job: ArcJob, slots: Seq[Int], aMaster: ActorRef):Props =
-    Props(new TaskMaster(job, slots, aMaster))
+  def apply(container: Container):Props =
+    Props(new TaskMaster(container))
   case object VerifyHeartbeat
   case object TaskUploaded
   case class TaskReady(id: String)
@@ -34,20 +35,29 @@ private[standalone] object TaskMaster {
   * the specified timeout, it will consider the job cancelled and instruct the
   * TaskManager to release the slots tied to it
   */
-private[standalone] class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: ActorRef)
+private[standalone] class TaskMaster(container: Container)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskMaster._
   import akka.io.Tcp._
 
+
   // For Akka TCP IO
   import context.system
   // For futures
   implicit val timeout = Timeout(2 seconds)
+
   import context.dispatcher
 
+  import runtime.protobuf.ProtoConversions.ActorRef._
+  private val appmaster: ActorRef = container.appmaster
+
+
+  // Container Environment
+  // TODO: cgroups...
+
   // Execution Environment
-  private val env = new ExecutionEnvironment(job.id)
+  private val env = new ExecutionEnvironment(container.jobId)
 
   // TaskExecutor
   private var executors = mutable.IndexedSeq.empty[ActorRef]
@@ -60,13 +70,34 @@ private[standalone] class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: Ac
 
 
   override def preStart(): Unit = {
+    val f = appmaster ? TaskMasterUp(container, self)
+    implicit val scheduler = context.system.scheduler
+    val notify = retry(
+      () ⇒ f,
+      3,
+      3000.milliseconds
+    )
+
+    notify onComplete {
+      case Success(v) => v match {
+        case StateMasterConn(ref) =>
+          stateMaster = Some(ref)
+        case _ =>
+          log.error("Expected StateMasterConn Message, but did not receive.")
+      }
+      case Failure(e) =>
+        log.error(e.toString)
+      // We were not able to establish communication with the appmaster
+      // Release the slices and shutdown
+    }
+
     env.create() match {
       case Success(_) =>
         log.info("Created job environment: " + env.getJobPath)
       case Failure(e) =>
         log.error("Failed to create job environment with path: " + env.getJobPath)
         // Notify AppMaster
-        appMaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
         // Shut down
         context stop self
     }
@@ -77,10 +108,6 @@ private[standalone] class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: Ac
   }
 
   def receive = {
-    case StateMasterConn(ref) =>
-      import runtime.protobuf.ProtoConversions.ActorRef._
-      log.info("Got StateMaster")
-      stateMaster = Some(ref)
     case Connected(remote, local) =>
       val tr = context.actorOf(TaskReceiver(taskReceiversId.toString, env), "rec"+taskReceiversId)
       taskReceiversId += 1
@@ -115,7 +142,7 @@ private[standalone] class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: Ac
         log.info("No alive TaskExecutors left, releasing slots")
 
         // Notify AppMaster and StateMaster that this job is being killed..
-        appMaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
         stateMaster.foreach(_ ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED))
         shutdown()
       }
@@ -126,9 +153,9 @@ private[standalone] class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: Ac
     taskReceiver ? TaskUploaded onComplete {
       case Success(resp) => resp match {
         case TaskReady(binId) =>
-          job.tasks.foreach {task =>
+          container.tasks.foreach {task =>
             // Create 1 executor for each task
-            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appMaster, stateMaster),
+            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appmaster, stateMaster),
               UUID.randomUUID().toString)
             executors = executors :+ executor
             // Enable DeathWatch
@@ -144,7 +171,7 @@ private[standalone] class TaskMaster(job: ArcJob, slots: Seq[Int], appMaster: Ac
 
   private def shutdown(): Unit = {
     // Notify parent and shut down the actor
-    context.parent ! ReleaseSlots(slots)
+    context.parent ! ReleaseSlices(container.slices.map(_.index))
     context.stop(self)
   }
 }

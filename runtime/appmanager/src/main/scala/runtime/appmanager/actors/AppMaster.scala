@@ -3,18 +3,19 @@ package runtime.appmanager.actors
 import java.net.InetSocketAddress
 import java.nio.file.{Files, Paths}
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSelection, ActorSystem, Address, Cancellable, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Props, Terminated}
 import akka.cluster.Cluster
 import akka.util.Timeout
 import akka.pattern._
 import clustermanager.yarn.client.Client
 import org.apache.hadoop.yarn.api.records.{ApplicationId, YarnApplicationState}
 import runtime.appmanager.actors.AppManager.{ArcJobStatus, StateMasterError}
-import runtime.appmanager.actors.StandaloneAppManager.AppMasterInit
+import runtime.appmanager.actors.StandaloneAppMaster.BinaryTask
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.{ActorPaths, Identifiers}
 import runtime.protobuf.messages._
 
+import scala.collection.mutable
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
@@ -191,6 +192,8 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
   implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
+  private val containers = mutable.HashMap.empty[ActorRef, Container]
+
   // Futures
   import context.dispatcher
 
@@ -204,33 +207,47 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
       stateMaster = Some(ref)
       // Start Request...
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
+      // Add ActorRef of ourselves onto the Job
       resourceManager ! job.copy(appMasterRef = Some(self))
     case StateMasterError =>
       log.error("Something went wrong while fetching StateMaster, shutting down!")
       context stop self
     case TaskMasterUp(container, ref) if stateMaster.nonEmpty =>
+      // Enable DeathWatch of the TaskMaster
+      context watch ref
+      // Store Reference and to which container it belongs to
+      containers.put(ref, container)
+      // Notify TaskMaster about our StateMaster
       sender() ! StateMasterConn(stateMaster.get)
       taskMaster = Some(ref)
-      compileAndTransfer(ref) onComplete {
+
+      // If the tasks belonging to the container's tasks have not been compiled,
+      // then make sure they are, then transfer them to the TaskMaster
+      compileAndTransfer(container, ref) onComplete {
         case Success(v) =>
-          log.info(v.toString)
+          log.info("Successfully compiledAndTransferred")
         case Failure(e) =>
           log.error(e.toString)
       }
+    case Terminated(ref) =>
+      // TaskMaster has been terminated, act accordingly
+      containers.get(ref) match {
+        case Some(container) =>
+        case None =>
+      }
   }
 
-  private def compileAndTransfer(tMaster: ActorRef): Future[Unit] = Future {
+  private def compileAndTransfer(c: Container, tMaster: ActorRef): Future[Unit] = Future {
    for {
-      tasks <- compilation()
+      tasks <- compilation(c)
       inet <- requestChannel(tMaster)
       transfer <- taskTransfer(inet, tasks, tMaster)
     } yield  transfer
   }
 
   // temp method
-  private def compilation(): Future[Seq[Array[Byte]]] = Future {
-    // compile....
-    Seq(weldRunnerBin())
+  private def compilation(c: Container): Future[Seq[BinaryTask]] = Future {
+    c.tasks.map(task => BinaryTask(weldRunnerBin(), task.name))
   }
 
   private def requestChannel(tMaster: ActorRef): Future[InetSocketAddress] = {
@@ -242,10 +259,10 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
   }
 
   // TODO: add actual logic
-  private def taskTransfer(server: InetSocketAddress, tasks: Seq[Array[Byte]], tMaster: ActorRef): Future[Unit] = {
+  private def taskTransfer(server: InetSocketAddress, tasks: Seq[BinaryTask], tMaster: ActorRef): Future[Unit] = {
     Future {
       tasks.foreach { task =>
-        val taskSender = context.actorOf(TaskSender(server, task, tMaster))
+        val taskSender = context.actorOf(TaskSender(server, task.bin, tMaster, task.name))
       }
     }
   }
@@ -258,4 +275,6 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
 private[runtime] object StandaloneAppMaster {
   def apply(job: ArcJob, resourceManagerAddr: Address): Props =
     Props(new StandaloneAppMaster(job, resourceManagerAddr))
+
+  case class BinaryTask(bin: Array[Byte], name: String)
 }

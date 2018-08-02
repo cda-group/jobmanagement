@@ -2,6 +2,7 @@ package clustermanager.standalone.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import _root_.clustermanager.common.executor.ExecutorStats
+import akka.cluster.Cluster
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import runtime.common.Identifiers
 import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate}
@@ -34,13 +35,10 @@ private[standalone] class TaskExecutor(binPath: String,
   var monitor = None: Option[ExecutorStats]
   var arcTask = None: Option[ArcTask]
 
-  /*
   val selfAddr = Cluster(context.system)
     .selfAddress
     .toString
-    */
 
-  val selfAddr = "someaddr"
 
   import TaskExecutor._
   import context.dispatcher

@@ -22,7 +22,7 @@ private[standalone] object TaskMaster {
   def apply(container: Container):Props =
     Props(new TaskMaster(container))
   case object VerifyHeartbeat
-  case object TaskUploaded
+  case class TaskUploaded(name: String)
   case class TaskReady(id: String)
   case object TaskWriteFailure
 }
@@ -40,7 +40,6 @@ private[standalone] class TaskMaster(container: Container)
 
   import TaskMaster._
   import akka.io.Tcp._
-
 
   // For Akka TCP IO
   import context.system
@@ -70,6 +69,9 @@ private[standalone] class TaskMaster(container: Container)
 
 
   override def preStart(): Unit = {
+    envSetup()
+
+    // Let the AppMaster know that a container has been allocated for it
     val f = appmaster ? TaskMasterUp(container, self)
     implicit val scheduler = context.system.scheduler
     val notify = retry(
@@ -87,20 +89,11 @@ private[standalone] class TaskMaster(container: Container)
       }
       case Failure(e) =>
         log.error(e.toString)
+        shutdown()
       // We were not able to establish communication with the appmaster
       // Release the slices and shutdown
     }
 
-    env.create() match {
-      case Success(_) =>
-        log.info("Created job environment: " + env.getJobPath)
-      case Failure(e) =>
-        log.error("Failed to create job environment with path: " + env.getJobPath)
-        // Notify AppMaster
-        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
-        // Shut down
-        context stop self
-    }
   }
 
   override def postStop(): Unit = {
@@ -109,16 +102,16 @@ private[standalone] class TaskMaster(container: Container)
 
   def receive = {
     case Connected(remote, local) =>
-      val tr = context.actorOf(TaskReceiver(taskReceiversId.toString, env), "rec"+taskReceiversId)
+      val tr = context.actorOf(TaskReceiver(env), "rec"+taskReceiversId)
       taskReceiversId += 1
       taskReceivers.put(remote, tr)
       sender() ! Register(tr)
-    case TaskTransferComplete(remote) =>
+    case TaskTransferComplete(remote, taskName) =>
       import runtime.protobuf.ProtoConversions.InetAddr._
       taskReceivers.get(remote) match {
         case Some(ref) =>
           if (stateMaster.isDefined)
-            startExecutors(ref, stateMaster.get)
+            startExecutor(ref, stateMaster.get, taskName)
           else
             log.error("No StateMaster connected to the TaskMaster")
         case None =>
@@ -148,24 +141,39 @@ private[standalone] class TaskMaster(container: Container)
       }
   }
 
+  /** Creates an Executor Actor that starts executing its Task
+    * @param taskReceiver ActorRef to the binary receiver
+    * @param stateMaster ActorRef of the StateMaster connected to us
+    * @param name Name of the Task
+    */
+  private def startExecutor(taskReceiver: ActorRef, stateMaster: ActorRef, name: String): Unit = {
+    taskReceiver ? TaskUploaded(name) map {
+      case TaskReady(binId) =>
+        val taskOpt = container.tasks
+          .find(_.name.equalsIgnoreCase(name))
 
-  private def startExecutors(taskReceiver: ActorRef, stateMaster: ActorRef): Unit = {
-    taskReceiver ? TaskUploaded onComplete {
-      case Success(resp) => resp match {
-        case TaskReady(binId) =>
-          container.tasks.foreach {task =>
-            // Create 1 executor for each task
-            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + binId, task, appmaster, stateMaster),
-              UUID.randomUUID().toString)
+        taskOpt match {
+          case Some(task) =>
+            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + name, task, appmaster, stateMaster),
+              Identifiers.TASK_EXECUTOR+"_"+name)
             executors = executors :+ executor
             // Enable DeathWatch
             context watch executor
-          }
-        case TaskWriteFailure =>
-          log.error("Failed writing to file")
-      }
+          case None =>
+            log.error("Could not locate Task for the received binary")
+        }
+    }
+  }
+
+  private def envSetup(): Unit = {
+    env.create() match {
+      case Success(_) =>
+        log.info("Created job environment: " + env.getJobPath)
       case Failure(e) =>
-        log.error(e.toString)
+        log.error("Failed to create job environment with path: " + env.getJobPath)
+        // Notify AppMaster
+        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
+        shutdown()
     }
   }
 

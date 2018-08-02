@@ -64,17 +64,14 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       sliceTicker = startUpdateTicker(sender())
     case ContainerAllocation(id, container) =>
       if (sliceControl(container.slices)) {
-        // Set slices to Allocated
         occupySlices(container.slices)
-        val taskmaster = context.actorOf(TaskMaster(container), Identifiers.TASK_MASTER+taskMastersId)
-        taskMastersId = taskMastersId + 1
-        taskMasters = taskMasters :+ taskmaster
-        // Enable DeathWatch
-        context watch taskmaster
+        launchTaskmaster(container)
       } else {
         //TODO: notifiy ResourceManager or AppMaster that the job "failed"
         sender() !  "failed"
       }
+    case ReleaseSlices(sliceIndexes) =>
+      releaseSlices(sliceIndexes)
     case Terminated(ref) =>
       taskMasters = taskMasters.filterNot(_ == ref)
     case UnreachableResourceManager(manager) =>
@@ -119,6 +116,9 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       forall(_.state == SliceState.FREE)
   }
 
+  /** Set the Slices to Allocated
+    * @param slices ContainerSlice's
+    */
   private def occupySlices(slices: Slices): Unit = {
     containerSlices = containerSlices.map { s =>
       if (slices.contains(s))
@@ -126,6 +126,27 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       else
         s
     }
+  }
+
+  private def releaseSlices(sliceIndexes: Seq[Int]): Unit = {
+    containerSlices = containerSlices.map {s =>
+      if (sliceIndexes.contains(s.index))
+        s.copy(state = SliceState.FREE)
+      else
+        s
+    }
+  }
+
+  /** Creates a TaskMaster actor to act as the master of the
+    * allocated Container
+    * @param container Container
+    */
+  private def launchTaskmaster(container: Container): Unit = {
+    val taskmaster = context.actorOf(TaskMaster(container), Identifiers.TASK_MASTER+taskMastersId)
+    taskMastersId = taskMastersId + 1
+    taskMasters = taskMasters :+ taskmaster
+    // Enable DeathWatch
+    context watch taskmaster
   }
 
 }

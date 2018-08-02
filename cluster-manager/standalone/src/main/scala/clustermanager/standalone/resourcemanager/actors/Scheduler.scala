@@ -5,6 +5,7 @@ import java.util.UUID
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancellable, Props}
 import clustermanager.standalone.resourcemanager.actors.ResourceManager.ResourceRequest
 import runtime.common.ActorPaths
+import runtime.protobuf.messages.SliceState.ALLOCATED
 import runtime.protobuf.messages._
 
 import scala.annotation.tailrec
@@ -21,7 +22,7 @@ private[resourcemanager] abstract class SliceManager extends Actor with ActorLog
 
   protected var taskManagers = IndexedSeq.empty[Address]
   protected val slices = mutable.HashMap.empty[Address, Seq[ContainerSlice]]
-  protected val offeredSlices = mutable.HashSet.empty[(Address, Seq[ContainerSlice])]
+  protected val offeredSlices = mutable.HashSet.empty[Seq[ContainerSlice]]
 
 
   def receive = {
@@ -67,6 +68,9 @@ object RoundRobinScheduler {
 /** RoundRobinScheduler schedules jobs onto TaskManagers in
   * a Round Robin fashion. Locality preferences are also taken into
   * consideration.
+  *
+  * Note: This is currently just a simple Proof of Concept
+  * scheduler, i.e., it is not the best.
   */
 private[resourcemanager] class RoundRobinScheduler extends Scheduler {
   import RoundRobinScheduler._
@@ -102,25 +106,43 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
       jobQueue.enqueue(job)
     case ScheduleTick if jobQueue.nonEmpty && taskManagers.nonEmpty =>
       val job = jobQueue.dequeue()
+      val currentRound = roundNumber
       allocationAttempt(job) match {
         case Some(containers) =>
           containers.foreach { container  =>
             val tmAddr: Address = container.taskmanager
             val taskManager = context.actorSelection(ActorPaths.taskManager(tmAddr))
+            offeredSlices.add(container.slices)
             taskManager ! ContainerAllocation(UUID.randomUUID().toString, container)
           }
+         roundNumber = currentRound + 1
         case None =>
           log.info("Could not find any containers, requeing")
           jobQueue.enqueue(job)
       }
-    case _ =>
+    case SlicesAllocated(_slices) =>
+      if (offeredSlices.remove(_slices))
+        log.info("Offered slices have now been allocated, removing")
+      else
+        log.error("Could not remove the offered slices")
+
+
+      val addr = sender().path.address
+      val current = slices.get(addr)
+
+      current match {
+        case Some(s) =>
+          slices.update(addr, s intersect _slices.map(_.copy(state = ALLOCATED)))
+        case None =>
+        // Ignore
+        }
   }
 
   private def startScheduleTicker(scheduler: ActorRef): Option[Cancellable] = {
     Some(context.
       system.scheduler.schedule(
       0.milliseconds,
-      2000.milliseconds) {
+      1000.milliseconds) {
       scheduler ! ScheduleTick
     })
   }
@@ -175,7 +197,7 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
     val jobProfile = buildProfile(job.tasks)
 
     val resources = freeSlices.foldLeft((ResourceProfile(0, 0), Seq[ContainerSlice]())) { (x, y) =>
-      if (x._1.matches(jobProfile))
+      if (x._1.matches(jobProfile) || offeredSlices.contains(Seq(y)))
         x
       else
         (x._1.copy(cpuCores = x._1.cpuCores + y.profile.cpuCores,

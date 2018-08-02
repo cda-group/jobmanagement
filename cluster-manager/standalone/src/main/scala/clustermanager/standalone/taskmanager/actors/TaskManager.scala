@@ -1,6 +1,7 @@
 package clustermanager.standalone.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancellable, Props, Terminated}
+import akka.cluster.Cluster
 import akka.cluster.metrics.ClusterMetricsExtension
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import runtime.common.Identifiers
@@ -42,12 +43,13 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   import context.dispatcher
   private val metrics = ClusterMetricsExtension(context.system)
 
+  private val selfAddr = Cluster(context.system).selfAddress
+
   override def preStart(): Unit = {
    metrics.subscribe(self)
-
     // Static number of fake slices for now
     for (i <- 1 to nrOfSlots) {
-      val slice = ContainerSlice(i, ResourceProfile(1, 2000))
+      val slice = ContainerSlice(i, ResourceProfile(1, 2000), host = selfAddr.toString)
       containerSlices = containerSlices :+ slice
     }
   }
@@ -66,9 +68,10 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
       if (sliceControl(container.slices)) {
         occupySlices(container.slices)
         launchTaskmaster(container)
+        sender() ! SlicesAllocated(container.slices)
       } else {
         //TODO: notifiy ResourceManager or AppMaster that the job "failed"
-        sender() !  "failed"
+        //sender() ! SlicesAllocated(container.slices.map(_.copy(state = ALLOCATED)))
       }
     case ReleaseSlices(sliceIndexes) =>
       releaseSlices(sliceIndexes)
@@ -128,6 +131,9 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     }
   }
 
+  /** Set the Slices to FREE
+    * @param sliceIndexes Indexes of which slices to be freed
+    */
   private def releaseSlices(sliceIndexes: Seq[Int]): Unit = {
     containerSlices = containerSlices.map {s =>
       if (sliceIndexes.contains(s.index))

@@ -142,6 +142,7 @@ message ContainerSlice {
     int32 index = 1;
     ResourceProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
     SliceState state = 3 [(scalapb.field).no_box = true]; // Not Option[]
+    string host = 4;
 }
 
 message Container {
@@ -158,6 +159,10 @@ message ContainerAllocation {
 }
 
 message SliceUpdate {
+    repeated ContainerSlice slices = 1;
+}
+
+message SlicesAllocated {
     repeated ContainerSlice slices = 1;
 }
 

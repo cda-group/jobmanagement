@@ -12,7 +12,7 @@ import org.apache.hadoop.yarn.conf.YarnConfiguration
 import org.apache.hadoop.yarn.util.Records
 import runtime.common.Identifiers
 import runtime.protobuf.ExternalAddress
-import runtime.protobuf.messages._
+import runtime.protobuf.messages.{Container => _, _}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer

@@ -42,7 +42,6 @@ class TaskExecutorReader(proc: Process, appMaster: ActorRef, task: ArcTask)
   def receive = {
     case Result(s) =>
       val updated = task.copy(result = Some(s))
-      log.info("My parent is: " + context.parent)
       context.parent ! ArcTaskUpdate(updated)
       // We are done
       context stop self

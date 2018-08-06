@@ -30,6 +30,10 @@ private[standalone] class TaskExecutor(binPath: String,
                   )
   extends Actor with ActorLogging with TaskManagerConfig {
 
+  import TaskExecutor._
+  import TaskMaster._
+  import context.dispatcher
+
   var healthChecker = None: Option[Cancellable]
   var process = None: Option[Process]
   var monitor = None: Option[ExecutorStats]
@@ -40,10 +44,35 @@ private[standalone] class TaskExecutor(binPath: String,
     .toString
 
 
-  import TaskExecutor._
-  import context.dispatcher
 
-  override def preStart(): Unit = {
+
+  def receive = {
+    case StartExecution =>
+      start()
+    case CreateTaskReader(_task) =>
+      // Create an actor to read the results from StdOut
+      context.actorOf(TaskExecutorReader(process.get, appMaster, _task), "taskreader")
+    case HealthCheck =>
+      monitor match {
+        case Some(stats) =>
+          collectMetrics(stats)
+        case None =>
+          log.info("Could not load monitor")
+          shutdown()
+      }
+    case ArcTaskUpdate(t) =>
+      // Gotten the results from the Stdout...
+      arcTask = Some(t)
+    case Terminated(sMaster) =>
+      // StateMaster has been declared as terminated
+      // What to do?
+    case _ =>
+  }
+
+  /** We have been instructed by the TaskMaster to start
+    * our binary
+    */
+  private def start(): Unit = {
     val pb = new ProcessBuilder(binPath, task.expr, task.vec)
     process = Some(pb.start())
 
@@ -71,27 +100,7 @@ private[standalone] class TaskExecutor(binPath: String,
         log.error("TaskExecutor.getPid() requires an UNIX system")
         shutdown()
     }
-  }
 
-  def receive = {
-    case CreateTaskReader(_task) =>
-      // Create an actor to read the results from StdOut
-      context.actorOf(TaskExecutorReader(process.get, appMaster, _task), "taskreader")
-    case HealthCheck =>
-      monitor match {
-        case Some(stats) =>
-          collectMetrics(stats)
-        case None =>
-          log.info("Could not load monitor")
-          shutdown()
-      }
-    case ArcTaskUpdate(t) =>
-      // Gotten the results from the Stdout...
-      arcTask = Some(t)
-    case Terminated(sMaster) =>
-      // StateMaster has been declared as terminated
-      // What to do?
-    case _ =>
   }
 
   private def collectMetrics(stats: ExecutorStats): Unit = {

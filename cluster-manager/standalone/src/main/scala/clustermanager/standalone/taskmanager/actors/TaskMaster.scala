@@ -25,6 +25,7 @@ private[standalone] object TaskMaster {
   case class TaskUploaded(name: String)
   case class TaskReady(id: String)
   case object TaskWriteFailure
+  case object StartExecution
 }
 
 /** Actor that manages received Binaries
@@ -50,7 +51,6 @@ private[standalone] class TaskMaster(container: Container)
 
   import runtime.protobuf.ProtoConversions.ActorRef._
   private val appmaster: ActorRef = container.appmaster
-
 
   // Container Environment
   // TODO: cgroups...
@@ -111,12 +111,14 @@ private[standalone] class TaskMaster(container: Container)
       taskReceivers.get(remote) match {
         case Some(ref) =>
           if (stateMaster.isDefined)
-            startExecutor(ref, stateMaster.get, taskName)
+            ref ? TaskUploaded(taskName) pipeTo self
           else
             log.error("No StateMaster connected to the TaskMaster")
         case None =>
           log.error("Was not able to locate ref for remote: " + remote)
       }
+    case TaskReady(name) =>
+      initExecutor(stateMaster.get, name)
     case TasksCompiled() =>
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
@@ -132,7 +134,7 @@ private[standalone] class TaskMaster(container: Container)
       executors = executors.filterNot(_ == ref)
       // TODO: handle scenario where not all executors have been started
       if (executors.isEmpty) {
-        log.info("No alive TaskExecutors left, releasing slots")
+        log.info("No alive TaskExecutors left, releasing slices")
 
         // Notify AppMaster and StateMaster that this job is being killed..
         appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
@@ -141,29 +143,26 @@ private[standalone] class TaskMaster(container: Container)
       }
   }
 
-  /** Creates an Executor Actor that starts executing its Task
-    * @param taskReceiver ActorRef to the binary receiver
-    * @param stateMaster ActorRef of the StateMaster connected to us
-    * @param name Name of the Task
-    */
-  private def startExecutor(taskReceiver: ActorRef, stateMaster: ActorRef, name: String): Unit = {
-    taskReceiver ? TaskUploaded(name) map {
-      case TaskReady(binId) =>
-        val taskOpt = container.tasks
-          .find(_.name.equalsIgnoreCase(name))
+  private def initExecutor(stateMaster: ActorRef, name: String): Unit = {
+    container.tasks.find(_.name == name) match {
+      case Some(task) =>
+        val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + name, task, appmaster, stateMaster),
+          Identifiers.TASK_EXECUTOR+"_"+name)
+        executors = executors :+ executor
+        // Enable DeathWatch
+        context watch executor
 
-        taskOpt match {
-          case Some(task) =>
-            val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + name, task, appmaster, stateMaster),
-              Identifiers.TASK_EXECUTOR+"_"+name)
-            executors = executors :+ executor
-            // Enable DeathWatch
-            context watch executor
-          case None =>
-            log.error("Could not locate Task for the received binary")
+        // If we have initialized all tasks, then start execution
+        if (container.tasks.lengthCompare(executors.size) == 0) {
+          log.info("All executors have been initialized, starting them up!")
+          executors.foreach(_ ! StartExecution)
+          appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_RUNNING)
         }
+      case None =>
+        log.error("Was not able to match received task with task in the container")
     }
   }
+
 
   private def envSetup(): Unit = {
     env.create() match {

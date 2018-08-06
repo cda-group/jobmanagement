@@ -23,9 +23,9 @@ object Identifiers {
   final val ARC_TASK_KILLED = "killed"
   final val ARC_TASK_TRANSFER_ERROR = "transfer error"
 
-
   // ArcJob states
   final val ARC_JOB_DEPLOYING = "deploying"
+  final val ARC_JOB_INITIALIZING = "initializing"
   final val ARC_JOB_RUNNING = "running"
   final val ARC_JOB_KILLED = "killed"
   final val ARC_JOB_FAILED = "failed"

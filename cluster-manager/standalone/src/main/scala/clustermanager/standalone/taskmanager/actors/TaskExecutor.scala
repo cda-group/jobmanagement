@@ -3,6 +3,7 @@ package clustermanager.standalone.taskmanager.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import _root_.clustermanager.common.executor.ExecutorStats
 import akka.cluster.Cluster
+import clustermanager.standalone.taskmanager.isolation.CgroupController
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import runtime.common.Identifiers
 import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate}
@@ -14,6 +15,12 @@ private[standalone] object TaskExecutor {
   // Refactor
   def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
     Props(new TaskExecutor(binPath, task, aMaster, sMaster))
+  def apply(binPath: String,
+            task: ArcTask,
+            aMaster: ActorRef,
+            sMaster: ActorRef,
+            controller: CgroupController
+           ): Props = Props(new TaskExecutor(binPath, task, aMaster, sMaster, Some(controller)))
   case object HealthCheck
   case class StdOutResult(r: String)
   case class CreateTaskReader(task: ArcTask)
@@ -24,27 +31,24 @@ private[standalone] object TaskExecutor {
   * @param binPath path to the rust binary
   */
 private[standalone] class TaskExecutor(binPath: String,
-                   task: ArcTask,
-                   appMaster: ActorRef,
-                   stateMaster: ActorRef
-                  )
-  extends Actor with ActorLogging with TaskManagerConfig {
+                                       task: ArcTask,
+                                       appMaster: ActorRef,
+                                       stateMaster: ActorRef,
+                                       cgController: Option[CgroupController] = None
+                                      ) extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskExecutor._
   import TaskMaster._
   import context.dispatcher
 
-  var healthChecker = None: Option[Cancellable]
-  var process = None: Option[Process]
-  var monitor = None: Option[ExecutorStats]
-  var arcTask = None: Option[ArcTask]
+  private var healthChecker = None: Option[Cancellable]
+  private var process = None: Option[Process]
+  private var monitor = None: Option[ExecutorStats]
+  private var arcTask = None: Option[ArcTask]
 
-  val selfAddr = Cluster(context.system)
+  private val selfAddr = Cluster(context.system)
     .selfAddress
     .toString
-
-
-
 
   def receive = {
     case StartExecution =>
@@ -71,6 +75,7 @@ private[standalone] class TaskExecutor(binPath: String,
 
   /** We have been instructed by the TaskMaster to start
     * our binary
+    * TODO: Refactor
     */
   private def start(): Unit = {
     val pb = new ProcessBuilder(binPath, task.expr, task.vec)
@@ -81,6 +86,12 @@ private[standalone] class TaskExecutor(binPath: String,
 
     p match {
       case Some(pid) =>
+        cgController match {
+          case Some(controller) =>
+            log.info(s"Moving Executor with PID $pid to its cgroup")
+            controller.mvProcessToCgroup(pid)
+          case None =>
+        }
         ExecutorStats(pid, binPath, selfAddr) match {
           case Some(execStats) =>
             monitor = Some(execStats)

@@ -3,7 +3,10 @@ package clustermanager.standalone.taskmanager.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancellable, Props, Terminated}
 import akka.cluster.Cluster
 import akka.cluster.metrics.ClusterMetricsExtension
-import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
+import clustermanager.common.Hardware
+import clustermanager.standalone.taskmanager.isolation.LinuxContainerEnvironment.CgroupsException
+import clustermanager.standalone.taskmanager.isolation.{Cgroups, LinuxContainerEnvironment}
+import clustermanager.standalone.taskmanager.utils.{ContainerUtils, TaskManagerConfig}
 import runtime.common.Identifiers
 import runtime.protobuf.messages.SliceState.{ALLOCATED, FREE}
 import runtime.protobuf.messages._
@@ -18,10 +21,10 @@ object TaskManager {
   type Slices = Seq[ContainerSlice]
 }
 
-/** Actor that handles TaskSlots
+/** Actor that handles ContainerSlice's
   *
   * The TaskManager keeps track of the availability of each
-  * TaskSlot it provides. After allocating TaskSlot(s) for the AppMaster,
+  * ContainerSlice it provides. After allocating Slices for a container (job),
   * the TaskManager creates a TaskMaster actor to deal with
   * transfer, execution and monitoring of tasks
   */
@@ -31,31 +34,59 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
-  import runtime.protobuf.ProtoConversions.ActorRef._
 
+  // Slices
   private[this] var sliceTicker = None: Option[Cancellable]
   private[this] var containerSlices = mutable.IndexedSeq.empty[ContainerSlice]
+
+  // ResourceManager
   private[this] var initialized = false
   private[this] var resourceManager = None: Option[ActorRef]
+
+  // TaskMaster
   private[this] var taskMasters = mutable.IndexedSeq.empty[ActorRef]
   private[this] var taskMastersId: Long = 0
 
+  // LCE
+  private val containerEnv: Option[LinuxContainerEnvironment] =
+    LinuxContainerEnvironment().toOption
+
   import context.dispatcher
-  private val metrics = ClusterMetricsExtension(context.system)
 
   private val selfAddr = Cluster(context.system).selfAddress
 
   override def preStart(): Unit = {
-   metrics.subscribe(self)
-    // Static number of fake slices for now
-    for (i <- 1 to nrOfSlots) {
-      val slice = ContainerSlice(i, ResourceProfile(1, 2000), host = selfAddr.toString)
-      containerSlices = containerSlices :+ slice
+    if (isolation.equalsIgnoreCase("cgroups")) {
+      containerEnv match {
+        case Some(env) =>
+          log.info("Using LinuxContainerEnvironment")
+          createSlices(env.getCores, env.getMemory / env.getCores)
+        case None =>
+          log.error("Exiting as LCE failed to initialize")
+          System.exit(1) // pretty
+      }
+    } else {
+      val sliceCores = ContainerUtils.getNumberOfContainerCores
+      val totalMem = ContainerUtils.getMemoryForContainers
+      val memoryPerSlice = totalMem / sliceCores
+      createSlices(sliceCores, memoryPerSlice)
     }
   }
 
+  private def createSlices(sliceCores: Int, memoryPerSlice: Long): Unit = {
+    for (i <- 1 to sliceCores) {
+      val slice = ContainerSlice(i, ResourceProfile(1, memoryPerSlice), host = selfAddr.toString)
+      containerSlices = containerSlices :+ slice
+    }
+    log.info("Slices built: " + containerSlices)
+  }
+
   override def postStop(): Unit = {
-    metrics.unsubscribe(self)
+    containerEnv match {
+      case Some(lce) =>
+        lce.shutdown()
+      case None => // Ignore
+    }
   }
 
 
@@ -143,12 +174,26 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     }
   }
 
-  /** Creates a TaskMaster actor to act as the master of the
+  /** Launches a TaskMaster actor to act as the master of the
     * allocated Container
     * @param container Container
     */
-  private def launchTaskmaster(container: Container): Unit = {
-    val taskmaster = context.actorOf(TaskMaster(container), Identifiers.TASK_MASTER+taskMastersId)
+  private def launchTaskmaster(container: Container): Unit = containerEnv match {
+    case Some(lce) =>
+      lce.createContainerGroup(container.jobId, container)
+      val controller = lce.createController(container.jobId)
+      val taskmaster = context.actorOf(TaskMaster(container, controller),
+        Identifiers.TASK_MASTER+taskMastersId)
+      saveTaskMaster(taskmaster)
+    case None =>
+      val taskmaster = context.actorOf(TaskMaster(container), Identifiers.TASK_MASTER+taskMastersId)
+      saveTaskMaster(taskmaster)
+  }
+
+  /** Helper for launchTaskmaster method
+    * @param taskmaster ActorRef to created Actor
+    */
+  private def saveTaskMaster(taskmaster: ActorRef): Unit = {
     taskMastersId = taskMastersId + 1
     taskMasters = taskMasters :+ taskmaster
     // Enable DeathWatch

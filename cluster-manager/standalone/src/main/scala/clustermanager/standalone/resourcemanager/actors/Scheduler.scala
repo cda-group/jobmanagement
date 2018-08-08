@@ -33,10 +33,10 @@ private[resourcemanager] abstract class SliceManager extends Actor with ActorLog
       // in order to make sure that the TaskManager is initialized
       target ! TaskManagerInit()
     case TaskManagerRemoved(tm) =>
-      log.info("TaskManager Removed")
+      log.info(s"TaskManager Removed: $tm" )
       cleanTaskManager(tm)
     case UnreachableTaskManager(tm) =>
-      log.info("TaskManager Unreachable")
+      log.info(s"TaskManager Unreachable: $tm")
       cleanTaskManager(tm)
     case SliceUpdate(_slices) =>
       slices.put(sender().path.address, _slices)
@@ -46,6 +46,14 @@ private[resourcemanager] abstract class SliceManager extends Actor with ActorLog
   private def cleanTaskManager(tm: Address): Unit = {
     Try {
       taskManagers = taskManagers.filterNot(_ == tm)
+      val slicesOpt = slices.get(tm)
+      slicesOpt match {
+        case Some(s) =>
+          // If they exist in offeredSlices, then remove them
+          offeredSlices.remove(s)
+        case None =>  // Ignore
+      }
+      // Finish cleanup
       slices.remove(tm)
     } match {
       case Success(_) => // ignore

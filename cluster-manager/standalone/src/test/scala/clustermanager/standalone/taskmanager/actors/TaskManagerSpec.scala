@@ -3,10 +3,9 @@ package clustermanager.standalone.taskmanager.actors
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import clustermanager.standalone.{ActorSpec, TestHelpers}
-import clustermanager.standalone.taskmanager.actors.TaskManager.TMNotInitialized
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import com.typesafe.config.ConfigFactory
-import runtime.protobuf.messages.{Allocate, SlotUpdate, TaskManagerInit}
+import runtime.protobuf.messages.{SliceUpdate, TaskManagerInit}
 
 import scala.concurrent.duration._
 
@@ -30,17 +29,11 @@ class TaskManagerSpec extends TestKit(TaskManagerSpec.actorSystem)
 
   "A TaskManager Actor" must {
 
-    "Fail allocation before being initialized" in {
-      val tm = system.actorOf(TaskManager())
-      tm ! Allocate(testArcJob, Seq())
-      expectMsg(TMNotInitialized)
-    }
-
-    "Send SlotUpdate" in {
+    "Send SliceUpdate" in {
       val probe = TestProbe()
       val tm = system.actorOf(TaskManager())
       probe.send(tm, TaskManagerInit())
-      probe.expectMsgType[SlotUpdate](slotTick.millis + slotTick.millis)
+      probe.expectMsgType[SliceUpdate](slotTick.millis + slotTick.millis)
     }
   }
 

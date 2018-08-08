@@ -35,7 +35,7 @@ private[standalone] class TaskReceiver(env: ExecutionEnvironment)
       if (env.writeBinaryToFile(name, buffer.toArray)) {
         sender() ! TaskReady(name)
       } else {
-        sender() ! TaskWriteFailure
+        sender() ! TaskWriteFailure(name)
       }
       context stop self
   }

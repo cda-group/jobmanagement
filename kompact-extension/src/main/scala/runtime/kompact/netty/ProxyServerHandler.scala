@@ -1,0 +1,77 @@
+package runtime.kompact.netty
+
+import akka.actor.ActorRef
+import akka.util.Timeout
+import com.typesafe.scalalogging.LazyLogging
+import io.netty.channel.nio.NioEventLoopGroup
+import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
+import io.netty.util.ReferenceCountUtil
+import runtime.kompact.ProxyActor.AskRelay
+import runtime.kompact.{ExecutorUp, KompactRef}
+import runtime.kompact.messages.KompactAkkaMsg.Msg
+import runtime.kompact.messages.KompactAkkaMsg
+
+import scala.concurrent.{ExecutionContext, Future}
+
+
+/** ProxyServerHandler is responsible for handling
+  * each Executor Connnection.
+  * @param proxy ActorRef
+  */
+private[kompact] class ProxyServerHandler(proxy: ActorRef, group: NioEventLoopGroup)
+  extends ChannelInboundHandlerAdapter with LazyLogging {
+  import akka.pattern.ask
+  import scala.concurrent.duration._
+  implicit val timeout = Timeout(3.seconds)
+  implicit val ec: ExecutionContext = ExecutionContext.fromExecutorService(group)
+
+  private var akkaActor: Option[ActorRef] = None
+
+  override def channelActive(ctx: ChannelHandlerContext): Unit = {
+    logger.info(s"New Executor Connected ${ctx.channel().remoteAddress()}")
+  }
+
+  override def channelRead(ctx: ChannelHandlerContext, msg: scala.Any): Unit =  {
+    try {
+      val e: KompactAkkaMsg = msg.asInstanceOf[KompactAkkaMsg]
+      e.msg match {
+        case Msg.Hello(v) => akkaActor match {
+          case Some(ref) => ref ! v
+          case None => logger.error("Ref not set yet")
+        }
+        case Msg.AskReply(reply) =>
+          proxy ! AskRelay(reply)
+        case Msg.ExecutorRegistration(reg) =>
+          val kRef = KompactRef(reg.jobId, reg.name, reg.akkaPath, reg.kompactPath, ctx)
+          proxy ? ExecutorUp(kRef) map {
+            case ref: ActorRef =>
+              akkaActor = Some(ref)
+              logger.info("Akka ref set")
+            case _ =>
+              logger.error("Could not locate ActorRef for " + kRef.executorName)
+          }
+        case _ => println("unknown")
+      }
+    } finally {
+      ReferenceCountUtil.release(msg)
+    }
+  }
+
+  override def exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable): Unit = {
+
+  }
+  override def channelUnregistered(ctx: ChannelHandlerContext): Unit = {
+    ctx.close()
+  }
+  override def channelInactive(ctx: ChannelHandlerContext): Unit = {
+    ctx.close()
+  }
+
+  private def lookupRef(kRef: KompactRef): Future[ActorRef] = {
+    proxy ? ExecutorUp(kRef) flatMap {
+      case ref: ActorRef => Future.successful(ref)
+      case _ => Future.failed(new Exception("Failed fetching ref"))
+    }
+  }
+
+}

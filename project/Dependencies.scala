@@ -5,13 +5,14 @@ import Keys._
 object Dependencies {
   //TODO check versions
   val scalatestVersion = "3.0.1"
-  val loggingVersion = "3.5.0"
+  val loggingVersion = "3.7.2"
   val logbackVersion = "1.2.3"
   val typeConfigVersion = "1.3.1"
   val akkaVersion = "2.5.12"
   val akkaHttpVersion = "10.1.3"
   val akkaStreamsVersion = akkaVersion
   val yarnVersion = "3.1.0"
+  val nettyVersion = "4.1.28.Final"
 
 
   val testDependencies: Seq[ModuleID] = Seq(
@@ -29,6 +30,10 @@ object Dependencies {
 
   val confDependencies: Seq[ModuleID] = Seq(
     "com.typesafe" % "config" % typeConfigVersion
+  )
+
+  val nettyDependencies: Seq[ModuleID] = Seq(
+    "io.netty" % "netty-all" % nettyVersion
   )
 
   val simpleAkkaDependencies: Seq[ModuleID] = Seq(
@@ -64,6 +69,7 @@ object Dependencies {
     "org.apache.hadoop" % "hadoop-hdfs"  % yarnVersion % Test classifier "tests"
   )
 
+
   val akkaHttpDependencies: Seq[ModuleID] = Seq(
     "com.typesafe.akka" %% "akka-http"   % akkaHttpVersion,
     "com.typesafe.akka" %% "akka-stream" % akkaStreamsVersion,
@@ -82,6 +88,7 @@ object Dependencies {
   val statemanagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies
   val appmanagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies ++ akkaHttpDependencies
   val protobufDeps: Seq[ModuleID] = testDependencies ++ protobufDependencies ++ akkaDependencies
+  val kompactExtDeps: Seq[ModuleID] = basic ++ protobufDependencies ++ nettyDependencies ++ simpleAkkaDependencies ++ logbackDependencies
   val runtimeCommonDeps: Seq[ModuleID] = testDependencies ++ logDependencies ++ simpleAkkaDependencies
   val standaloneManagerDeps: Seq[ModuleID] = basic ++ akkaDependencies ++ sigarDependencies ++ logbackDependencies
   val taskmasterDeps: Seq[ModuleID] = basic ++ akkaRemoteDependencies
@@ -103,6 +110,7 @@ object Dependencies {
   val taskmaster = libraryDependencies ++= taskmasterDeps
   val taskexecutor = libraryDependencies ++= taskexecutorDeps
   val protobuf = libraryDependencies ++= protobufDeps
+  val kompactExtension = libraryDependencies ++= kompactExtDeps
   val runtimeCommon = libraryDependencies ++= runtimeCommonDeps
   val runtimeTests = libraryDependencies ++= runtimeTestsDeps
   val clusterManagerCommon = libraryDependencies ++= clusterManagerCommonDeps

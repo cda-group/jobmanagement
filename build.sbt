@@ -63,21 +63,12 @@ lazy val runtimeCommon = (project in file("runtime-common"))
   .settings(moduleName("runtime.common"))
 
 lazy val kompactExtension = (project in file("kompact-extension"))
-  .settings(
-    scalaVersion := "2.12.6"
-  )
+  .settings(runtimeSettings: _*)
   .settings(Dependencies.kompactExtension)
   .settings(moduleName("runtime.kompact"))
   .settings(
     PB.targets in Compile := Seq(
       scalapb.gen() -> (sourceManaged in Compile).value
-    )
-  )
-  .settings(
-    resolvers ++= Seq(
-      "Kompics Releases" at "http://kompics.sics.se/maven/repository/",
-      "Kompics Snapshots" at "http://kompics.sics.se/maven/snapshotrepository/",
-      Resolver.mavenLocal
     )
   )
 

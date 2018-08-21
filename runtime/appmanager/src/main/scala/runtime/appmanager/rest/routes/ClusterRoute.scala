@@ -15,7 +15,7 @@ object ClusterRoute {
   import scala.concurrent.duration._
 
 
-  case class NamedMetric(name: String, metrics: ExhaustiveMetric)
+  final case class NamedMetric(name: String, metrics: ExhaustiveMetric)
 
 
   /** api/$version/cluster/metrics

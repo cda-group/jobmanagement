@@ -9,13 +9,13 @@ import runtime.common.Identifiers
 
 object ClusterListener {
   def apply(): Props = Props(new ClusterListener)
-  case class RmRegistration(addr: Address)
-  case class UnreachableRm(addr: Address)
-  case class RmRemoved(addr: Address)
+  final case class RmRegistration(addr: Address)
+  final case class UnreachableRm(addr: Address)
+  final case class RmRemoved(addr: Address)
 
-  case class StateManagerRegistration(addr: Address)
-  case class StateManagerRemoved(addr: Address)
-  case class StateManagerUnreachable(addr: Address)
+  final case class StateManagerRegistration(addr: Address)
+  final case class StateManagerRemoved(addr: Address)
+  final case class StateManagerUnreachable(addr: Address)
 }
 
 class ClusterListener extends Actor

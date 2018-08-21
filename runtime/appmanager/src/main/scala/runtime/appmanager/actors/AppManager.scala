@@ -17,14 +17,14 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 object AppManager {
-  case class ArcJobRequest(job: ArcJob)
-  case class ArcDeployRequest(priority: Int, locality: Boolean, tasks: Seq[ArcTask])
-  case class ArcJobStatus(id: String)
-  case class KillArcJobRequest(id: String)
-  case object ResourceManagerUnavailable
-  case object ListJobs
-  case object ListJobsWithDetails
-  case object StateMasterError
+  final case class ArcJobRequest(job: ArcJob)
+  final case class ArcDeployRequest(priority: Int, locality: Boolean, tasks: Seq[ArcTask])
+  final case class ArcJobStatus(id: String)
+  final case class KillArcJobRequest(id: String)
+  final case object ResourceManagerUnavailable
+  final case object ListJobs
+  final case object ListJobsWithDetails
+  final case object StateMasterError
   type ArcJobID = String
 }
 
@@ -202,6 +202,6 @@ class StandaloneAppManager extends AppManager {
 }
 
 object StandaloneAppManager {
-  case class AppMasterInit(job: ArcJob, rmAddr: Address, stateMaster: ActorRef)
+  final case class AppMasterInit(job: ArcJob, rmAddr: Address, stateMaster: ActorRef)
   def apply(): Props = Props(new StandaloneAppManager())
 }

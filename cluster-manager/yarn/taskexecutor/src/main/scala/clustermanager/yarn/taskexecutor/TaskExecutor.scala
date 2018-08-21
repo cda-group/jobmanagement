@@ -16,9 +16,9 @@ private[yarn] object TaskExecutor {
             taskMaster: ActorRef,
             stateMaster: ActorRef): Props =
     Props(new TaskExecutor(binPath, taskId, appMaster, taskMaster, stateMaster))
-  case object HealthCheck
-  case class StdOutResult(r: String)
-  case class CreateTaskReader(task: ArcTask)
+  final case object HealthCheck
+  final case class StdOutResult(r: String)
+  final case class CreateTaskReader(task: ArcTask)
 }
 
 /** Actor that is responsible for executing

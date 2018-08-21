@@ -6,8 +6,8 @@ import runtime.kompact.messages.KompactAkkaMsg
 
 private[kompact] object ExtensionActor {
   def apply(parent: ActorRef): Props = Props(new ExtensionActor(parent))
-  case class TestAsk(msg: KompactAkkaMsg)
-  case object TestDeathWatch
+  final case class TestAsk(msg: KompactAkkaMsg)
+  final case object TestDeathWatch
 }
 
 private[kompact] class ExtensionActor(parent: ActorRef) extends Actor with ActorLogging {

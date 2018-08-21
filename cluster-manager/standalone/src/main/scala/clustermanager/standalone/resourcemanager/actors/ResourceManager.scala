@@ -12,8 +12,8 @@ import scala.concurrent.duration._
 
 private[resourcemanager] object ResourceManager {
   def apply(): Props = Props(new ResourceManager)
-  case class SlotRequest(job: ArcJob)
-  case class ResourceRequest(job: ArcJob)
+  final case class SlotRequest(job: ArcJob)
+  final case class ResourceRequest(job: ArcJob)
 }
 
 /**

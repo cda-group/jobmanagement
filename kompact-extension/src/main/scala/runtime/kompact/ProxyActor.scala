@@ -12,8 +12,7 @@ import scala.collection.mutable
 private[kompact] object ProxyActor {
   def apply(): Props = Props(new ProxyActor())
   type ActorName = String
-  case class ProxyMsg(name: ActorName, msg: AnyRef)
-  case class AskRelay(reply: AskReply)
+  final case class AskRelay(reply: AskReply)
 }
 
 private[kompact] class ProxyActor extends Actor with ActorLogging {

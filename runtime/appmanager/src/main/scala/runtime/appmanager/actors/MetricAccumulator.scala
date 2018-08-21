@@ -13,15 +13,15 @@ import scala.collection.mutable
 object MetricAccumulator {
   def apply(): Props = Props(new MetricAccumulator())
 
-  case object ClusterMetrics
-  case object TaskManagerMetrics
-  case object StateManagerMetrics
+  final case object ClusterMetrics
+  final case object TaskManagerMetrics
+  final case object StateManagerMetrics
 
   sealed trait ArcMetric
-  case class CpuMetric(loadAverage: Double, processors: Int) extends ArcMetric
-  case class MemoryMetric(heapUsed: Double, heapCommited: Double, heapMax: Long) extends ArcMetric
-  case object UnknownMetric extends ArcMetric
-  case class ExhaustiveMetric(address: String, cpu: CpuMetric, mem: MemoryMetric) extends ArcMetric
+  final case class CpuMetric(loadAverage: Double, processors: Int) extends ArcMetric
+  final case class MemoryMetric(heapUsed: Double, heapCommited: Double, heapMax: Long) extends ArcMetric
+  final case object UnknownMetric extends ArcMetric
+  final case class ExhaustiveMetric(address: String, cpu: CpuMetric, mem: MemoryMetric) extends ArcMetric
 }
 
 /** Actor that collects host level metrics

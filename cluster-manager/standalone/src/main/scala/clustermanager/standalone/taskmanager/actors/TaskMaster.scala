@@ -21,11 +21,11 @@ import scala.util.{Failure, Success}
 private[standalone] object TaskMaster {
   def apply(container: Container):Props =
     Props(new TaskMaster(container))
-  case object VerifyHeartbeat
-  case class TaskUploaded(name: String)
-  case class TaskReady(id: String)
-  case object TaskWriteFailure
-  case object StartExecution
+  final case object VerifyHeartbeat
+  final case class TaskUploaded(name: String)
+  final case class TaskReady(id: String)
+  final case object TaskWriteFailure
+  final case object StartExecution
 }
 
 /** Actor that manages received Binaries

@@ -1,6 +1,6 @@
 package runtime.kompact
 
 
-case class ExecutorTerminated(ref: KompactRef)
-case class ExecutorUp(ref: KompactRef)
-case object ProxyServerTerminated
+final case class ExecutorTerminated(ref: KompactRef)
+final case class ExecutorUp(ref: KompactRef)
+final case object ProxyServerTerminated

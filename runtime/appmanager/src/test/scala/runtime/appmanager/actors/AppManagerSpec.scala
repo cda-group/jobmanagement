@@ -26,14 +26,11 @@ class AppManagerSpec extends TestKit(AppManagerSpec.actorSystem)
   "An AppManager Actor" must {
 
     "handle no available ResourceManager" in {
-      val appManager = system.actorOf(ArcAppManager())
+      val appManager = system.actorOf(StandaloneAppManager())
       val requester = TestProbe()
       requester.send(appManager, ArcJobRequest(testArcJob))
       requester.expectMsg(ResourceManagerUnavailable)
     }
 
-    "handle Job Request" in {
-      //TODO
-    }
   }
 }

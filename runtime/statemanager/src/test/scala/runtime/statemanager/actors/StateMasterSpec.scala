@@ -27,19 +27,12 @@ class StateMasterSpec extends TestKit(StateMasterSpec.actorSystem)
 
   "A StateMaster Actor" must {
 
-    "Notify AppMaster of its Ref" in {
-      val appMaster = TestProbe()
-      val probe = TestProbe()
-      val master = system.actorOf(StateMaster(appMaster.ref, testArcJob))
-      appMaster.expectMsgType[StateMasterConn]
-    }
-
     "Retrieve and Report metrics" in {
       val appMaster = TestProbe()
       val probe = TestProbe()
       val master = system.actorOf(StateMaster(appMaster.ref, testArcJob))
 
-      val task = ArcTask("test_task", " ", " ")
+      val task = ArcTask("test_task", 1, 1024, " ", " ")
       val fakeMetric = ExecutorMetric(
         System.currentTimeMillis(),
         ProcessState(1, 20, "Running"),

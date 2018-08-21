@@ -6,9 +6,9 @@ import akka.util.ByteString
 import clustermanager.common.executor.ExecutionEnvironment
 
 
-object TaskReceiver {
-  def apply(id: String, env: ExecutionEnvironment): Props =
-    Props(new TaskReceiver(id, env))
+private[standalone] object TaskReceiver {
+  def apply(env: ExecutionEnvironment): Props =
+    Props(new TaskReceiver(env))
 }
 
 /** Actor that receives a binary and writes it to file
@@ -19,7 +19,7 @@ object TaskReceiver {
   * and write the binary to file in the specified Execution
   * Environment
   */
-class TaskReceiver(id: String, env: ExecutionEnvironment)
+private[standalone] class TaskReceiver(env: ExecutionEnvironment)
   extends Actor with ActorLogging {
 
   import TaskMaster._
@@ -31,9 +31,9 @@ class TaskReceiver(id: String, env: ExecutionEnvironment)
       buffer = buffer ++ data
     case PeerClosed =>
       context stop self
-    case TaskUploaded =>
-      if (env.writeBinaryToFile(id, buffer.toArray)) {
-        sender() ! TaskReady(id)
+    case TaskUploaded(name) =>
+      if (env.writeBinaryToFile(name, buffer.toArray)) {
+        sender() ! TaskReady(name)
       } else {
         sender() ! TaskWriteFailure
       }

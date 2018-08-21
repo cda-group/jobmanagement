@@ -2,6 +2,7 @@ package clustermanager.standalone.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
 import _root_.clustermanager.common.executor.ExecutorStats
+import akka.cluster.Cluster
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import runtime.common.Identifiers
 import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate}
@@ -9,7 +10,7 @@ import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate}
 import scala.concurrent.duration._
 import scala.util.Try
 
-object TaskExecutor {
+private[standalone] object TaskExecutor {
   // Refactor
   def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
     Props(new TaskExecutor(binPath, task, aMaster, sMaster))
@@ -22,30 +23,56 @@ object TaskExecutor {
   *
   * @param binPath path to the rust binary
   */
-class TaskExecutor(binPath: String,
+private[standalone] class TaskExecutor(binPath: String,
                    task: ArcTask,
                    appMaster: ActorRef,
                    stateMaster: ActorRef
                   )
   extends Actor with ActorLogging with TaskManagerConfig {
 
+  import TaskExecutor._
+  import TaskMaster._
+  import context.dispatcher
+
   var healthChecker = None: Option[Cancellable]
   var process = None: Option[Process]
   var monitor = None: Option[ExecutorStats]
   var arcTask = None: Option[ArcTask]
 
-  /*
   val selfAddr = Cluster(context.system)
     .selfAddress
     .toString
+
+
+
+
+  def receive = {
+    case StartExecution =>
+      start()
+    case CreateTaskReader(_task) =>
+      // Create an actor to read the results from StdOut
+      context.actorOf(TaskExecutorReader(process.get, appMaster, _task), "taskreader")
+    case HealthCheck =>
+      monitor match {
+        case Some(stats) =>
+          collectMetrics(stats)
+        case None =>
+          log.info("Could not load monitor")
+          shutdown()
+      }
+    case ArcTaskUpdate(t) =>
+      // Gotten the results from the Stdout...
+      arcTask = Some(t)
+    case Terminated(sMaster) =>
+      // StateMaster has been declared as terminated
+      // What to do?
+    case _ =>
+  }
+
+  /** We have been instructed by the TaskMaster to start
+    * our binary
     */
-
-  val selfAddr = "someaddr"
-
-  import TaskExecutor._
-  import context.dispatcher
-
-  override def preStart(): Unit = {
+  private def start(): Unit = {
     val pb = new ProcessBuilder(binPath, task.expr, task.vec)
     process = Some(pb.start())
 
@@ -73,27 +100,7 @@ class TaskExecutor(binPath: String,
         log.error("TaskExecutor.getPid() requires an UNIX system")
         shutdown()
     }
-  }
 
-  def receive = {
-    case CreateTaskReader(_task) =>
-      // Create an actor to read the results from StdOut
-      context.actorOf(TaskExecutorReader(process.get, appMaster, _task), "taskreader")
-    case HealthCheck =>
-      monitor match {
-        case Some(stats) =>
-          collectMetrics(stats)
-        case None =>
-          log.info("Could not load monitor")
-          shutdown()
-      }
-    case ArcTaskUpdate(t) =>
-      // Gotten the results from the Stdout...
-      arcTask = Some(t)
-    case Terminated(sMaster) =>
-      // StateMaster has been declared as terminated
-      // What to do?
-    case _ =>
   }
 
   private def collectMetrics(stats: ExecutorStats): Unit = {

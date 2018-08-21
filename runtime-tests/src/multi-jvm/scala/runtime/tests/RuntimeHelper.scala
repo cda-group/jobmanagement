@@ -8,7 +8,7 @@ trait RuntimeHelper {
   val mediumProfile  = ArcProfile(4.0, 6000)
   val smallProfile = ArcProfile(1.0, 1000)
 
-  val tempTasks  = Seq(ArcTask("", ""))
+  val tempTasks  = Seq(ArcTask("", 1, 1024, ""))
 
   val smallJob = ArcJob("smalljob", smallProfile, tempTasks)
   val mediumJob = ArcJob("mediumjob", mediumProfile, tempTasks)

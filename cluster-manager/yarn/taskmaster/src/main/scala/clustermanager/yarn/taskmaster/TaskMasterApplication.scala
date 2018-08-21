@@ -2,18 +2,20 @@ package clustermanager.yarn.taskmaster
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
+import com.typesafe.scalalogging.LazyLogging
 import runtime.protobuf.messages.ActorRefProto
 
 
-/**
-  *  Jar that will be sent into the Yarn Cluster.
-  *  It is responsible for talking to Yarn's RM and NM
-  *  to fix containers for the tasks.
+/** YARN ApplicationMaster.
+  *
+  * Each time a new job is deployed, the TaskMasterApplication
+  * is created on one of the machines in the YARN cluster.
   */
-private[yarn] object TaskMasterApplication extends App {
+private[yarn] object TaskMasterApplication extends App with LazyLogging {
+  logger.info("Starting up TaskMasterApplication")
 
   if (args.length <= 2) {
-    println("Wrong Args applied")
+    logger.error("Wrong number of arguments applied, shutting down!")
     System.exit(1)
   } else {
     val appMasterRef = args(0)

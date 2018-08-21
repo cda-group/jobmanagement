@@ -9,7 +9,7 @@ import scalapb.GeneratedMessageCompanion
 
 
 /**
-  * Serializer for Proto runtime.protobuf.messages in the Arc Cluster
+  * Serializer for Proto messages in the Runtime
   * Based on https://gist.github.com/thesamet/5d0349b40d3dc92859a1a2eafba448d5
   */
 class ProtobufSerializer(val system: ExtendedActorSystem) extends Serializer {

@@ -34,7 +34,7 @@ class TaskExecutorSpec extends TestKit(TaskExecutorSpec.actorSystem)
     "Terminate after execution" in {
       val am = TestProbe()
       val sm = TestProbe()
-      val be = system.actorOf(TaskExecutor(program, ArcTask("", "", ""), am.ref, sm.ref))
+      val be = system.actorOf(TaskExecutor(program, ArcTask("", 1, 1024, "", ""), am.ref, sm.ref))
       val probe = TestProbe()
       probe watch be
       probe.expectTerminated(be, taskExecutorHealthCheck.millis + taskExecutorHealthCheck.millis)

@@ -13,20 +13,19 @@ object StateManager {
 }
 
 /**
-  * StateManager is a node in the ARCluster that
-  * is responsible for creating StateMasters for each
-  * ArcJob. StateMasters receive monitoring stats and
-  * can act upon them.
+  * StateManager is a node that is responsible for creating
+  * StateMasters for each Job. StateMasters receive monitoring
+  * stats and can act upon them.
   */
 class StateManager extends Actor with ActorLogging {
-  var stateMasters = mutable.IndexedSeq.empty[ActorRef]
-  var stateMasterId: Long = 0
+  private var stateMasters = mutable.IndexedSeq.empty[ActorRef]
+  private var stateMasterId: Long = 0 // Unique actor id for each stateMaster that is created
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
-  val metrics = ClusterMetricsExtension(context.system)
+  private val metrics = ClusterMetricsExtension(context.system)
 
   override def preStart(): Unit = {
     metrics.subscribe(self)

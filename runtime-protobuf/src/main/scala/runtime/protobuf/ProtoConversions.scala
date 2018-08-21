@@ -5,6 +5,7 @@ import java.net.{InetSocketAddress => InetSocketAddressJava}
 import messages.{ActorRefProto, AddressProto, InetProto}
 
 
+
 object ProtoConversions {
 
   object ActorRef {

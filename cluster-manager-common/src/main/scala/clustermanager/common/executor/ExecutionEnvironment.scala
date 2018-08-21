@@ -11,18 +11,17 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
-/** ExecutionEnvironment is used by TaskMasters
-  * to create an "isolated" environment for an
-  * ArcJob
+/** ExecutionEnvironment is used by TaskMaster's/TaskExecutor's
+  * to create an "isolated" environment for an ArcJob
   */
 private[clustermanager] class ExecutionEnvironment(jobId: String) extends LazyLogging {
 
   // For now. To be discussed
-  final val LINUX_DIR = System.getProperty("user.home") + "/arc"
-  final val MAC_OS_DIR = System.getProperty("user.home") + "/arc"
+  private final val LINUX_DIR = System.getProperty("user.home") + "/arc"
+  private final val MAC_OS_DIR = System.getProperty("user.home") + "/arc"
 
-  final val LINUX_JOB_PATH = LINUX_DIR + "/" + jobId
-  final val MAC_OS_JOB_PATH = MAC_OS_DIR + "/" + jobId
+  private final val LINUX_JOB_PATH = LINUX_DIR + "/" + jobId
+  private final val MAC_OS_JOB_PATH = MAC_OS_DIR + "/" + jobId
 
   /**
     * Create a directory where the job will execute
@@ -65,7 +64,8 @@ private[clustermanager] class ExecutionEnvironment(jobId: String) extends LazyLo
   }
 
   /**
-    * Take the bytes and save it to a file in the execution environment
+    * Take the bytes and saves it to a file in the execution environment.
+    * Used by Standalone
     */
   def writeBinaryToFile(id: String, file: Array[Byte]): Boolean  = {
     OperatingSystem.get() match {
@@ -83,10 +83,10 @@ private[clustermanager] class ExecutionEnvironment(jobId: String) extends LazyLo
     }
   }
 
-  /**
-    * For UNIX/Linux
-    * @param path
-    * @return
+  /** Make a binary executable.
+    * Compatiable with UNIX/Linux
+    * @param path Path to the binary
+    * @return Scala Try
     */
   def setAsExecutable(path: String): Try[Unit] = Try {
     import scala.collection.JavaConverters._
@@ -117,6 +117,7 @@ private[clustermanager] class ExecutionEnvironment(jobId: String) extends LazyLo
       case _ =>
     }
   }
+
 
 
   private def createLinuxEnv(): Try[Unit] = Try {

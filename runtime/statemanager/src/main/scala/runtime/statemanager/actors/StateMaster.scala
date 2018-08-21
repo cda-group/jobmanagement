@@ -1,13 +1,14 @@
 package runtime.statemanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
+import runtime.common.Identifiers
 import runtime.protobuf.messages._
 
 import scala.collection.mutable
 
 
 object StateMaster {
-  def apply(implicit appMaster: ActorRef, job: ArcJob): Props =
+  def apply(appMaster: ActorRef, job: ArcJob): Props =
     Props(new StateMaster(appMaster, job))
 }
 
@@ -16,15 +17,13 @@ object StateMaster {
   * connected to a specific AppMaster.
   */
 class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogging {
-  var metricMap = mutable.HashMap[ArcTask, ExecutorMetric]()
+  private var metricMap = mutable.HashMap[ArcTask, ExecutorMetric]()
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
   override def preStart(): Unit = {
-    // Let appMaster know how to fetch metrics....
-    appMaster ! StateMasterConn(self)
     // enable DeathWatch
     context watch appMaster
   }
@@ -39,8 +38,12 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
       sender() ! ArcJobMetricFailure("Job ID did not match up")
     case ExecutorTaskExit(task) =>
       // Remove or declare task as "dead"?
-    case ArcJobKilled() =>
-      // Complete shutdown or save something?
+    case TaskMasterStatus(Identifiers.ARC_JOB_KILLED) =>
+      // react
+    case TaskMasterStatus(Identifiers.ARC_JOB_FAILED) =>
+    // react
+    case TaskMasterStatus(Identifiers.ARC_JOB_SUCCEEDED) =>
+    // react
     case Terminated(ref) =>
       // AppMaster has been terminated
       // Handle

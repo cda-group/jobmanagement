@@ -11,7 +11,7 @@ import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate}
 import scala.concurrent.duration._
 import scala.util.Try
 
-private[standalone] object TaskExecutor {
+private[taskmanager] object TaskExecutor {
   // Refactor
   def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
     Props(new TaskExecutor(binPath, task, aMaster, sMaster))
@@ -30,7 +30,7 @@ private[standalone] object TaskExecutor {
   *
   * @param binPath path to the rust binary
   */
-private[standalone] class TaskExecutor(binPath: String,
+private[taskmanager] class TaskExecutor(binPath: String,
                                        task: ArcTask,
                                        appMaster: ActorRef,
                                        stateMaster: ActorRef,
@@ -50,20 +50,25 @@ private[standalone] class TaskExecutor(binPath: String,
     .selfAddress
     .toString
 
+  override def postStop(): Unit = cgController match {
+    case Some(cg) =>
+      cg.removeCgroup(task.name)
+    case None =>
+  }
+
   def receive = {
     case StartExecution =>
       start()
     case CreateTaskReader(_task) =>
       // Create an actor to read the results from StdOut
       context.actorOf(TaskExecutorReader(process.get, appMaster, _task), "taskreader")
-    case HealthCheck =>
-      monitor match {
-        case Some(stats) =>
-          collectMetrics(stats)
-        case None =>
-          log.info("Could not load monitor")
-          shutdown()
-      }
+    case HealthCheck => monitor match {
+      case Some(stats) =>
+        collectMetrics(stats)
+      case None =>
+        log.info("Could not load monitor")
+        shutdown()
+    }
     case ArcTaskUpdate(t) =>
       // Gotten the results from the Stdout...
       arcTask = Some(t)
@@ -75,43 +80,46 @@ private[standalone] class TaskExecutor(binPath: String,
 
   /** We have been instructed by the TaskMaster to start
     * our binary
-    * TODO: Refactor
     */
   private def start(): Unit = {
+    // Arguments later on will be kompact extension address and akka paths etc..
     val pb = new ProcessBuilder(binPath, task.expr, task.vec)
     process = Some(pb.start())
 
-    val p = getPid(process.get)
-      .toOption
+    val pidOpt = getPid(process.get).toOption
 
-    p match {
+    pidOpt match {
       case Some(pid) =>
-        cgController match {
-          case Some(controller) =>
-            log.info(s"Moving Executor with PID $pid to its cgroup")
-            controller.mvProcessToCgroup(pid)
-          case None =>
-        }
-        ExecutorStats(pid, binPath, selfAddr) match {
-          case Some(execStats) =>
-            monitor = Some(execStats)
-            healthChecker = scheduleCheck()
-            // Enable DeathWatch of the StateMaster
-            context watch stateMaster
-            // Update Status of the Task
-            val updatedTask = task.copy(status = Some("running"))
-            arcTask = Some(updatedTask)
-            appMaster ! ArcTaskUpdate(updatedTask)
-            self ! CreateTaskReader(updatedTask)
-          case None =>
-            log.error("Was not able to create ExecutorStats instance")
-            shutdown()
-        }
+        cgroupCheck(pid)
+        initExecutor(pid)
       case None =>
         log.error("TaskExecutor.getPid() requires an UNIX system")
         shutdown()
     }
+  }
 
+  private def cgroupCheck(pid: Long): Unit = cgController match {
+    case Some(controller) =>
+      log.debug(s"Moving Executor with PID $pid to its cgroup")
+      if(!controller.mvProcessToCgroup(task.name, pid))
+        log.error(s"Failed moving process to its cgroup")
+    case None => // Ignore
+  }
+
+  private def initExecutor(pid: Long): Unit = ExecutorStats(pid, binPath, selfAddr) match {
+    case Some(execStats) =>
+      monitor = Some(execStats)
+      healthChecker = scheduleCheck()
+      // Enable DeathWatch of the StateMaster
+      context watch stateMaster
+      // Update Status of the Task
+      val updatedTask = task.copy(status = Some("running"))
+      arcTask = Some(updatedTask)
+      appMaster ! ArcTaskUpdate(updatedTask)
+      self ! CreateTaskReader(updatedTask)
+    case None =>
+      log.error("Was not able to create ExecutorStats instance")
+      shutdown()
   }
 
   private def collectMetrics(stats: ExecutorStats): Unit = {

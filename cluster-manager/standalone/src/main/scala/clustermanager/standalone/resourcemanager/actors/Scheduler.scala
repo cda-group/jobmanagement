@@ -4,7 +4,7 @@ import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancellable, Props}
 import clustermanager.standalone.resourcemanager.actors.ResourceManager.ResourceRequest
-import runtime.common.ActorPaths
+import runtime.common.{ActorPaths, IdGenerator}
 import runtime.protobuf.messages.SliceState.ALLOCATED
 import runtime.protobuf.messages._
 
@@ -130,7 +130,7 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
       }
     case SlicesAllocated(_slices) =>
       if (offeredSlices.remove(_slices))
-        log.info("Offered slices have now been allocated, removing")
+        log.debug("Offered slices have now been allocated, removing")
       else
         log.error("Could not remove the offered slices")
 
@@ -178,7 +178,8 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
           fetchSlots(freeSlices, job) match {
             case Some(chosen) =>
               import runtime.protobuf.ProtoConversions.Address._
-              val c = Container(job.id, job.appMasterRef.get, taskManagers(roundNumber), chosen, job.tasks)
+              val c = Container(IdGenerator.container(), job.id, job.appMasterRef.get,
+                taskManagers(roundNumber), chosen, job.tasks)
               Some(Seq(c))
             case None =>
               roundNumber += 1

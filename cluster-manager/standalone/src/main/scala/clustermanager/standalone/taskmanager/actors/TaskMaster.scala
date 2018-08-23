@@ -19,7 +19,7 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 
-private[standalone] object TaskMaster {
+private[taskmanager] object TaskMaster {
   def apply(container: Container):Props =
     Props(new TaskMaster(container))
   def apply(container: Container, cgController: CgroupController):Props =
@@ -32,9 +32,9 @@ private[standalone] object TaskMaster {
 
 /** A TaskMaster acts as a coordinator for a Container.
   * @param container Container
-  * @param cgroupController Controller for the containers Cgroup
+  * @param cgroupController Controller for the containers Cgroup if cgroups is enabled
   */
-private[standalone] class TaskMaster(container: Container, cgroupController: Option[CgroupController] = None)
+private[taskmanager] class TaskMaster(container: Container, cgroupController: Option[CgroupController] = None)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskMaster._
@@ -75,6 +75,7 @@ private[standalone] class TaskMaster(container: Container, cgroupController: Opt
       case None => // ignore
     }
   }
+
 
   def receive = {
     case Connected(remote, local) =>
@@ -156,7 +157,7 @@ private[standalone] class TaskMaster(container: Container, cgroupController: Opt
   private def envSetup(): Unit = {
     env.create() match {
       case Success(_) =>
-        log.info("Created job environment: " + env.getJobPath)
+        log.debug("Created job environment: " + env.getJobPath)
       case Failure(e) =>
         log.error("Failed to create job environment with path: " + env.getJobPath)
         // Notify AppMaster
@@ -175,18 +176,14 @@ private[standalone] class TaskMaster(container: Container, cgroupController: Opt
       3000.milliseconds
     )
 
-    notify onComplete {
-      case Success(v) => v match {
-        case StateMasterConn(ref) =>
-          stateMaster = Some(ref)
-        case _ =>
-          log.error("Expected StateMasterConn Message, but did not receive.")
-      }
-      case Failure(e) =>
-        log.error(e.toString)
+    notify map {
+      case StateMasterConn(ref) =>
+        stateMaster = Some(ref)
+      case x =>
+        log.error("Failed to fetch a StateMaster, shutting down!")
+        // We were not able to establish communication with the appmaster
+        // Release the slices and shutdown
         shutdown()
-      // We were not able to establish communication with the appmaster
-      // Release the slices and shutdown
     }
   }
 

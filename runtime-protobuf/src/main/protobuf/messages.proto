@@ -146,11 +146,12 @@ message ContainerSlice {
 }
 
 message Container {
-    string jobId = 1;
-    ActorRefProto appmaster = 2 [(scalapb.field).no_box = true];
-    AddressProto taskmanager = 3 [(scalapb.field).no_box = true];
-    repeated ContainerSlice slices = 4;
-    repeated ArcTask tasks = 5;
+    string containerId = 1;
+    string jobId = 2;
+    ActorRefProto appmaster = 3 [(scalapb.field).no_box = true];
+    AddressProto taskmanager = 4 [(scalapb.field).no_box = true];
+    repeated ContainerSlice slices = 5;
+    repeated ArcTask tasks = 6;
 }
 
 message ContainerAllocation {

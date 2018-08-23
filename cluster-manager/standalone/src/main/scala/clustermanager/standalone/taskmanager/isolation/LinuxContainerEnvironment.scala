@@ -9,13 +9,34 @@ import com.typesafe.scalalogging.LazyLogging
 import runtime.protobuf.messages.Container
 
 
+private[taskmanager] object LinuxContainerEnvironment extends LazyLogging {
+  final case class CgroupsException(msg: String) extends Exception
+
+  def apply(): Either[Exception, LinuxContainerEnvironment] =  {
+    try {
+      val availableCores = ContainerUtils.getNumberOfContainerCores
+      val availableMem = ContainerUtils.getMemoryForContainers
+      val env = new LinuxContainerEnvironment(availableCores, ContainerUtils.mbToBytes(availableMem))
+      env.check() // Verify Cgroups Setup
+      env.initRoot()
+      Right(env)
+    } catch {
+      case err: CgroupsException =>
+        logger.error(err.msg)
+        Left(err)
+      case ioErr: IOException =>
+        logger.error(ioErr.toString)
+        Left(ioErr)
+    }
+  }
+}
 
 /** LinuxContainerEnvironment uses Cgroups to devide and isolate
   * resources such as CPU and Memory for each Container.
   * @param availableCores cores available to the containers Cgroup
   * @param availableMem memory available to the containers Cgroup
   */
-class LinuxContainerEnvironment(availableCores: Int, availableMem: Long)
+private[taskmanager] class LinuxContainerEnvironment(availableCores: Int, availableMem: Long)
   extends Cgroups {
   import LinuxContainerEnvironment._
 
@@ -62,44 +83,65 @@ class LinuxContainerEnvironment(availableCores: Int, availableMem: Long)
 
     // Setting hard limits for Memory usage:
     // Is done by giving a value to memory.limit_in_bytes
-    Files.write(Paths.get(containersMem + "/" + MEMORY_LIMIT), String.valueOf(availableMem).getBytes)
+    Files.write(Paths.get(containersMem + "/" + HARD_MEMORY_LIMIT), String.valueOf(availableMem).getBytes)
 
     // Just an extra verification
     assert(readToLong(Paths.get(containersCpu + "/" + CPU_CFS_QUOTA)).isDefined)
-    assert(readToLong(Paths.get(containersMem + "/" + MEMORY_LIMIT)).isDefined)
+    assert(readToLong(Paths.get(containersMem + "/" + HARD_MEMORY_LIMIT)).isDefined)
   }
 
   /** Creates a Container Group for the specified
     * container. Throws CgroupsException on Error.
-    * @param id Container ID
+    * @param container Container
     */
-  def createContainerGroup(id: String, container: Container): Unit = {
-    val cpuPath = Paths.get(containersCpu + "/" + id)
-    val memPath = Paths.get(containersMem + "/" + id)
+  def createContainerGroup(container: Container): Boolean = {
+    try {
+      val cpuPath = Paths.get(containersCpu + "/" + container.containerId)
+      val memPath = Paths.get(containersMem + "/" + container.containerId)
 
-    if (Files.isDirectory(memPath))
-      throw CgroupsException(s"Container already exists under $containersMem")
+      if (Files.isDirectory(memPath))
+        throw CgroupsException(s"Container already exists under $containersMem")
 
-    if (Files.isDirectory(cpuPath))
-      throw CgroupsException(s"Container already exists under $containersCpu")
+      if (Files.isDirectory(cpuPath))
+        throw CgroupsException(s"Container already exists under $containersCpu")
 
-    Files.createDirectory(memPath)
-    Files.createDirectory(cpuPath)
+      Files.createDirectory(memPath)
+      Files.createDirectory(cpuPath)
 
-    // Just an extra check
-    if (!(Files.isDirectory(memPath) || Files.isDirectory(cpuPath)))
-      throw CgroupsException("Something went wrong while trying to create Container Group")
+      // Just an extra check
+      if (!(Files.isDirectory(memPath) || Files.isDirectory(cpuPath)))
+        throw CgroupsException("Something went wrong while trying to create Container Group")
 
-    // Set Soft limit for the Container groups CPU usage
-    // cpu.shares = 1024 * (total CPU cores in container / Total available CPU cores in cpu/containers)
-    // e.g., 1024 * (2/4) = 512 cpu shares
-    val containerCores = container.tasks.foldLeft(0)(_ + _.cores)
-    val shares = 1024 * (containerCores / availableCores)
-    logger.info(s"Setting Container group CPU shares to $shares")
-    Files.write(Paths.get(cpuPath + "/" + CPU_SHARES), String.valueOf(shares).getBytes)
+      // Set Soft limit for the Container's CPU usage
+      // cpu.shares = 1024 * (total CPU cores in container / Total available CPU cores in cpu/containers)
+      // e.g., 1024 * (2/4) = 512 cpu shares
+      val containerCores = container.tasks.foldLeft(0)(_ + _.cores)
+      val shares = (1024 * (containerCores / availableCores.toDouble)).toInt
+      Files.write(Paths.get(cpuPath + "/" + CPU_SHARES), String.valueOf(shares).getBytes)
 
-    // For now, it is enough by having all the binaries in a job be moved to a single container group.
-    // Later on child groups can be created with soft limits for each task.
+      // Set Soft limit for the Container's Memory Usage
+      val totalMem = container.tasks.foldLeft(0)(_ + _.memory)
+      val memInBytes = ContainerUtils.mbToBytes(totalMem)
+      Files.write(Paths.get(memPath + "/" + SOFT_MEMORY_LIMIT), String.valueOf(memInBytes).getBytes)
+
+      /// Just testing
+      container.tasks.foreach {task =>
+        val taskCpuPath = Paths.get(cpuPath + "/" + task.name)
+        val taskMemPath = Paths.get(memPath + "/" + task.name)
+        Files.createDirectory(taskCpuPath)
+        Files.createDirectory(taskMemPath)
+        Files.write(Paths.get(taskMemPath + "/" + SOFT_MEMORY_LIMIT), String.valueOf(ContainerUtils.mbToBytes(task.memory)).getBytes())
+
+        val taskShares = (1024 * (task.cores / containerCores.toDouble)).toInt
+        Files.write(Paths.get(taskCpuPath + "/" + CPU_SHARES), String.valueOf(taskShares).getBytes())
+      }
+
+      true
+    } catch {
+      case err: Exception =>
+        logger.error(err.toString)
+        false
+    }
   }
 
 
@@ -114,52 +156,50 @@ class LinuxContainerEnvironment(availableCores: Int, availableMem: Long)
   def getMemory: Long = availableMem
 }
 
-private[taskmanager] object LinuxContainerEnvironment extends LazyLogging {
-  case class CgroupsException(msg: String) extends Exception
 
-  def apply(): Either[Exception, LinuxContainerEnvironment] =  {
-    val availableCores = ContainerUtils.getNumberOfContainerCores
-    val availableMem = ContainerUtils.getMemoryForContainers
-    val env = new LinuxContainerEnvironment(availableCores, availableMem)
-    try {
-      env.check() // Verify Cgroups Setup
-      env.initRoot()
-      Right(env)
-    } catch {
-      case err: CgroupsException =>
-        logger.error(err.msg)
-        Left(err)
-      case ioErr: IOException =>
-        logger.error(ioErr.toString)
-        Left(ioErr)
-    }
-  }
-}
-
-/** Used by TaskMaster's and TaskExecutor's to
-  * handle the Containers Cgroup.
+/** CgroupController is used by TaskMaster's and TaskExecutor's
+  * to alter the container's cgroup
   * @param containerId ID for the Container
   */
-class CgroupController(containerId: String) extends Cgroups {
-  private val reporter = new LCEReporter(containerId)
+private[taskmanager] class CgroupController(containerId: String) extends Cgroups {
+  private val metricsReporter = new LCEReporter(containerId)
   private final val containerCpu = containersCpu + "/" + containerId
   private final val containerMem = containersMem + "/" + containerId
 
 
   /** Move process into cgroup by writing PID into the
     * groups cgroup.procs file.
-    * @param pid Process which we are moving
+    * @param pid Process ID
     * @return True on success, false otherwise
     */
-  def mvProcessToCgroup(pid: Long): Boolean = {
-    // Double check directories exist..
+  def mvProcessToCgroup(taskName: String, pid: Long): Boolean = {
+    try {
+      Files.write(Paths.get(containerCpu + "/" + taskName + "/" + CGROUP_PROCS) , String.valueOf(pid).getBytes,
+        StandardOpenOption.APPEND)
+      Files.write(Paths.get(containerMem + "/" + taskName + "/" + CGROUP_PROCS), String.valueOf(pid).getBytes,
+        StandardOpenOption.APPEND)
+      true
+    } catch {
+      case err: Exception =>
+        logger.error(err.toString)
+        false
+    }
+  }
 
-    // write pid into containerId/tasks file
-    Files.write(Paths.get(containerCpu + "/" + CGROUP_PROCS) , String.valueOf(pid).getBytes,
-      StandardOpenOption.APPEND)
-    Files.write(Paths.get(containerMem + "/" + CGROUP_PROCS), String.valueOf(pid).getBytes,
-      StandardOpenOption.APPEND)
-    true
+  /** Clean sub cgroups
+    * @param name cgroup name
+    * @return True on success, otherwise false
+    */
+  def removeCgroup(name: String): Boolean = {
+    try {
+      val cpu = Paths.get(containerCpu + "/" + name)
+      val mem = Paths.get(containerMem + "/" + name)
+      Files.deleteIfExists(cpu) && Files.deleteIfExists(mem)
+    } catch {
+      case err: Exception =>
+        logger.error(err.toString)
+        false
+    }
   }
 
   /** Deletes the Container cgroup under
@@ -167,9 +207,10 @@ class CgroupController(containerId: String) extends Cgroups {
     */
   def clean(): Unit =
     deleteContainerGroup(containerId)
+
 }
 
-trait Cgroups extends LazyLogging {
+private[taskmanager] trait Cgroups extends LazyLogging {
 
   // For now. Path on RHEL based systems might be found at /cgroup etc..
   final val defaultPath = "/sys/fs/cgroup"
@@ -179,7 +220,8 @@ trait Cgroups extends LazyLogging {
   final val containersMem = defaultPath + "/" + "memory/containers"
 
   // Identifiers
-  final val MEMORY_LIMIT = "memory.limit_in_bytes"
+  final val HARD_MEMORY_LIMIT = "memory.limit_in_bytes"
+  final val SOFT_MEMORY_LIMIT = "memory.soft_limit_in_bytes"
   final val MEMORY_USAGE = "memory.usage_in_bytes"
   final val CPU_SHARES = "cpu.shares"
   final val CPU_CFS_QUOTA = "cpu.cfs_quota_us"
@@ -216,20 +258,32 @@ trait Cgroups extends LazyLogging {
     Files.deleteIfExists(cpuPath) && Files.deleteIfExists(memPath)
   }
 
-  def getRootMemoryLimit: Option[Long] =
-    readToLong(Paths.get(defaultPath + "/" + "memory" + "/" +  MEMORY_LIMIT))
+  def getRootMemoryLimit: Long =
+    readToLong(Paths.get(defaultPath + "/" + "memory" + "/" +  HARD_MEMORY_LIMIT))
+    .getOrElse(-1)
 
-  def getMemoryLimit(containerId: String): Option[Long] =
-    readToLong(Paths.get(containersMem + "/" + containerId + "/" + MEMORY_LIMIT))
+  def getMemoryLimit(containerId: String): Long =
+    readToLong(Paths.get(containersMem + "/" + containerId + "/" + SOFT_MEMORY_LIMIT))
+    .getOrElse(-1)
 
   def setMemoryLimit(value: Long, containerId: String): Unit = {
-    Files.write(Paths.get(containersMem + "/" + containerId + "/" + MEMORY_LIMIT),
+    Files.write(Paths.get(containersMem + "/" + containerId + "/" + SOFT_MEMORY_LIMIT),
       String.valueOf(value).getBytes())
   }
 }
 
-class LCEReporter(containerId: String) extends Cgroups {
-  // Fetch container metrics
+private[taskmanager] class LCEReporter(containerId: String) extends Cgroups {
+
+  def getContainerMemoryUsage: Long = {
+    readToLong(Paths.get(containersMem + "/" + containerId + "/" + MEMORY_USAGE))
+      .getOrElse(-1)
+  }
+
+  def getTaskMemoryUsage: Long = {
+    1
+  }
+
+
 }
 
 

@@ -26,4 +26,7 @@ object ContainerUtils extends TaskManagerConfig {
   def mbToBytes(mb: Long): Long =
     (mb * 1024) * 1024
 
+  def bytesToMb(bytes: Long): Long =
+    (bytes / 1024) / 1024
+
 }

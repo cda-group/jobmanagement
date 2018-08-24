@@ -12,6 +12,7 @@ trait TaskManagerConfig {
 
   val isolation = config.getString("taskmanager.isolation")
   val resourceLimit = config.getDouble("taskmanager.resource-limit")
+  val cgroupsPath = config.getString("taskmanager.cgroups-path")
 
   require(slotTick > 0)
   require(taskMasterTimeout > 0)

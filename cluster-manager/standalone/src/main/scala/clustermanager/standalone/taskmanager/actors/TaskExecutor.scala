@@ -169,7 +169,20 @@ private[taskmanager] class TaskExecutor(binPath: String,
     */
   private def shutdown(): Unit = {
     healthChecker.map(_.cancel())
+    killProcess()
     context.stop(self)
+  }
+
+
+  /** If the actor is being shutdown while the process is still alive,
+    * calling this method ensures the process is killed and its PID
+    * is "released" from its cgroup if LCE is enabled.
+    */
+  private def killProcess(): Unit = process match {
+    case Some(p) =>
+      if (p.isAlive)
+        p.destroyForcibly()
+    case None =>
   }
 
 }

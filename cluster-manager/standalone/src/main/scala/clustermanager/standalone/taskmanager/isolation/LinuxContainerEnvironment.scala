@@ -4,7 +4,7 @@ import java.io.IOException
 import java.nio.file.{Files, Path, Paths, StandardOpenOption}
 
 import clustermanager.common.{Linux, OperatingSystem}
-import clustermanager.standalone.taskmanager.utils.ContainerUtils
+import clustermanager.standalone.taskmanager.utils.{ContainerUtils, TaskManagerConfig}
 import com.typesafe.scalalogging.LazyLogging
 import runtime.protobuf.messages.Container
 
@@ -31,10 +31,10 @@ private[taskmanager] object LinuxContainerEnvironment extends LazyLogging {
   }
 }
 
-/** LinuxContainerEnvironment uses Cgroups to devide and isolate
+/** LinuxContainerEnvironment utilises Cgroups to divide and isolate
   * resources such as CPU and Memory for each Container.
-  * @param availableCores cores available to the containers Cgroup
-  * @param availableMem memory available to the containers Cgroup
+  * @param availableCores cores available to the root container Cgroup
+  * @param availableMem memory available to the root container Cgroup
   */
 private[taskmanager] class LinuxContainerEnvironment(availableCores: Int, availableMem: Long)
   extends Cgroups {
@@ -77,8 +77,7 @@ private[taskmanager] class LinuxContainerEnvironment(availableCores: Int, availa
     // cpu.cfs_quota_us = 400000, cpu.cfs_period_us = 100000
 
     // Period is by default 100000 on my system, check so that we don't need to actually write this down as well.
-    val period = 100000
-    val quota = period * availableCores
+    val quota = CFS_PERIOD_VALUE * availableCores
     Files.write(Paths.get(containersCpu + "/" + CPU_CFS_QUOTA), String.valueOf(quota).getBytes)
 
     // Setting hard limits for Memory usage:
@@ -186,7 +185,7 @@ private[taskmanager] class CgroupController(containerId: String) extends Cgroups
     }
   }
 
-  /** Clean sub cgroups
+  /** Clean sub cgroup
     * @param name cgroup name
     * @return True on success, otherwise false
     */
@@ -210,10 +209,9 @@ private[taskmanager] class CgroupController(containerId: String) extends Cgroups
 
 }
 
-private[taskmanager] trait Cgroups extends LazyLogging {
+private[taskmanager] trait Cgroups extends LazyLogging with TaskManagerConfig {
 
-  // For now. Path on RHEL based systems might be found at /cgroup etc..
-  final val defaultPath = "/sys/fs/cgroup"
+  final val defaultPath = if (cgroupsPath.isEmpty) "/sys/fs/cgroup" else cgroupsPath
 
   // Cgroup for containers started by the TaskManager
   final val containersCpu = defaultPath + "/" + "cpu/containers"
@@ -227,6 +225,8 @@ private[taskmanager] trait Cgroups extends LazyLogging {
   final val CPU_CFS_QUOTA = "cpu.cfs_quota_us"
   final val CPU_CFS_PERIOD = "cpu.cfs_period_us"
   final val CGROUP_PROCS = "cgroup.procs"
+
+  final val CFS_PERIOD_VALUE = 10000
 
 
   /** Used to read files with one line values

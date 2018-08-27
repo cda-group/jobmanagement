@@ -12,16 +12,15 @@ import scala.concurrent.duration._
 import scala.util.Try
 
 private[taskmanager] object TaskExecutor {
-  // Refactor
-  def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
-    Props(new TaskExecutor(binPath, task, aMaster, sMaster))
-  def apply(binPath: String,
-            task: ArcTask,
-            aMaster: ActorRef,
-            sMaster: ActorRef,
-            controller: CgroupController
-           ): Props = Props(new TaskExecutor(binPath, task, aMaster, sMaster, Some(controller)))
+  def apply(init: ExecutorInit): Props =
+    Props(new TaskExecutor(init.binPath, init.task, init.appMaster, init.stateMaster, init.controller))
   case object HealthCheck
+  final case class ExecutorInit(binPath: String,
+                                task: ArcTask,
+                                appMaster: ActorRef,
+                                stateMaster: ActorRef,
+                                controller: Option[CgroupController] = None,
+                               )
   case class StdOutResult(r: String)
   case class CreateTaskReader(task: ArcTask)
 }

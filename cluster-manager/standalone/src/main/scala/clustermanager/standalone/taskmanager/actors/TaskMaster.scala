@@ -8,6 +8,8 @@ import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.util.Timeout
 import clustermanager.common.executor.ExecutionEnvironment
+import clustermanager.standalone.taskmanager.actors.MetricsReporter.StartReporting
+import clustermanager.standalone.taskmanager.actors.TaskExecutor.ExecutorInit
 import clustermanager.standalone.taskmanager.isolation.CgroupController
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import runtime.common.Identifiers
@@ -61,6 +63,7 @@ private[taskmanager] class TaskMaster(container: Container, cgroupController: Op
 
   private var stateMaster = None: Option[ActorRef]
 
+  private val metricsReporter = context.actorOf(MetricsReporter(container, cgroupController.get.metricsReporter()), "metricsreporter")
 
   override def preStart(): Unit = {
     envSetup()
@@ -126,15 +129,10 @@ private[taskmanager] class TaskMaster(container: Container, cgroupController: Op
   private def initExecutor(stateMaster: ActorRef, name: String): Unit = {
     container.tasks.find(_.name == name) match {
       case Some(task) =>
-        val executor = cgroupController match {
-          case Some(controller) =>
-            context.actorOf(TaskExecutor(env.getJobPath+"/" + name, task, appmaster, stateMaster, controller),
-              Identifiers.TASK_EXECUTOR+"_"+name)
-          case None =>
-            context.actorOf(TaskExecutor(env.getJobPath+"/" + name, task, appmaster, stateMaster),
-              Identifiers.TASK_EXECUTOR+"_"+name)
-        }
+        val binPath = env.getJobPath + "/" + name
+        val executorInit = ExecutorInit(binPath, task, appmaster, stateMaster, cgroupController)
 
+        val executor = context.actorOf(TaskExecutor(executorInit), Identifiers.TASK_EXECUTOR+"_"+name)
         executors = executors :+ executor
         // Enable DeathWatch
         context watch executor
@@ -144,6 +142,7 @@ private[taskmanager] class TaskMaster(container: Container, cgroupController: Op
           log.info("All executors have been initialized, starting them up!")
           executors.foreach(_ ! StartExecution)
           appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_RUNNING)
+          metricsReporter ! StartReporting
         }
       case None =>
         log.error("Was not able to match received task with task in the container")

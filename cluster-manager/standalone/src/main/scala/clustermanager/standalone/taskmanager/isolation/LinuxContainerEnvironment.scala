@@ -161,7 +161,7 @@ private[taskmanager] class LinuxContainerEnvironment(availableCores: Int, availa
   * @param containerId ID for the Container
   */
 private[taskmanager] class CgroupController(containerId: String) extends Cgroups {
-  private val metricsReporter = new LCEReporter(containerId)
+  private val containerMetrics = new ContainerMetrics(containerId)
   private final val containerCpu = containersCpu + "/" + containerId
   private final val containerMem = containersMem + "/" + containerId
 
@@ -207,6 +207,9 @@ private[taskmanager] class CgroupController(containerId: String) extends Cgroups
   def clean(): Unit =
     deleteContainerGroup(containerId)
 
+
+  def metricsReporter(): ContainerMetrics = containerMetrics
+
 }
 
 private[taskmanager] trait Cgroups extends LazyLogging with TaskManagerConfig {
@@ -221,9 +224,14 @@ private[taskmanager] trait Cgroups extends LazyLogging with TaskManagerConfig {
   final val HARD_MEMORY_LIMIT = "memory.limit_in_bytes"
   final val SOFT_MEMORY_LIMIT = "memory.soft_limit_in_bytes"
   final val MEMORY_USAGE = "memory.usage_in_bytes"
+  final val MEMORY_FAILTCNT = "memory.failcnt"
   final val CPU_SHARES = "cpu.shares"
   final val CPU_CFS_QUOTA = "cpu.cfs_quota_us"
   final val CPU_CFS_PERIOD = "cpu.cfs_period_us"
+  final val CPU_ACCT_STAT = "cpuacct.stat"
+  final val CPU_ACCT_USAGE = "cpuacct.usage"
+  final val CPU_ACCT_USAGE_PERCPU = "cpuacct.usage_percup"
+
   final val CGROUP_PROCS = "cgroup.procs"
 
   final val CFS_PERIOD_VALUE = 10000
@@ -272,15 +280,40 @@ private[taskmanager] trait Cgroups extends LazyLogging with TaskManagerConfig {
   }
 }
 
-private[taskmanager] class LCEReporter(containerId: String) extends Cgroups {
+
+// Refactor
+private[taskmanager] class ContainerMetrics(containerId: String) extends Cgroups {
 
   def getContainerMemoryUsage: Long = {
     readToLong(Paths.get(containersMem + "/" + containerId + "/" + MEMORY_USAGE))
       .getOrElse(-1)
   }
 
-  def getTaskMemoryUsage: Long = {
-    1
+  def getTaskMemoryUsage(name: String): Long = {
+    readToLong(Paths.get(containersMem + "/" + containerId + "/" + name + "/" + MEMORY_USAGE))
+      .getOrElse(-1)
+  }
+
+  def getTaskMemoryLimit(name: String): Long = {
+    readToLong(Paths.get(containersMem + "/" + containerId + "/" + name + "/" + SOFT_MEMORY_LIMIT))
+      .getOrElse(-1)
+  }
+
+  def getContainerMemFailcount: Long = {
+    readToLong(Paths.get(containersMem + "/" + containerId + "/" + MEMORY_FAILTCNT))
+      .getOrElse(-1)
+  }
+
+  def getTaskMemFailcount(name: String): Long = {
+    readToLong(Paths.get(containersMem + "/" + containerId + "/" + name + "/" + MEMORY_FAILTCNT))
+      .getOrElse(-1)
+  }
+
+  // CPU
+
+  def getContainerCpuAcctUsage: Long = {
+    readToLong(Paths.get(containersCpu + "/" + containerId + "/" + CPU_ACCT_USAGE))
+      .getOrElse(-1)
   }
 
 

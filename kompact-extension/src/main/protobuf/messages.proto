@@ -49,17 +49,23 @@ message AskReply {
 
 message ExecutorRegistration {
     string jobId = 1;
-    string name = 2;
-    string akkaPath = 3;
-    string kompactPath = 4;
+    KompactAkkaPath src = 2[(scalapb.field).no_box = true];
+    KompactAkkaPath dst = 3[(scalapb.field).no_box = true];
+}
+
+message KompactAkkaPath {
+    string path = 1;
+    string ip = 2;
+    int32 port = 3;
 }
 
 message KompactAkkaMsg {
-    string actor = 1;
+    KompactAkkaPath src = 1[(scalapb.field).no_box = true];
+    KompactAkkaPath dst = 2[(scalapb.field).no_box = true];
     oneof msg {
-        ExecutorRegistration executorRegistration = 2;
-        Hello hello = 3;
-        Ask ask = 4;
-        AskReply askReply = 5;
+        ExecutorRegistration executorRegistration = 3;
+        Hello hello = 4;
+        Ask ask = 5;
+        AskReply askReply = 6;
     }
 }

@@ -35,9 +35,7 @@ private[kompact] class ProxyActor extends Actor with ActorLogging {
     proxyServer.run(selfAddr)
   }
 
-  override def postStop(): Unit = {
-    proxyServer.close()
-  }
+  override def postStop(): Unit = proxyServer.close()
 
   def receive = {
     case Register(ref) =>
@@ -46,7 +44,7 @@ private[kompact] class ProxyActor extends Actor with ActorLogging {
     case Unregister(ref) =>
       refs.remove(ref.path.name)
     case msg@ExecutorUp(ref) =>
-      refs.get(ref.akkaPath) match {
+      refs.get(ref.dstPath.path) match {
         case Some(akkaRef) =>
           akkaRef ! msg // Send KompactRef to Akka Actor
           sender() ! akkaRef // Send ActorRef to handler responsible for akkaRef

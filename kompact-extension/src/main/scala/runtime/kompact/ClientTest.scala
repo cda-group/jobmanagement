@@ -1,5 +1,7 @@
 package runtime.kompact
 
+import java.nio.ByteOrder
+
 import com.typesafe.scalalogging.LazyLogging
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel._
@@ -9,8 +11,8 @@ import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.handler.codec.{LengthFieldBasedFrameDecoder, LengthFieldPrepender}
 import io.netty.util.ReferenceCountUtil
 import runtime.kompact.messages.KompactAkkaMsg.Msg
-import runtime.kompact.messages.{AskReply, ExecutorRegistration, Hello, KompactAkkaMsg}
-import runtime.kompact.netty.{ProtobufDecoder, ProtobufEncoder}
+import runtime.kompact.messages._
+import runtime.kompact.netty.{KompactDecoder, KompactEncoder}
 
 import scala.io.StdIn
 
@@ -64,10 +66,10 @@ class Client() extends LazyLogging {
         @throws[Exception]
         override def initChannel(channel: SocketChannel): Unit = {
           channel.pipeline().addLast(
-            new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4),
-            new LengthFieldPrepender(4),
-            ProtobufDecoder(4),
-            ProtobufEncoder(),
+            new LengthFieldBasedFrameDecoder(ByteOrder.BIG_ENDIAN, Integer.MAX_VALUE, 0, 4, -4, 0, false),
+            new LengthFieldPrepender(ByteOrder.BIG_ENDIAN, 4, 0, true),
+            new KompactDecoder(),
+            new KompactEncoder(),
             ClientHandler()
           )
         }
@@ -95,7 +97,7 @@ final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyL
           println(v)
         case Msg.Ask(ask) =>
           val hello = Hello("gotyaback")
-          val reply = KompactAkkaMsg(ask.askActor).withAskReply(AskReply(ask.askActor, KompactAkkaMsg().withHello(hello)))
+          val reply = KompactAkkaMsg().withAskReply(AskReply(ask.askActor, KompactAkkaMsg().withHello(hello)))
           ctx.writeAndFlush(reply)
         case _ => println("unknown")
       }
@@ -105,8 +107,10 @@ final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyL
   }
   override def channelActive(ctx: ChannelHandlerContext): Unit = {
     logger.info(s"Client Connected to ${ctx.channel().remoteAddress()}")
-    val s = ExecutorRegistration("test", "lol", "sampleActor", "hej")
-    val reg = KompactAkkaMsg().withExecutorRegistration(s)
+    val src = KompactAkkaPath("executor", "127.0.0.1", 2020)
+    val dst = KompactAkkaPath("executor", "127.0.0.1", 2020)
+    val s = ExecutorRegistration("test", src, dst)
+    val reg = KompactAkkaMsg(src, dst).withExecutorRegistration(s)
     ctx.writeAndFlush(reg)
 
   }

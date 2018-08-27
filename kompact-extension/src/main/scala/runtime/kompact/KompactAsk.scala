@@ -31,7 +31,7 @@ private[kompact] class KompactAsk(t: Timeout) extends Actor with ActorLogging {
     case AskExpired =>
       asker.get ! AskFailure
       shutdown()
-    case KompactAkkaMsg(_, msg) =>
+    case KompactAkkaMsg(_, _, msg) =>
       asker.get ! AskSuccess(msg)
       shutdown()
     case AskTickerInit =>

@@ -4,7 +4,7 @@ import akka.actor.ActorRef
 import akka.util.Timeout
 import com.typesafe.scalalogging.LazyLogging
 import io.netty.channel.nio.NioEventLoopGroup
-import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter}
+import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter, SimpleChannelInboundHandler}
 import io.netty.util.ReferenceCountUtil
 import runtime.kompact.ProxyActor.AskRelay
 import runtime.kompact.{ExecutorUp, KompactRef}
@@ -19,7 +19,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param proxy ActorRef
   */
 private[kompact] class ProxyServerHandler(proxy: ActorRef, group: NioEventLoopGroup)
-  extends ChannelInboundHandlerAdapter with LazyLogging {
+  extends SimpleChannelInboundHandler[KompactAkkaMsg] with LazyLogging {
   import akka.pattern.ask
   import scala.concurrent.duration._
   implicit val timeout = Timeout(3.seconds)
@@ -31,10 +31,9 @@ private[kompact] class ProxyServerHandler(proxy: ActorRef, group: NioEventLoopGr
     logger.info(s"New Executor Connected ${ctx.channel().remoteAddress()}")
   }
 
-  override def channelRead(ctx: ChannelHandlerContext, msg: scala.Any): Unit =  {
+  override def channelRead0(ctx: ChannelHandlerContext, payload: KompactAkkaMsg): Unit = {
     try {
-      val e: KompactAkkaMsg = msg.asInstanceOf[KompactAkkaMsg]
-      e.msg match {
+      payload.msg match {
         case Msg.Hello(v) => akkaActor match {
           case Some(ref) => ref ! v
           case None => logger.error("Ref not set yet")
@@ -42,18 +41,18 @@ private[kompact] class ProxyServerHandler(proxy: ActorRef, group: NioEventLoopGr
         case Msg.AskReply(reply) =>
           proxy ! AskRelay(reply)
         case Msg.ExecutorRegistration(reg) =>
-          val kRef = KompactRef(reg.jobId, reg.name, reg.akkaPath, reg.kompactPath, ctx)
+          val kRef = KompactRef(reg.jobId, reg.src, reg.dst, ctx)
           proxy ? ExecutorUp(kRef) map {
             case ref: ActorRef =>
               akkaActor = Some(ref)
               logger.info("Akka ref set")
             case _ =>
-              logger.error("Could not locate ActorRef for " + kRef.executorName)
+              logger.error("Could not locate ActorRef for " + kRef.dstPath.path)
           }
         case _ => println("unknown")
       }
     } finally {
-      ReferenceCountUtil.release(msg)
+      ReferenceCountUtil.release(payload)
     }
   }
 

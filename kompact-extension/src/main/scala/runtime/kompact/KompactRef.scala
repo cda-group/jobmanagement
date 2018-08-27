@@ -8,7 +8,7 @@ import java.util.concurrent.{Future => JFuture}
 
 import akka.util.Timeout
 import runtime.kompact.KompactAsk.{AskResponse, AskTickerInit}
-import runtime.kompact.messages.{Ask, KompactAkkaMsg}
+import runtime.kompact.messages.{Ask, KompactAkkaMsg, KompactAkkaPath}
 
 
 /** Commands that can be executed on KompactRef's
@@ -43,21 +43,19 @@ private[kompact] trait KompactApi {
 
 /** KompactRef represents a connection Kompact Connection
   * @param jobId  String
-  * @param executorName String
-  * @param akkaPath String
-  * @param kompactPath String
   * @param ctx Netty ContextHandlerContext
   */
 final case class KompactRef(jobId: String,
-                            executorName: String,
-                            akkaPath: String,
-                            kompactPath: String,
+                            srcPath: KompactAkkaPath,
+                            dstPath: KompactAkkaPath,
                             ctx: ChannelHandlerContext
                            ) extends KompactApi {
 
   override def !(msg: KompactAkkaMsg): Unit = {
-    if (ctx.channel().isWritable)
-      ctx.writeAndFlush(msg)
+    if (ctx.channel().isWritable) {
+      val updatedMsg = msg.copy(src = dstPath, dst = srcPath)
+      ctx.writeAndFlush(updatedMsg)
+    }
   }
 
   override def ?(msg: KompactAkkaMsg)(implicit sys: ActorSystem,
@@ -66,7 +64,7 @@ final case class KompactRef(jobId: String,
     val askActor = sys.actorOf(KompactAsk(t))
     // This might have to be toStringWithAddress..
     val askReq = Ask(askActor.path.toString, msg)
-    val kMsg = KompactAkkaMsg().withAsk(askReq)
+    val kMsg = KompactAkkaMsg(src = dstPath, dst = srcPath).withAsk(askReq)
     ctx.writeAndFlush(kMsg)
     import akka.pattern._
     askActor.ask(AskTickerInit).mapTo[AskResponse]

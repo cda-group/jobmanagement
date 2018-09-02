@@ -43,7 +43,7 @@ class TaskReceiverSpec extends TestKit(TaskReceiverSpec.actorSystem)
     "Write received binary to file" in {
       env.create()
       // Set up TaskReceiver
-      val tr = system.actorOf(TaskReceiver("1", env), "rec")
+      val tr = system.actorOf(TaskReceiver(env), "rec")
 
       val probe = TestProbe()
       implicit val timeout = Timeout(3 seconds)
@@ -61,7 +61,7 @@ class TaskReceiverSpec extends TestKit(TaskReceiverSpec.actorSystem)
 
       // Assert
       tmProbe.expectMsgType[TaskTransferComplete]
-      tmProbe.send(tr, TaskUploaded)
+      tmProbe.send(tr, TaskUploaded("somefilename"))
       tmProbe.expectMsgType[TaskReady]
     }
   }

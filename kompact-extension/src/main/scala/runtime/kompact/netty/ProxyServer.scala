@@ -1,6 +1,7 @@
 package runtime.kompact.netty
 
 import java.net.InetSocketAddress
+import java.nio.ByteOrder
 
 import akka.actor.ActorRef
 import com.typesafe.scalalogging.LazyLogging
@@ -32,10 +33,10 @@ private[kompact] class ProxyServer(proxyActor: ActorRef) extends LazyLogging {
     .childHandler(new ChannelInitializer[SocketChannel] {
       override def initChannel(ch: SocketChannel): Unit = {
         ch.pipeline().addLast(
-          new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4),
-          new LengthFieldPrepender(4),
-          ProtobufDecoder(4),
-          ProtobufEncoder(),
+          new LengthFieldBasedFrameDecoder(ByteOrder.BIG_ENDIAN, Integer.MAX_VALUE, 0, 4, -4, 0, false),
+          new LengthFieldPrepender(ByteOrder.BIG_ENDIAN, 4, 0, true),
+          new KompactDecoder(),
+          new KompactEncoder(),
           new ProxyServerHandler(proxyActor, workerGroup)
         )
         ch.config().setReuseAddress(true)

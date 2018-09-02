@@ -7,9 +7,9 @@ import runtime.common.Identifiers
 
 object ClusterListener {
   def apply(): Props = Props(new ClusterListener)
-  case class TaskManagerRegistration(addr: Address)
-  case class TaskManagerRemoved(addr: Address)
-  case class UnreachableTaskManager(addr: Address)
+  final case class TaskManagerRegistration(addr: Address)
+  final case class TaskManagerRemoved(addr: Address)
+  final case class UnreachableTaskManager(addr: Address)
 }
 
 class ClusterListener extends Actor with ActorLogging {

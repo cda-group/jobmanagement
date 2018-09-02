@@ -18,12 +18,7 @@ object TaskManager {
   type Slices = Seq[ContainerSlice]
 }
 
-/** Actor that handles TaskSlots
-  *
-  * The TaskManager keeps track of the availability of each
-  * TaskSlot it provides. After allocating TaskSlot(s) for the AppMaster,
-  * the TaskManager creates a TaskMaster actor to deal with
-  * transfer, execution and monitoring of tasks
+/** Actor that handles Container Slices
   */
 class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   import ClusterListener._
@@ -48,7 +43,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
   override def preStart(): Unit = {
    metrics.subscribe(self)
     // Static number of fake slices for now
-    for (i <- 1 to nrOfSlots) {
+    for (i <- 1 to nrOfSlices) {
       val slice = ContainerSlice(i, ResourceProfile(1, 2000), host = selfAddr.toString)
       containerSlices = containerSlices :+ slice
     }
@@ -61,6 +56,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
 
   def receive = {
     case TaskManagerInit() if !initialized =>
+      println("got init")
       initialized = true
       resourceManager = Some(sender())
       sliceTicker = startUpdateTicker(sender())
@@ -98,7 +94,7 @@ class TaskManager extends Actor with ActorLogging with TaskManagerConfig {
     Some(context.
       system.scheduler.schedule(
       0.milliseconds,
-      slotTick.milliseconds) {
+      sliceTick.milliseconds) {
       rm ! SliceUpdate(currentSlices())
     })
   }

@@ -1,10 +1,10 @@
 package clustermanager.standalone.taskmanager.actors
 
 import akka.actor.ActorSystem
-import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import akka.testkit.{ImplicitSender, TestKit}
 import clustermanager.standalone.{ActorSpec, TestHelpers}
 import com.typesafe.config.ConfigFactory
-import runtime.protobuf.messages.{TaskTransferConn, TasksCompiled}
+import runtime.protobuf.messages.{Container, TaskTransferConn, TasksCompiled}
 
 
 object TaskMasterSpec {
@@ -27,8 +27,8 @@ class TaskMasterSpec extends TestKit(TaskMasterSpec.actorSystem)
   "A TaskMaster Actor" must {
 
     "Receive Transfer Channel" in {
-      val jm = TestProbe()
-      val tm = system.actorOf(TaskMaster(testArcJob, Seq(), jm.ref))
+      val container = Container()
+      val tm = system.actorOf(TaskMaster(container))
       tm ! TasksCompiled()
       val conn = expectMsgType[TaskTransferConn]
     }

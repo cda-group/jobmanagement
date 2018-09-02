@@ -276,5 +276,5 @@ private[runtime] object StandaloneAppMaster {
   def apply(job: ArcJob, resourceManagerAddr: Address): Props =
     Props(new StandaloneAppMaster(job, resourceManagerAddr))
 
-  case class BinaryTask(bin: Array[Byte], name: String)
+  final case class BinaryTask(bin: Array[Byte], name: String)
 }

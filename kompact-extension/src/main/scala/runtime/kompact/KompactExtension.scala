@@ -3,8 +3,8 @@ package runtime.kompact
 import akka.actor.{ActorRef, ActorSystem, ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 
 private[kompact] object KompactExtensionImpl {
-  case class Register(actorRef: ActorRef)
-  case class Unregister(actorRef: ActorRef)
+  final case class Register(actorRef: ActorRef)
+  final case class Unregister(actorRef: ActorRef)
 }
 
 class KompactExtensionImpl(system: ExtendedActorSystem) extends Extension {

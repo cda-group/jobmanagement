@@ -1,7 +1,9 @@
 package runtime.kompact
 
+
 import akka.actor.{ActorSystem, Props}
 import com.typesafe.config.ConfigFactory
+
 
 object Hej extends App {
   val system = ActorSystem("test", ConfigFactory.load())

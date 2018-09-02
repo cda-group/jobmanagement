@@ -7,10 +7,10 @@ import runtime.kompact.messages.KompactAkkaMsg
 
 private[kompact] object KompactAsk {
   sealed trait AskResponse
-  case object AskFailure extends AskResponse
-  case class AskSuccess(msg: Msg) extends AskResponse
-  case object AskExpired
-  case object AskTickerInit
+  final case object AskFailure extends AskResponse
+  final case class AskSuccess(msg: Msg) extends AskResponse
+  final case object AskExpired
+  final case object AskTickerInit
   def apply(t: Timeout): Props = Props(new KompactAsk(t))
 }
 
@@ -31,7 +31,7 @@ private[kompact] class KompactAsk(t: Timeout) extends Actor with ActorLogging {
     case AskExpired =>
       asker.get ! AskFailure
       shutdown()
-    case KompactAkkaMsg(_, msg) =>
+    case KompactAkkaMsg(_, _, msg) =>
       asker.get ! AskSuccess(msg)
       shutdown()
     case AskTickerInit =>

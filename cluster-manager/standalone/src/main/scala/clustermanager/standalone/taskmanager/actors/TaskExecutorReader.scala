@@ -9,7 +9,7 @@ import runtime.protobuf.messages.{ArcTask, ArcTaskUpdate}
 object TaskExecutorReader {
   def apply(p: Process, appMaster: ActorRef, task: ArcTask): Props =
     Props(new TaskExecutorReader(p, appMaster, task))
-  case class Result(s: String)
+  final case class Result(s: String)
 }
 
 

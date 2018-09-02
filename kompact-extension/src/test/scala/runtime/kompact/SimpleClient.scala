@@ -1,5 +1,7 @@
 package runtime.kompact
 
+import java.nio.ByteOrder
+
 import com.typesafe.scalalogging.LazyLogging
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter, ChannelInitializer, ChannelOption}
@@ -10,7 +12,7 @@ import io.netty.handler.codec.{LengthFieldBasedFrameDecoder, LengthFieldPrepende
 import io.netty.util.ReferenceCountUtil
 import runtime.kompact.messages.{AskReply, ExecutorRegistration, Hello, KompactAkkaMsg}
 import runtime.kompact.messages.KompactAkkaMsg.Msg
-import runtime.kompact.netty.{ProtobufDecoder, ProtobufEncoder}
+import runtime.kompact.netty.{KompactDecoder, KompactEncoder}
 
 
 class SimpleClient extends LazyLogging {
@@ -27,10 +29,10 @@ class SimpleClient extends LazyLogging {
         @throws[Exception]
         override def initChannel(channel: SocketChannel): Unit = {
           channel.pipeline().addLast(
-            new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4),
-            new LengthFieldPrepender(4),
-            ProtobufDecoder(4),
-            ProtobufEncoder(),
+            new LengthFieldBasedFrameDecoder(ByteOrder.BIG_ENDIAN, Integer.MAX_VALUE, 0, 4, -4, 0, false),
+            new LengthFieldPrepender(ByteOrder.BIG_ENDIAN, 4, 0, true),
+            new KompactDecoder(),
+            new KompactEncoder(),
             ClientHandler()
           )
           channel.config().setReuseAddress(true)
@@ -60,7 +62,7 @@ final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyL
           ctx.close()
         case Msg.Ask(ask) =>
           val hello = Hello("gotyaback")
-          val reply = KompactAkkaMsg(ask.askActor).withAskReply(AskReply(ask.askActor, KompactAkkaMsg().withHello(hello)))
+          val reply = KompactAkkaMsg().withAskReply(AskReply(ask.askActor, KompactAkkaMsg().withHello(hello)))
           ctx.writeAndFlush(reply)
         case _ => println("unknown")
       }
@@ -70,7 +72,7 @@ final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyL
   }
   override def channelActive(ctx: ChannelHandlerContext): Unit = {
     logger.info(s"Client Connected to ${ctx.channel().remoteAddress()}")
-    val s = ExecutorRegistration("test", "executor2000", extensionActorName, "kpath")
+    val s = ExecutorRegistration("test")
     val reg = KompactAkkaMsg().withExecutorRegistration(s)
     ctx.writeAndFlush(reg)
   }

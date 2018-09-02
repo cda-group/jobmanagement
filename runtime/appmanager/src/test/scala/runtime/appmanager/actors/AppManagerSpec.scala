@@ -29,7 +29,7 @@ class AppManagerSpec extends TestKit(AppManagerSpec.actorSystem)
       val appManager = system.actorOf(StandaloneAppManager())
       val requester = TestProbe()
       requester.send(appManager, ArcJobRequest(testArcJob))
-      requester.expectMsg(ResourceManagerUnavailable)
+      requester.expectMsg("No StateManagers available")
     }
 
   }

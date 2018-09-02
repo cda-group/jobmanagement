@@ -14,9 +14,9 @@ private[standalone] object TaskExecutor {
   // Refactor
   def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
     Props(new TaskExecutor(binPath, task, aMaster, sMaster))
-  case object HealthCheck
-  case class StdOutResult(r: String)
-  case class CreateTaskReader(task: ArcTask)
+  final case object HealthCheck
+  final case class StdOutResult(r: String)
+  final case class CreateTaskReader(task: ArcTask)
 }
 
 /** Initial PoC for executing binaries and "monitoring" them

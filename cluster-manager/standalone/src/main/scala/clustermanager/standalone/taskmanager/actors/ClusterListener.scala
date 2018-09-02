@@ -8,9 +8,9 @@ import runtime.common.Identifiers
 object ClusterListener {
   def apply(): Props = Props(new ClusterListener)
   // ResourceManager
-  case class UnreachableResourceManager(addr: Address)
-  case class RemovedResourceManager(addr: Address)
-  case class ResourceManagerUp(addr: Address)
+  final case class UnreachableResourceManager(addr: Address)
+  final case class RemovedResourceManager(addr: Address)
+  final case class ResourceManagerUp(addr: Address)
 }
 
 class ClusterListener extends Actor with ActorLogging {

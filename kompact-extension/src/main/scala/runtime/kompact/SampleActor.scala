@@ -22,6 +22,9 @@ class SampleActor extends Actor with ActorLogging {
       // Enable DeathWatch of Executor
       ref kompactWatch self
 
+      val ma = KompactAkkaMsg().withHello(__v = Hello("hej"))
+      ref ! ma
+
       // Ask example
       val m = KompactAkkaMsg().withHello(Hello("asky"))
       implicit val sys = context.system

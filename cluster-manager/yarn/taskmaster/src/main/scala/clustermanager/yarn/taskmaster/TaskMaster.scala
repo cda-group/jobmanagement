@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 private[yarn] object TaskMaster {
   def apply(appmaster: ActorRef, statemaster: ActorRef, jobId: String): Props =
     Props(new TaskMaster(appmaster, statemaster, jobId))
-  case class LaunchedTask(containerId: ContainerId, task: ArcTask, container: Container)
+  final case class LaunchedTask(containerId: ContainerId, task: ArcTask, container: Container)
   type AllocationID = Long
   type BinaryPath = String
 }

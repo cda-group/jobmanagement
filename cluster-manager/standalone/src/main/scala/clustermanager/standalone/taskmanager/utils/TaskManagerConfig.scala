@@ -5,14 +5,14 @@ import runtime.common.Identifiers
 
 trait TaskManagerConfig {
   val config = ConfigFactory.load("taskmanager.conf")
-  val slotTick = config.getLong("taskmanager.slotUpdateTick")
-  val nrOfSlots = config.getInt("taskmanager.slots")
+  val sliceTick = config.getLong("taskmanager.sliceUpdateTick")
+  val nrOfSlices = config.getInt("taskmanager.slices")
   val taskMasterTimeout = config.getLong("taskmanager.taskMasterTimeout")
   val taskExecutorHealthCheck = config.getLong("taskmanager.taskExecutorHealthCheck")
   val hostname = config.getString("taskmanager.hostname")
 
-  require(slotTick > 0)
-  require(nrOfSlots > 0)
+  require(sliceTick > 0)
+  require(nrOfSlices > 0)
   require(taskMasterTimeout > 0)
   require(taskExecutorHealthCheck > 0 )
   require(!hostname.isEmpty)

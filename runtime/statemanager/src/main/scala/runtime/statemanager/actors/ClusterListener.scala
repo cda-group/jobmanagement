@@ -4,6 +4,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp, UnreachableMember}
 import runtime.common.Identifiers
+import runtime.kompact.KompactExtension
 
 
 object ClusterListener {

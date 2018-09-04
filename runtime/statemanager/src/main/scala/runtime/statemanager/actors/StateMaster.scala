@@ -2,6 +2,9 @@ package runtime.statemanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
 import runtime.common.Identifiers
+import runtime.kompact.{ExecutorTerminated, ExecutorUp, KompactExtension, KompactRef}
+import runtime.kompact.messages.KompactAkkaMsg
+import runtime.kompact.messages.KompactAkkaMsg.Payload.Hello
 import runtime.protobuf.messages._
 
 import scala.collection.mutable
@@ -18,14 +21,22 @@ object StateMaster {
   */
 class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogging {
   private var metricMap = mutable.HashMap[ArcTask, ExecutorMetric]()
+  private var kompactRefs = IndexedSeq.empty[KompactRef]
 
   // Handles implicit conversions of ActorRef and ActorRefProto
   implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
+  private val kompactExtension = KompactExtension(context.system)
+
   override def preStart(): Unit = {
-    // enable DeathWatch
     context watch appMaster
+    kompactExtension.register(self)
+  }
+
+  override def postStop(): Unit = {
+    kompactExtension.unregister(self)
+    kompactRefs.foreach(_.kill())
   }
 
   def receive = {
@@ -44,10 +55,18 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
     // react
     case TaskMasterStatus(Identifiers.ARC_JOB_SUCCEEDED) =>
     // react
+    case KompactAkkaMsg(payload) =>
+      log.info(s"Received msg from executor $payload")
     case Terminated(ref) =>
       // AppMaster has been terminated
       // Handle
       // context stop self
+    case ExecutorUp(ref) =>
+      kompactRefs = kompactRefs :+ ref
+      // Enable DeathWatch of Executor
+      ref kompactWatch self
+    case ExecutorTerminated(ref) =>
+      kompactRefs = kompactRefs.filterNot(_ == ref)
     case _ =>
   }
 

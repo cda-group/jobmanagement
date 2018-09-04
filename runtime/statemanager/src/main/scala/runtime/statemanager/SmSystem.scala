@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
 import runtime.common.Identifiers
 import actors.ClusterListener
+import runtime.kompact.KompactExtension
 import utils.StateManagerConfig
 
 object SmSystem extends App with StateManagerConfig with LazyLogging {

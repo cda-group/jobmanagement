@@ -4,14 +4,14 @@ package runtime.kompact.netty
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.MessageToByteEncoder
-import runtime.kompact.messages.{KompactAkkaMsg, KompactAkkaPath}
+import runtime.kompact.messages.{KompactAkkaEnvelope, KompactAkkaPath}
 import runtime.kompact.serialization.{Frame, SerIdents}
 
 
-private[kompact] class KompactEncoder extends MessageToByteEncoder[KompactAkkaMsg] with SerIdents {
+private[kompact] class KompactEncoder extends MessageToByteEncoder[KompactAkkaEnvelope] with SerIdents {
   private var seqNum = 0
 
-  override def encode(ctx: ChannelHandlerContext, msg: KompactAkkaMsg, outBuf: ByteBuf): Unit = {
+  override def encode(ctx: ChannelHandlerContext, msg: KompactAkkaEnvelope, outBuf: ByteBuf): Unit = {
     try {
       val streamId = 1 // ???
       val payloadLen = sizeOfNamedPath(msg.src) + sizeOfNamedPath(msg.dst) + 8 + msg.serializedSize
@@ -42,8 +42,6 @@ private[kompact] class KompactEncoder extends MessageToByteEncoder[KompactAkkaMs
     // port 2 bytes
     // namedLength 2 bytes
     // namedPath -> N bytes (.length)
-
-    val totalLength = 1 + 4 + 2 + 2 + p.path.length
 
     // For now, sets as Named and TCP
     val field = 129.toByte

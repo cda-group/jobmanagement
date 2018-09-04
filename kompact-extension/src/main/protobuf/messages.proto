@@ -14,27 +14,8 @@ option (scalapb.options) = {
   flat_package: true
 };
 
-
-// Represents an InetSocketAddress
-message InetProto {
-    string ip = 1;
-    int32 port = 2;
-}
-
 message Hello {
     string hey = 1;
-}
-
-// Kompact Messages
-
-message KompactMsg {
-
-}
-
-// Akka Messages
-
-message AkkaMsg {
-    string path = 1;
 }
 
 message Ask {
@@ -60,12 +41,15 @@ message KompactAkkaPath {
 }
 
 message KompactAkkaMsg {
+    oneof payload {
+        ExecutorRegistration executorRegistration = 1;
+        Hello hello = 2;
+        Ask ask = 3;
+        AskReply askReply = 4;
+    }
+}
+message KompactAkkaEnvelope {
     KompactAkkaPath src = 1[(scalapb.field).no_box = true];
     KompactAkkaPath dst = 2[(scalapb.field).no_box = true];
-    oneof msg {
-        ExecutorRegistration executorRegistration = 3;
-        Hello hello = 4;
-        Ask ask = 5;
-        AskReply askReply = 6;
-    }
+    KompactAkkaMsg msg = 3[(scalapb.field).no_box = true];
 }

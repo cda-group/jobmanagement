@@ -10,7 +10,6 @@ import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioSocketChannel
 import io.netty.handler.codec.{LengthFieldBasedFrameDecoder, LengthFieldPrepender}
 import io.netty.util.ReferenceCountUtil
-import runtime.kompact.messages.KompactAkkaMsg.Msg
 import runtime.kompact.messages._
 import runtime.kompact.netty.{KompactDecoder, KompactEncoder}
 
@@ -91,13 +90,14 @@ class Client() extends LazyLogging {
 final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyLogging {
   override def channelRead(ctx: ChannelHandlerContext, msg: scala.Any): Unit = {
     try {
-      val e: KompactAkkaMsg = msg.asInstanceOf[KompactAkkaMsg]
-      e.msg match {
-        case Msg.Hello(v) =>
+      val e: KompactAkkaEnvelope = msg.asInstanceOf[KompactAkkaEnvelope]
+      e.msg.payload match {
+        case KompactAkkaMsg.Payload.Hello(v) =>
           println(v)
-        case Msg.Ask(ask) =>
+        case KompactAkkaMsg.Payload.Ask(ask) =>
           val hello = Hello("gotyaback")
-          val reply = KompactAkkaMsg().withAskReply(AskReply(ask.askActor, KompactAkkaMsg().withHello(hello)))
+          val askReply = AskReply(ask.askActor, KompactAkkaMsg().withHello(hello))
+          val reply = KompactAkkaEnvelope().withMsg(KompactAkkaMsg().withAskReply(askReply))
           ctx.writeAndFlush(reply)
         case _ => println("unknown")
       }
@@ -110,7 +110,7 @@ final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyL
     val src = KompactAkkaPath("executor", "127.0.0.1", 2020)
     val dst = KompactAkkaPath("executor", "127.0.0.1", 2020)
     val s = ExecutorRegistration("test", src, dst)
-    val reg = KompactAkkaMsg(src, dst).withExecutorRegistration(s)
+    val reg = KompactAkkaEnvelope(src, dst, msg = KompactAkkaMsg().withExecutorRegistration(s))
     ctx.writeAndFlush(reg)
 
   }

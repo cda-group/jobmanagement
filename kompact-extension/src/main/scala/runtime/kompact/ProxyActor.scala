@@ -3,7 +3,7 @@ package runtime.kompact
 import java.net.InetSocketAddress
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import runtime.kompact.messages.{AskReply, KompactAkkaMsg}
+import runtime.kompact.messages.AskReply
 import runtime.kompact.netty.ProxyServer
 
 import scala.collection.mutable

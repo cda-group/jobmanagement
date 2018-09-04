@@ -1,30 +1,70 @@
 package runtime.kompact
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{Actor, ActorRef, ActorSystem, Status}
 import io.netty.channel.ChannelHandlerContext
 
-import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future}
 import java.util.concurrent.{Future => JFuture}
 
 import akka.util.Timeout
-import runtime.kompact.KompactAsk.{AskResponse, AskTickerInit}
-import runtime.kompact.messages.{Ask, KompactAkkaMsg, KompactAkkaPath}
+import runtime.kompact.KompactAsk.{AskResponse, AskSuccess, AskTickerInit}
+import runtime.kompact.messages._
 
+import scala.util.{Failure, Success}
+
+
+
+object KompactApi {
+  implicit def pipez[T](future: Future[T])(implicit executionContext: ExecutionContext): KompactPipe[T] =
+    new KompactPipe[T](future)
+
+  final class KompactPipe[T](f: Future[T])(implicit ec: ExecutionContext) {
+    def pipeKompactTo(target: ActorRef)(implicit sender: ActorRef = Actor.noSender): Future[T] = {
+      f map {
+        case AskSuccess(msg) =>
+          target ! msg
+        case _=>
+          target ! Status.Failure(new Throwable("Kompact Pipe Failure"))
+      }
+      f
+    }
+
+    def pipeToKompact(target: KompactRef): Future[T] = {
+      f onComplete {
+        case Success(v) =>
+          v match {
+            case msg@KompactAkkaMsg(_) =>
+              target ! msg
+            case AskSuccess(msg) =>
+              target ! msg
+            case _ =>
+              Future.failed(new Throwable("Expected a type of KompactMsg"))
+          }
+        case Failure(e) =>
+          Future.failed(new Throwable("Kompact Pipe Failure"))
+      }
+      f
+    }
+  }
+
+}
 
 /** Commands that can be executed on KompactRef's
   */
 private[kompact] trait KompactApi {
 
+
   /** Fire and forget message sending
-    * @param msg Protobuf Message
+    * @param payload Protobuf Message
     */
-  def !(msg: KompactAkkaMsg): Unit
+  def !(payload: KompactAkkaMsg): Unit
+
 
   /** Returns a Future awaiting a response from the executor
-    * @param msg Protobuf Message
+    * @param payload Protobuf Message
     * @return Future[AskResponse] i.e., AskSuccess/AskFailure
     */
-  def ?(msg: KompactAkkaMsg)(implicit sys: ActorSystem,
+  def ?(payload: KompactAkkaMsg)(implicit sys: ActorSystem,
                              ec: ExecutionContext,
                              t: Timeout): Future[AskResponse]
 
@@ -41,8 +81,10 @@ private[kompact] trait KompactApi {
 }
 
 
-/** KompactRef represents a connection Kompact Connection
+/** KompactRef represents a Kompact connection
   * @param jobId  String
+  * @param srcPath KompactAkkaPath Object
+  * @param dstPath KompactAkkaPath Object
   * @param ctx Netty ContextHandlerContext
   */
 final case class KompactRef(jobId: String,
@@ -51,10 +93,11 @@ final case class KompactRef(jobId: String,
                             ctx: ChannelHandlerContext
                            ) extends KompactApi {
 
-  override def !(msg: KompactAkkaMsg): Unit = {
+
+  override def !(payload: KompactAkkaMsg): Unit = {
     if (ctx.channel().isWritable) {
-      val updatedMsg = msg.copy(src = dstPath, dst = srcPath)
-      ctx.writeAndFlush(updatedMsg)
+      val envelope = KompactAkkaEnvelope(src = dstPath, dst = srcPath, msg = payload)
+      ctx.writeAndFlush(envelope)
     }
   }
 
@@ -63,9 +106,10 @@ final case class KompactRef(jobId: String,
                                       t: Timeout): Future[AskResponse] = {
     val askActor = sys.actorOf(KompactAsk(t))
     // This might have to be toStringWithAddress..
-    val askReq = Ask(askActor.path.toString, msg)
-    val kMsg = KompactAkkaMsg(src = dstPath, dst = srcPath).withAsk(askReq)
-    ctx.writeAndFlush(kMsg)
+    val _ask = Ask(askActor.path.toString, msg)
+    val askReq = KompactAkkaMsg().withAsk(_ask)
+    val envelope = KompactAkkaEnvelope(src = dstPath, dst = srcPath, msg = askReq)
+    ctx.writeAndFlush(envelope)
     import akka.pattern._
     askActor.ask(AskTickerInit).mapTo[AskResponse]
   }
@@ -79,4 +123,3 @@ final case class KompactRef(jobId: String,
 
   override def kill(): Unit = ctx.close()
 }
-

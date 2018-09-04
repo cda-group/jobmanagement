@@ -11,6 +11,7 @@ class SampleActor extends Actor with ActorLogging {
   import KompactApi._
   implicit val sys = context.system
   implicit val ec = context.system.dispatcher
+  import scala.concurrent.duration._
   implicit val timeout = Timeout(3.seconds)
 
   override def preStart(): Unit =
@@ -21,7 +22,6 @@ class SampleActor extends Actor with ActorLogging {
 
   def receive = {
     case ExecutorUp(ref) =>
-      import scala.concurrent.duration._
       kompactRefs = kompactRefs :+ ref
       // Enable DeathWatch of Executor
       ref kompactWatch self
@@ -30,7 +30,6 @@ class SampleActor extends Actor with ActorLogging {
       ref ! hello
 
       // Ask example
-
 
       (ref ? hello) map {
         case AskSuccess(msg) => log.info("success: " + msg.payload)

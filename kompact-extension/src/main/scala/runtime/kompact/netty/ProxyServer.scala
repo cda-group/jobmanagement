@@ -29,7 +29,6 @@ private[kompact] class ProxyServer(proxyActor: ActorRef) extends LazyLogging {
   private val setup = new ServerBootstrap()
     .group(bossGroup, workerGroup)
     .channel(classOf[NioServerSocketChannel])
-    .handler(new LoggingHandler(LogLevel.INFO))
     .childHandler(new ChannelInitializer[SocketChannel] {
       override def initChannel(ch: SocketChannel): Unit = {
         ch.pipeline().addLast(

@@ -13,7 +13,6 @@ import runtime.kompact.messages._
 import scala.util.{Failure, Success}
 
 
-
 object KompactApi {
   implicit def pipez[T](future: Future[T])(implicit executionContext: ExecutionContext): KompactPipe[T] =
     new KompactPipe[T](future)

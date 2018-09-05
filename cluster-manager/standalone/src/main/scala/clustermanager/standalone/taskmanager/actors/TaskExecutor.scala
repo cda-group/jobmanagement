@@ -1,7 +1,7 @@
 package clustermanager.standalone.taskmanager.actors
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
-import _root_.clustermanager.common.executor.ExecutorStats
+import _root_.clustermanager.common.executor.{ExecutionEnvironment, ExecutorStats}
 import akka.cluster.Cluster
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import runtime.common.Identifiers
@@ -11,38 +11,34 @@ import scala.concurrent.duration._
 import scala.util.Try
 
 private[standalone] object TaskExecutor {
-  // Refactor
-  def apply(binPath: String, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
-    Props(new TaskExecutor(binPath, task, aMaster, sMaster))
+  def apply(env: ExecutionEnvironment, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
+    Props(new TaskExecutor(env, task, aMaster, sMaster))
   final case object HealthCheck
   final case class StdOutResult(r: String)
   final case class CreateTaskReader(task: ArcTask)
 }
 
 /** Initial PoC for executing binaries and "monitoring" them
-  *
-  * @param binPath path to the rust binary
   */
-private[standalone] class TaskExecutor(binPath: String,
-                   task: ArcTask,
-                   appMaster: ActorRef,
-                   stateMaster: ActorRef
-                  )
-  extends Actor with ActorLogging with TaskManagerConfig {
+private[standalone] class TaskExecutor(env: ExecutionEnvironment,
+                                       task: ArcTask,
+                                       appMaster: ActorRef,
+                                       stateMaster: ActorRef
+                                      ) extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskExecutor._
   import TaskMaster._
   import context.dispatcher
 
-  var healthChecker = None: Option[Cancellable]
-  var process = None: Option[Process]
-  var monitor = None: Option[ExecutorStats]
-  var arcTask = None: Option[ArcTask]
+  private var healthChecker = None: Option[Cancellable]
+  private var process = None: Option[Process]
+  private var monitor = None: Option[ExecutorStats]
+  private var arcTask = None: Option[ArcTask]
+  private val binPath = env.getJobPath + "/" + task.name
 
-  val selfAddr = Cluster(context.system)
+  private val selfAddr = Cluster(context.system)
     .selfAddress
     .toString
-
 
 
 
@@ -74,8 +70,23 @@ private[standalone] class TaskExecutor(binPath: String,
     */
   private def start(): Unit = {
     val pb = new ProcessBuilder(binPath, task.expr, task.vec)
-    process = Some(pb.start())
 
+    if (!env.createLogForTask(task.name)) {
+      log.error(s"Was not able to create log file for task $task")
+      shutdown()
+    }
+
+    // Set up logging
+    env.getLogFile(task.name).map(_.toFile) match {
+      case Some(file) =>
+        pb.redirectOutput(file)
+        pb.redirectError(file)
+      case None =>
+        log.error(s"Failed to set up logging for task ${task.name}")
+        shutdown()
+    }
+
+    process = Some(pb.start())
     val p = getPid(process.get)
       .toOption
 

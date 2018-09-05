@@ -146,7 +146,7 @@ private[standalone] class TaskMaster(container: Container)
   private def initExecutor(stateMaster: ActorRef, name: String): Unit = {
     container.tasks.find(_.name == name) match {
       case Some(task) =>
-        val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + name, task, appmaster, stateMaster),
+        val executor = context.actorOf(TaskExecutor(env, task, appmaster, stateMaster),
           Identifiers.TASK_EXECUTOR+"_"+name)
         executors = executors :+ executor
         // Enable DeathWatch

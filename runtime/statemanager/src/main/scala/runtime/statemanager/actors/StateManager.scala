@@ -3,6 +3,7 @@ package runtime.statemanager.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
 import akka.cluster.metrics.ClusterMetricsExtension
 import runtime.common.Identifiers
+import runtime.kompact.KompactExtension
 import runtime.protobuf.messages.{StateManagerJob, StateMasterConn}
 
 import scala.collection.mutable
@@ -45,8 +46,9 @@ class StateManager extends Actor with ActorLogging {
       // Enable deathwatch
       context watch stateMaster
 
-      // Respond with Ref to StateMaster
-      sender() ! StateMasterConn(stateMaster)
+      // Respond with Ref to StateMaster and Kompact Proxy Addr
+      val addr = KompactExtension(context.system).getProxyAddr
+      sender() ! StateMasterConn(stateMaster, addr)
     case Terminated(ref) =>
       stateMasters = stateMasters.filterNot(_ == ref)
     case _ =>

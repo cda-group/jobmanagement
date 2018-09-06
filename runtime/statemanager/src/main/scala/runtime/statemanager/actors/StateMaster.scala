@@ -3,8 +3,7 @@ package runtime.statemanager.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
 import runtime.common.Identifiers
 import runtime.kompact.{ExecutorTerminated, ExecutorUp, KompactExtension, KompactRef}
-import runtime.kompact.messages.KompactAkkaMsg
-import runtime.kompact.messages.KompactAkkaMsg.Payload.Hello
+import runtime.kompact.messages.{Hello, KompactAkkaMsg}
 import runtime.protobuf.messages._
 
 import scala.collection.mutable
@@ -62,9 +61,13 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
       // Handle
       // context stop self
     case ExecutorUp(ref) =>
+      log.info(s"Kompact Executor up ${ref.srcPath}")
       kompactRefs = kompactRefs :+ ref
-      // Enable DeathWatch of Executor
+      // Enable DeathWatch
       ref kompactWatch self
+      val hello = Hello("Akka saying hello from statemaster")
+      val welcomeMsg = KompactAkkaMsg().withHello(hello)
+      ref ! welcomeMsg
     case ExecutorTerminated(ref) =>
       kompactRefs = kompactRefs.filterNot(_ == ref)
     case _ =>

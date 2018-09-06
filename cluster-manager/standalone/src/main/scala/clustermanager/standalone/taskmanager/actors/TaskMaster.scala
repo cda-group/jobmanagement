@@ -65,7 +65,7 @@ private[standalone] class TaskMaster(container: Container)
   private var taskReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
   private var taskReceiversId = 0
 
-  private var stateMaster = None: Option[ActorRef]
+  private var stateMasterConn = None: Option[StateMasterConn]
 
 
   override def preStart(): Unit = {
@@ -82,8 +82,8 @@ private[standalone] class TaskMaster(container: Container)
 
     notify onComplete {
       case Success(v) => v match {
-        case StateMasterConn(ref) =>
-          stateMaster = Some(ref)
+        case conn@StateMasterConn(ref, proxyAddr) =>
+          stateMasterConn = Some(conn)
         case _ =>
           log.error("Expected StateMasterConn Message, but did not receive.")
       }
@@ -110,7 +110,7 @@ private[standalone] class TaskMaster(container: Container)
       import runtime.protobuf.ProtoConversions.InetAddr._
       taskReceivers.get(remote) match {
         case Some(ref) =>
-          if (stateMaster.isDefined)
+          if (stateMasterConn.isDefined)
             ref ? TaskUploaded(taskName) pipeTo self
           else
             log.error("No StateMaster connected to the TaskMaster")
@@ -118,7 +118,7 @@ private[standalone] class TaskMaster(container: Container)
           log.error("Was not able to locate ref for remote: " + remote)
       }
     case TaskReady(name) =>
-      initExecutor(stateMaster.get, name)
+      initExecutor(stateMasterConn.get, name)
     case TasksCompiled() =>
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
@@ -138,15 +138,15 @@ private[standalone] class TaskMaster(container: Container)
 
         // Notify AppMaster and StateMaster that this job is being killed..
         appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
-        stateMaster.foreach(_ ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED))
+        //stateMasterConn.foreach(_.ref ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED))
         shutdown()
       }
   }
 
-  private def initExecutor(stateMaster: ActorRef, name: String): Unit = {
+  private def initExecutor(stateMasterConn: StateMasterConn, name: String): Unit = {
     container.tasks.find(_.name == name) match {
       case Some(task) =>
-        val executor = context.actorOf(TaskExecutor(env, task, appmaster, stateMaster),
+        val executor = context.actorOf(TaskExecutor(env, task, appmaster, stateMasterConn),
           Identifiers.TASK_EXECUTOR+"_"+name)
         executors = executors :+ executor
         // Enable DeathWatch

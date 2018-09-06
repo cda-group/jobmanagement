@@ -1,18 +1,21 @@
 package clustermanager.standalone.taskmanager.actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Cancellable, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Cancellable, Props, Terminated}
 import _root_.clustermanager.common.executor.{ExecutionEnvironment, ExecutorStats}
 import akka.cluster.Cluster
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
+import com.sun.xml.internal.stream.Entity.ExternalEntity
 import runtime.common.Identifiers
-import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate}
+import runtime.kompact.messages.{Hello, KompactAkkaMsg}
+import runtime.kompact.{ExecutorUp, ExternalAddress, KompactExtension}
+import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate, StateMasterConn}
 
 import scala.concurrent.duration._
 import scala.util.Try
 
 private[standalone] object TaskExecutor {
-  def apply(env: ExecutionEnvironment, task: ArcTask, aMaster: ActorRef, sMaster: ActorRef): Props =
-    Props(new TaskExecutor(env, task, aMaster, sMaster))
+  def apply(env: ExecutionEnvironment, task: ArcTask, aMaster: ActorRef, sMasterConn: StateMasterConn): Props =
+    Props(new TaskExecutor(env, task, aMaster, sMasterConn))
   final case object HealthCheck
   final case class StdOutResult(r: String)
   final case class CreateTaskReader(task: ArcTask)
@@ -23,7 +26,7 @@ private[standalone] object TaskExecutor {
 private[standalone] class TaskExecutor(env: ExecutionEnvironment,
                                        task: ArcTask,
                                        appMaster: ActorRef,
-                                       stateMaster: ActorRef
+                                       stateMasterConn: StateMasterConn
                                       ) extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskExecutor._
@@ -40,6 +43,20 @@ private[standalone] class TaskExecutor(env: ExecutionEnvironment,
     .selfAddress
     .toString
 
+  // Handles implicit conversions of ActorRef and ActorRefProto
+  implicit val sys: ActorSystem = context.system
+  import runtime.protobuf.ProtoConversions.ActorRef._
+  private val stateMaster: ActorRef = stateMasterConn.ref
+
+  private val kompactExtension = KompactExtension(context.system)
+
+  override def preStart(): Unit = {
+    kompactExtension.register(self)
+  }
+
+  override def postStop(): Unit = {
+    kompactExtension.unregister(self)
+  }
 
 
   def receive = {
@@ -62,6 +79,13 @@ private[standalone] class TaskExecutor(env: ExecutionEnvironment,
     case Terminated(sMaster) =>
       // StateMaster has been declared as terminated
       // What to do?
+    case ExecutorUp(ref) =>
+      log.info(s"Kompact Executor up ${ref.srcPath}")
+      // Enable DeathWatch
+      ref kompactWatch self
+      val hello = Hello("Akka saying hello from parent")
+      val welcomeMsg = KompactAkkaMsg().withHello(hello)
+      ref ! welcomeMsg
     case _ =>
   }
 
@@ -69,7 +93,16 @@ private[standalone] class TaskExecutor(env: ExecutionEnvironment,
     * our binary
     */
   private def start(): Unit = {
-    val pb = new ProcessBuilder(binPath, task.expr, task.vec)
+    // Args
+    val executor = task.name
+
+    val stateManagerProxy = stateMasterConn.kompactProxyAddr
+    val stateMasterPath = stateMasterConn.ref.path
+
+    val taskManagerProxy = kompactExtension.getProxyAddr
+    val taskExecutorPath = self.path.toSerializationFormatWithAddress(ExternalAddress(context.system).addressForAkka)
+
+    val pb = new ProcessBuilder(binPath, executor, stateManagerProxy, stateMasterPath, taskManagerProxy, taskExecutorPath)
 
     if (!env.createLogForTask(task.name)) {
       log.error(s"Was not able to create log file for task $task")

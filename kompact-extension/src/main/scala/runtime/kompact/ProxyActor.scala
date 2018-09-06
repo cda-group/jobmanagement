@@ -39,8 +39,8 @@ private[kompact] class ProxyActor extends Actor with ActorLogging {
 
   def receive = {
     case Register(ref) =>
-      log.info(s"Registered: $ref with name ${ref.path.name}")
-      refs.put(ref.path.name, ref)
+      log.info(s"Registered: ${ref.path}")
+      refs.put(ref.path.toString, ref)
     case Unregister(ref) =>
       refs.remove(ref.path.name)
     case msg@ExecutorUp(ref) =>

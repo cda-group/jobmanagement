@@ -7,7 +7,8 @@ import scala.util.Random
 
 object IdGenerator {
 
-  def get(): String = randomName() + "_" + base64UUID()
+  def job(): String = randomName() + "_" + base64UUID()
+  def container(): String = base64UUID()
 
   private def base64UUID(): String = {
     val id = UUID.randomUUID()

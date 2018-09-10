@@ -16,8 +16,8 @@ class ClusterListener extends Actor with ActorLogging {
 
   import ClusterListener._
 
-  val cluster = Cluster(context.system)
-  val resourceManager = context.actorOf(ResourceManager(), Identifiers.RESOURCE_MANAGER)
+  private val cluster = Cluster(context.system)
+  private val resourceManager = context.actorOf(ResourceManager(), Identifiers.RESOURCE_MANAGER)
 
   override def preStart(): Unit =
     cluster.subscribe(self, classOf[MemberUp], classOf[UnreachableMember], classOf[MemberRemoved])

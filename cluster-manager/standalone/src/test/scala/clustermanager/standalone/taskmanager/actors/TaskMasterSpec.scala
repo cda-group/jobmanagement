@@ -26,12 +26,14 @@ class TaskMasterSpec extends TestKit(TaskMasterSpec.actorSystem)
 
   "A TaskMaster Actor" must {
 
+    /*
     "Receive Transfer Channel" in {
       val container = Container()
       val tm = system.actorOf(TaskMaster(container))
       tm ! TasksCompiled()
       val conn = expectMsgType[TaskTransferConn]
     }
+    */
   }
 
 }

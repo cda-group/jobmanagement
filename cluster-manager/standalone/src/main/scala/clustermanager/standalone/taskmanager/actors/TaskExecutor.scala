@@ -3,8 +3,8 @@ package clustermanager.standalone.taskmanager.actors
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Cancellable, Props, Terminated}
 import _root_.clustermanager.common.executor.{ExecutionEnvironment, ExecutorStats}
 import akka.cluster.Cluster
+import clustermanager.standalone.taskmanager.isolation.CgroupController
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
-import com.sun.xml.internal.stream.Entity.ExternalEntity
 import runtime.common.Identifiers
 import runtime.kompact.messages.{Hello, KompactAkkaMsg}
 import runtime.kompact.{ExecutorUp, ExternalAddress, KompactExtension}
@@ -13,21 +13,28 @@ import runtime.protobuf.messages.{ArcTask, ArcTaskMetric, ArcTaskUpdate, StateMa
 import scala.concurrent.duration._
 import scala.util.Try
 
-private[standalone] object TaskExecutor {
-  def apply(env: ExecutionEnvironment, task: ArcTask, aMaster: ActorRef, sMasterConn: StateMasterConn): Props =
-    Props(new TaskExecutor(env, task, aMaster, sMasterConn))
-  final case object HealthCheck
-  final case class StdOutResult(r: String)
-  final case class CreateTaskReader(task: ArcTask)
+private[taskmanager] object TaskExecutor {
+  def apply(init: ExecutorInit): Props =
+    Props(new TaskExecutor(init.env, init.task, init.appMaster, init.stateMaster, init.controller))
+  case object HealthCheck
+  final case class ExecutorInit(env: ExecutionEnvironment,
+                                task: ArcTask,
+                                appMaster: ActorRef,
+                                stateMaster: StateMasterConn,
+                                controller: Option[CgroupController] = None,
+                               )
+  case class StdOutResult(r: String)
+  case class CreateTaskReader(task: ArcTask)
 }
 
 /** Initial PoC for executing binaries and "monitoring" them
   */
-private[standalone] class TaskExecutor(env: ExecutionEnvironment,
-                                       task: ArcTask,
-                                       appMaster: ActorRef,
-                                       stateMasterConn: StateMasterConn
-                                      ) extends Actor with ActorLogging with TaskManagerConfig {
+private[taskmanager] class TaskExecutor(env: ExecutionEnvironment,
+                                        task: ArcTask,
+                                        appMaster: ActorRef,
+                                        stateMasterConn: StateMasterConn,
+                                        cgController: Option[CgroupController] = None
+                                       ) extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskExecutor._
   import TaskMaster._
@@ -56,8 +63,13 @@ private[standalone] class TaskExecutor(env: ExecutionEnvironment,
 
   override def postStop(): Unit = {
     kompactExtension.unregister(self)
-  }
 
+    cgController match {
+      case Some(cg) =>
+        cg.removeCgroup(task.name)
+      case None =>
+    }
+  }
 
   def receive = {
     case StartExecution =>
@@ -65,14 +77,13 @@ private[standalone] class TaskExecutor(env: ExecutionEnvironment,
     case CreateTaskReader(_task) =>
       // Create an actor to read the results from StdOut
       context.actorOf(TaskExecutorReader(process.get, appMaster, _task), "taskreader")
-    case HealthCheck =>
-      monitor match {
-        case Some(stats) =>
-          collectMetrics(stats)
-        case None =>
-          log.info("Could not load monitor")
-          shutdown()
-      }
+    case HealthCheck => monitor match {
+      case Some(stats) =>
+        collectMetrics(stats)
+      case None =>
+        log.info("Could not load monitor")
+        shutdown()
+    }
     case ArcTaskUpdate(t) =>
       // Gotten the results from the Stdout...
       arcTask = Some(t)
@@ -120,31 +131,41 @@ private[standalone] class TaskExecutor(env: ExecutionEnvironment,
     }
 
     process = Some(pb.start())
-    val p = getPid(process.get)
-      .toOption
 
-    p match {
+    val pidOpt = getPid(process.get).toOption
+
+    pidOpt match {
       case Some(pid) =>
-        ExecutorStats(pid, binPath, selfAddr) match {
-          case Some(execStats) =>
-            monitor = Some(execStats)
-            healthChecker = scheduleCheck()
-            // Enable DeathWatch of the StateMaster
-            context watch stateMaster
-            // Update Status of the Task
-            val updatedTask = task.copy(status = Some("running"))
-            arcTask = Some(updatedTask)
-            appMaster ! ArcTaskUpdate(updatedTask)
-            self ! CreateTaskReader(updatedTask)
-          case None =>
-            log.error("Was not able to create ExecutorStats instance")
-            shutdown()
-        }
+        cgroupCheck(pid)
+        initExecutor(pid)
       case None =>
         log.error("TaskExecutor.getPid() requires an UNIX system")
         shutdown()
     }
+  }
 
+  private def cgroupCheck(pid: Long): Unit = cgController match {
+    case Some(controller) =>
+      log.debug(s"Moving Executor with PID $pid to its cgroup")
+      if(!controller.mvProcessToCgroup(task.name, pid))
+        log.error(s"Failed moving process to its cgroup")
+    case None => // Ignore
+  }
+
+  private def initExecutor(pid: Long): Unit = ExecutorStats(pid, binPath, selfAddr) match {
+    case Some(execStats) =>
+      monitor = Some(execStats)
+      healthChecker = scheduleCheck()
+      // Enable DeathWatch of the StateMaster
+      context watch stateMaster
+      // Update Status of the Task
+      val updatedTask = task.copy(status = Some("running"))
+      arcTask = Some(updatedTask)
+      appMaster ! ArcTaskUpdate(updatedTask)
+      self ! CreateTaskReader(updatedTask)
+    case None =>
+      log.error("Was not able to create ExecutorStats instance")
+      shutdown()
   }
 
   private def collectMetrics(stats: ExecutorStats): Unit = {
@@ -194,7 +215,20 @@ private[standalone] class TaskExecutor(env: ExecutionEnvironment,
     */
   private def shutdown(): Unit = {
     healthChecker.map(_.cancel())
+    killProcess()
     context.stop(self)
+  }
+
+
+  /** If the actor is being shutdown while the process is still alive,
+    * calling this method ensures the process is killed and its PID
+    * is "released" from its cgroup if LCE is enabled.
+    */
+  private def killProcess(): Unit = process match {
+    case Some(p) =>
+      if (p.isAlive)
+        p.destroyForcibly()
+    case None =>
   }
 
 }

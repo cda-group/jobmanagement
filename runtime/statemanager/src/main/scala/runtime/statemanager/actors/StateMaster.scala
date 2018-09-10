@@ -65,6 +65,7 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
       kompactRefs = kompactRefs :+ ref
       // Enable DeathWatch
       ref kompactWatch self
+
       val hello = Hello("Akka saying hello from statemaster")
       val welcomeMsg = KompactAkkaMsg().withHello(hello)
       ref ! welcomeMsg

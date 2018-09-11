@@ -3,8 +3,6 @@ package runtime.kompact
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
 import com.typesafe.config.ConfigFactory
-import runtime.kompact.KompactAsk.AskSuccess
-import runtime.kompact.messages.{Hello, KompactAkkaMsg}
 
 import scala.concurrent.{ExecutionContext, Future}
 

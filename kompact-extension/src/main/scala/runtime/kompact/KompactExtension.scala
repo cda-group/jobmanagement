@@ -26,7 +26,14 @@ class KompactExtensionImpl(system: ExtendedActorSystem) extends Extension {
     proxyActor ! Unregister(actorRef)
 
   // Return socket info for the kompact extension
-  def getInfo(): String = ???
+  def getProxyAddr: String = {
+    val host = system.settings.config.getString("akka.kompact.host")
+    val port = system.settings.config.getInt("akka.kompact.port")
+    if (host.equalsIgnoreCase("localhost"))
+      "127.0.0.1" + ":" + port.toString
+    else
+      host + ":" + port.toString
+  }
 }
 
 /** Akka Extension that loads a Proxy Server in order to

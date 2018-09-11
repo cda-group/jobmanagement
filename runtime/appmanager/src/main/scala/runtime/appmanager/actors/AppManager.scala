@@ -122,7 +122,7 @@ abstract class AppManager extends Actor with ActorLogging with AppManagerConfig 
     val smSelection = context.actorSelection(ActorPaths.stateManager(smAddr))
     import runtime.protobuf.ProtoConversions.ActorRef._
     smSelection ? StateManagerJob(amRef, job) flatMap {
-      case s@StateMasterConn(_) => Future.successful(s)
+      case s@StateMasterConn(_,_) => Future.successful(s)
     } recoverWith {
       case t: akka.pattern.AskTimeoutException => Future.failed(t)
     }

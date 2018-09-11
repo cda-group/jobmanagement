@@ -4,12 +4,12 @@ import akka.actor.ActorRef
 import akka.util.Timeout
 import com.typesafe.scalalogging.LazyLogging
 import io.netty.channel.nio.NioEventLoopGroup
-import io.netty.channel.{ChannelHandlerContext, ChannelInboundHandlerAdapter, SimpleChannelInboundHandler}
+import io.netty.channel.{ChannelHandlerContext, SimpleChannelInboundHandler}
 import io.netty.util.ReferenceCountUtil
 import runtime.kompact.ProxyActor.AskRelay
+import runtime.kompact.messages.KompactAkkaMsg.Payload.{AskReply, ExecutorRegistration, Hello}
 import runtime.kompact.{ExecutorUp, KompactRef}
-import runtime.kompact.messages.KompactAkkaMsg.Msg
-import runtime.kompact.messages.KompactAkkaMsg
+import runtime.kompact.messages.KompactAkkaEnvelope
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -19,7 +19,7 @@ import scala.concurrent.{ExecutionContext, Future}
   * @param proxy ActorRef
   */
 private[kompact] class ProxyServerHandler(proxy: ActorRef, group: NioEventLoopGroup)
-  extends SimpleChannelInboundHandler[KompactAkkaMsg] with LazyLogging {
+  extends SimpleChannelInboundHandler[KompactAkkaEnvelope] with LazyLogging {
   import akka.pattern.ask
   import scala.concurrent.duration._
   implicit val timeout = Timeout(3.seconds)
@@ -31,16 +31,16 @@ private[kompact] class ProxyServerHandler(proxy: ActorRef, group: NioEventLoopGr
     logger.info(s"New Executor Connected ${ctx.channel().remoteAddress()}")
   }
 
-  override def channelRead0(ctx: ChannelHandlerContext, payload: KompactAkkaMsg): Unit = {
+  override def channelRead0(ctx: ChannelHandlerContext, envelope: KompactAkkaEnvelope): Unit = {
     try {
-      payload.msg match {
-        case Msg.Hello(v) => akkaActor match {
+      envelope.msg.payload match {
+        case Hello(v) => akkaActor match {
           case Some(ref) => ref ! v
           case None => logger.error("Ref not set yet")
         }
-        case Msg.AskReply(reply) =>
+        case AskReply(reply) =>
           proxy ! AskRelay(reply)
-        case Msg.ExecutorRegistration(reg) =>
+        case ExecutorRegistration(reg) =>
           val kRef = KompactRef(reg.jobId, reg.src, reg.dst, ctx)
           proxy ? ExecutorUp(kRef) map {
             case ref: ActorRef =>
@@ -52,7 +52,7 @@ private[kompact] class ProxyServerHandler(proxy: ActorRef, group: NioEventLoopGr
         case _ => println("unknown")
       }
     } finally {
-      ReferenceCountUtil.release(payload)
+      ReferenceCountUtil.release(envelope)
     }
   }
 

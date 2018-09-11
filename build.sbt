@@ -30,7 +30,7 @@ lazy val root = (project in file("."))
 
 
 lazy val statemanager = (project in file("runtime/statemanager"))
-  .dependsOn(runtimeProtobuf, runtimeCommon % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, kompactExtension % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.statemanager)
   .settings(moduleName("runtime.statemanager"))
@@ -93,7 +93,7 @@ lazy val clusterManagerCommon = (project in file("cluster-manager-common"))
   .settings(moduleName("clustermanager.common"))
 
 lazy val standalone = (project in file("cluster-manager/standalone"))
-  .dependsOn(runtimeProtobuf, runtimeCommon, clusterManagerCommon % "test->test; compile->compile")
+  .dependsOn(runtimeProtobuf, runtimeCommon, clusterManagerCommon, kompactExtension % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.standalone)
   .settings(moduleName("clustermanager.standalone"))

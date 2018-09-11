@@ -36,7 +36,8 @@ private[kompact] class ExtensionActor(parent: ActorRef) extends Actor with Actor
     case TestAsk(msg) =>
       kompactRef match {
         case Some(ref) =>
-          (ref ? msg) pipeTo parent
+          import KompactApi._
+          (ref ? msg) pipeKompactTo  parent
         case None =>
       }
     case TestDeathWatch =>

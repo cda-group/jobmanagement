@@ -8,97 +8,76 @@ import akka.io.{IO, Tcp}
 import akka.pattern._
 import akka.util.Timeout
 import clustermanager.common.executor.ExecutionEnvironment
+import clustermanager.standalone.taskmanager.actors.MetricsReporter.StartReporting
+import clustermanager.standalone.taskmanager.actors.TaskExecutor.ExecutorInit
+import clustermanager.standalone.taskmanager.isolation.CgroupController
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import runtime.common.Identifiers
 import runtime.protobuf.messages._
 
 import scala.collection.mutable
-import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 
 
-private[standalone] object TaskMaster {
+private[taskmanager] object TaskMaster {
   def apply(container: Container):Props =
     Props(new TaskMaster(container))
-  final case object VerifyHeartbeat
-  final case class TaskUploaded(name: String)
-  final case class TaskReady(id: String)
-  final case object TaskWriteFailure
-  final case object StartExecution
+  def apply(container: Container, cgController: CgroupController):Props =
+    Props(new TaskMaster(container, Some(cgController)))
+  case class TaskUploaded(name: String)
+  case class TaskReady(id: String)
+  case class TaskWriteFailure(name: String)
+  case object StartExecution
 }
 
-/** Actor that manages received Binaries
-  *
-  * On a Successful ArcJob Allocation, a TaskMaster is created
-  * to handle the incoming Tasks from the AppMaster once they have been compiled.
-  * A TaskMaster expects heartbeats from the AppMaster, if none are received within
-  * the specified timeout, it will consider the job cancelled and instruct the
-  * TaskManager to release the slots tied to it
+/** A TaskMaster acts as a coordinator for a Container.
+  * @param container Container
+  * @param cgroupController Controller for the containers Cgroup if cgroups is enabled
   */
-private[standalone] class TaskMaster(container: Container)
+private[taskmanager] class TaskMaster(container: Container, cgroupController: Option[CgroupController] = None)
   extends Actor with ActorLogging with TaskManagerConfig {
 
   import TaskMaster._
   import akka.io.Tcp._
-
+  import context.dispatcher
   // For Akka TCP IO
   import context.system
-  // For futures
-  implicit val timeout = Timeout(2 seconds)
-
-  import context.dispatcher
-
-  import runtime.protobuf.ProtoConversions.ActorRef._
-  private val appmaster: ActorRef = container.appmaster
-
-  // Container Environment
-  // TODO: cgroups...
 
   // Execution Environment
   private val env = new ExecutionEnvironment(container.jobId)
 
   // TaskExecutor
-  private var executors = mutable.IndexedSeq.empty[ActorRef]
+  private var executors = IndexedSeq.empty[ActorRef]
+
+  // For futures
+  implicit val timeout = Timeout(2 seconds)
+
+  import runtime.protobuf.ProtoConversions.ActorRef._
+  private val appmaster: ActorRef = container.appmaster
 
   // TaskReceiver
   private var taskReceivers = mutable.HashMap[InetSocketAddress, ActorRef]()
-  private var taskReceiversId = 0
+  private var taskReceiversId: Long = 0
 
-  private var stateMaster = None: Option[ActorRef]
+  private var stateMasterConn = None: Option[StateMasterConn]
 
+  //private val metricsReporter = context.actorOf(MetricsReporter(container, cgroupController.get.metricsReporter()), "metricsreporter")
 
   override def preStart(): Unit = {
     envSetup()
-
-    // Let the AppMaster know that a container has been allocated for it
-    val f = appmaster ? TaskMasterUp(container, self)
-    implicit val scheduler = context.system.scheduler
-    val notify = retry(
-      () ⇒ f,
-      3,
-      3000.milliseconds
-    )
-
-    notify onComplete {
-      case Success(v) => v match {
-        case StateMasterConn(ref) =>
-          stateMaster = Some(ref)
-        case _ =>
-          log.error("Expected StateMasterConn Message, but did not receive.")
-      }
-      case Failure(e) =>
-        log.error(e.toString)
-        shutdown()
-      // We were not able to establish communication with the appmaster
-      // Release the slices and shutdown
-    }
-
+    notifyAppMaster()
   }
 
   override def postStop(): Unit = {
     env.clean()
+    cgroupController match {
+      case Some(controller) =>
+        controller.clean()
+      case None => // ignore
+    }
   }
+
 
   def receive = {
     case Connected(remote, local) =>
@@ -110,15 +89,18 @@ private[standalone] class TaskMaster(container: Container)
       import runtime.protobuf.ProtoConversions.InetAddr._
       taskReceivers.get(remote) match {
         case Some(ref) =>
-          if (stateMaster.isDefined)
+          if (stateMasterConn.isDefined)
             ref ? TaskUploaded(taskName) pipeTo self
           else
             log.error("No StateMaster connected to the TaskMaster")
         case None =>
           log.error("Was not able to locate ref for remote: " + remote)
       }
+    case TaskWriteFailure(name) =>
+      log.error(s"Was not able to write binary $name to file")
+      // Handle it
     case TaskReady(name) =>
-      initExecutor(stateMaster.get, name)
+      initExecutor(stateMasterConn.get, name)
     case TasksCompiled() =>
       // Binaries are ready to be transferred, open an Akka IO TCP
       // channel and let the AppMaster know how to connect
@@ -138,16 +120,17 @@ private[standalone] class TaskMaster(container: Container)
 
         // Notify AppMaster and StateMaster that this job is being killed..
         appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
-        stateMaster.foreach(_ ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED))
+        //stateMasterConn.foreach(_.ref ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED))
         shutdown()
       }
   }
 
-  private def initExecutor(stateMaster: ActorRef, name: String): Unit = {
+  private def initExecutor(stateMasterConn: StateMasterConn, name: String): Unit = {
     container.tasks.find(_.name == name) match {
       case Some(task) =>
-        val executor = context.actorOf(TaskExecutor(env.getJobPath+"/" + name, task, appmaster, stateMaster),
-          Identifiers.TASK_EXECUTOR+"_"+name)
+        val executorInit = ExecutorInit(env, task, appmaster, stateMasterConn, cgroupController)
+
+        val executor = context.actorOf(TaskExecutor(executorInit), Identifiers.TASK_EXECUTOR+"_"+name)
         executors = executors :+ executor
         // Enable DeathWatch
         context watch executor
@@ -164,14 +147,38 @@ private[standalone] class TaskMaster(container: Container)
   }
 
 
+  /** Sets up the ExecutionEnvironment
+    * where binaries are placed and started from.
+    */
   private def envSetup(): Unit = {
     env.create() match {
       case Success(_) =>
-        log.info("Created job environment: " + env.getJobPath)
+        log.debug("Created job environment: " + env.getJobPath)
       case Failure(e) =>
         log.error("Failed to create job environment with path: " + env.getJobPath)
         // Notify AppMaster
         appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
+        shutdown()
+    }
+  }
+
+  // Refactor
+  private def notifyAppMaster(): Unit = {
+    val f = appmaster ? TaskMasterUp(container, self)
+    implicit val scheduler = context.system.scheduler
+    val notify = retry(
+      () ⇒ f,
+      3,
+      3000.milliseconds
+    )
+
+    notify map {
+      case smc@StateMasterConn(ref, _) =>
+        stateMasterConn = Some(smc)
+      case x =>
+        log.error("Failed to fetch a StateMaster, shutting down!")
+        // We were not able to establish communication with the appmaster
+        // Release the slices and shutdown
         shutdown()
     }
   }

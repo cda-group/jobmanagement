@@ -1,0 +1,44 @@
+#!/bin/bash
+
+MAP_EXPR="map(v, |a:i32| a + i32(5))"
+MAP_VEC="1 2 3 4"
+
+FILTER_EXPR="filter(v, |a:i32| a > 2)"
+FILTER_VEC="1 2 3 4"
+
+
+EXECUTION_ENV="$HOME/arc"
+APPMANAGER_REST="localhost:5050"
+
+
+case "$1" in
+    "logs")
+        LOG="$EXECUTION_ENV"/"$2"/"$3".log
+        if [ ! -f $LOG ]; then
+            echo "Could not find the log!"
+        else
+            cat "$LOG"
+        fi
+        ;;
+    "status")
+        curl -s "$APPMANAGER_REST"/api/v1/jobs/status/"$2" | python -m json.tool
+        ;;
+    "list")
+        curl -s "$APPMANAGER_REST"/api/v1/jobs/list | python -m json.tool
+        ;;
+    "metrics")
+        curl -s "$APPMANAGER_REST"/api/v1/jobs/metrics/"$2" | python -m json.tool
+        ;;
+    "cluster")
+        curl -s "$APPMANAGER_REST"/api/v1/cluster/metrics | python -m json.tool
+        ;;
+    "deploy")
+        #echo -e "Adding Weld job with expr $MAP_EXPR and vector $MAP_VEC"
+        #echo -e "Adding Weld Job with expr $FILTER_EXPR and vector $FILTER_VEC"
+        curl -H "Content-Type: application/json" -X POST \
+        -d '{"priority": 1, "locality" : false, "tasks":[{"name": "mapper", "cores" : 1, "memory": 1024, "expr": "'"$MAP_EXPR"'", "vec": "'"$MAP_VEC"'"}, 
+        {"name": "filter", "cores": 1, "memory": 1024, "expr": "'"$FILTER_EXPR"'", "vec":"'"$FILTER_VEC"'"}]}' localhost:5050/api/v1/jobs/deploy
+        ;;
+esac
+
+

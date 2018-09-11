@@ -6,7 +6,7 @@ import java.util
 import io.netty.buffer.{ByteBuf, ByteBufUtil}
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.MessageToMessageDecoder
-import runtime.kompact.messages.{KompactAkkaMsg, KompactAkkaPath}
+import runtime.kompact.messages.{KompactAkkaEnvelope, KompactAkkaPath}
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
@@ -14,24 +14,22 @@ private[kompact] class KompactDecoder extends MessageToMessageDecoder[ByteBuf] {
 
   override def decode(ctx: ChannelHandlerContext, in: ByteBuf, out: util.List[AnyRef]): Unit = {
     try {
-      if (in.readableBytes() >= 21) { // Make sure this is correct
-        val frameLen = in.readInt()
-        val magicNum = in.readInt()
-        val frameTyp = in.readByte()
-        val streamId = in.readInt()
-        val seqNum = in.readInt()
-        val payloadLen = in.readInt()
-        val (src, _buf) = deserializeActorpath(in)
-        val (dest, buf) = deserializeActorpath(_buf)
-        val serIdent = buf.readLong()
+      val frameLen = in.readInt()
+      val magicNum = in.readInt()
+      val frameTyp = in.readByte()
+      val streamId = in.readInt()
+      val seqNum = in.readInt()
+      val payloadLen = in.readInt()
+      val (src, _buf) = deserializeActorpath(in)
+      val (dest, buf) = deserializeActorpath(_buf)
+      val serIdent = buf.readLong()
 
-        val length = buf.readableBytes()
-        val actualMsg = buf.readBytes(length)
-        val array = ByteBufUtil.getBytes(actualMsg)
+      val length = buf.readableBytes()
+      val actualMsg = buf.readBytes(length)
+      val array = ByteBufUtil.getBytes(actualMsg)
 
-        val msg = KompactAkkaMsg.parseFrom(array)
-        out.add(msg)
-      }
+      val msg = KompactAkkaEnvelope.parseFrom(array)
+      out.add(msg)
     } catch {
       case err: Exception =>
         println(err.toString)

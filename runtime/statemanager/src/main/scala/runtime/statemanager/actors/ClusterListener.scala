@@ -4,6 +4,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent.{MemberRemoved, MemberUp, UnreachableMember}
 import runtime.common.Identifiers
+import runtime.kompact.KompactExtension
 
 
 object ClusterListener {
@@ -12,8 +13,8 @@ object ClusterListener {
 
 class ClusterListener extends Actor with ActorLogging {
 
-  val cluster = Cluster(context.system)
-  val stateManager  = context.actorOf(StateManager(), Identifiers.STATE_MANAGER)
+  private val cluster = Cluster(context.system)
+  private val stateManager  = context.actorOf(StateManager(), Identifiers.STATE_MANAGER)
 
   override def preStart(): Unit =
     cluster.subscribe(self, classOf[MemberUp], classOf[UnreachableMember], classOf[MemberRemoved])

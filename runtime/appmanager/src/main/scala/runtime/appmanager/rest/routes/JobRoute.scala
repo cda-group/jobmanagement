@@ -70,7 +70,7 @@ class JobRoute(appManager: ActorRef)(implicit val ec: ExecutionContext) extends 
         .zipWithIndex
         .map(m => m._1.copy(id = Some(m._2+1)))
 
-      val arcJob = ArcJob(IdGenerator.get(), indexedTasks, req.priority, true,
+      val arcJob = ArcJob(IdGenerator.job(), indexedTasks, req.priority, true,
         status = Some(Identifiers.ARC_JOB_DEPLOYING))
       complete(jobRequest(arcJob))
     }

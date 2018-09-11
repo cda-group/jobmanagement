@@ -4,7 +4,7 @@ import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Address, Cancellable, Props}
 import clustermanager.standalone.resourcemanager.actors.ResourceManager.ResourceRequest
-import runtime.common.ActorPaths
+import runtime.common.{ActorPaths, IdGenerator}
 import runtime.protobuf.messages.SliceState.ALLOCATED
 import runtime.protobuf.messages._
 
@@ -33,10 +33,10 @@ private[resourcemanager] abstract class SliceManager extends Actor with ActorLog
       // in order to make sure that the TaskManager is initialized
       target ! TaskManagerInit()
     case TaskManagerRemoved(tm) =>
-      log.info("TaskManager Removed")
+      log.info(s"TaskManager Removed: $tm" )
       cleanTaskManager(tm)
     case UnreachableTaskManager(tm) =>
-      log.info("TaskManager Unreachable")
+      log.info(s"TaskManager Unreachable: $tm")
       cleanTaskManager(tm)
     case SliceUpdate(_slices) =>
       slices.put(sender().path.address, _slices)
@@ -46,6 +46,14 @@ private[resourcemanager] abstract class SliceManager extends Actor with ActorLog
   private def cleanTaskManager(tm: Address): Unit = {
     Try {
       taskManagers = taskManagers.filterNot(_ == tm)
+      val slicesOpt = slices.get(tm)
+      slicesOpt match {
+        case Some(s) =>
+          // If they exist in offeredSlices, then remove them
+          offeredSlices.remove(s)
+        case None =>  // Ignore
+      }
+      // Finish cleanup
       slices.remove(tm)
     } match {
       case Success(_) => // ignore
@@ -122,7 +130,7 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
       }
     case SlicesAllocated(_slices) =>
       if (offeredSlices.remove(_slices))
-        log.info("Offered slices have now been allocated, removing")
+        log.debug("Offered slices have now been allocated, removing")
       else
         log.error("Could not remove the offered slices")
 
@@ -170,7 +178,8 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
           fetchSlots(freeSlices, job) match {
             case Some(chosen) =>
               import runtime.protobuf.ProtoConversions.Address._
-              val c = Container(job.id, job.appMasterRef.get, taskManagers(roundNumber), chosen, job.tasks)
+              val c = Container(IdGenerator.container(), job.id, job.appMasterRef.get,
+                taskManagers(roundNumber), chosen, job.tasks)
               Some(Seq(c))
             case None =>
               roundNumber += 1

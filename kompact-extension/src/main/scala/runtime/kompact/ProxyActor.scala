@@ -3,7 +3,7 @@ package runtime.kompact
 import java.net.InetSocketAddress
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import runtime.kompact.messages.{AskReply, KompactAkkaMsg}
+import runtime.kompact.messages.AskReply
 import runtime.kompact.netty.ProxyServer
 
 import scala.collection.mutable
@@ -39,17 +39,19 @@ private[kompact] class ProxyActor extends Actor with ActorLogging {
 
   def receive = {
     case Register(ref) =>
-      log.info(s"Registered: $ref with name ${ref.path.name}")
-      refs.put(ref.path.name, ref)
+      val formattedPath = ref.path.toSerializationFormatWithAddress(ExternalAddress(context.system).addressForAkka)
+      log.info(s"Registered: $formattedPath")
+      refs.put(formattedPath, ref)
     case Unregister(ref) =>
-      refs.remove(ref.path.name)
+      val formattedPath = ref.path.toSerializationFormatWithAddress(ExternalAddress(context.system).addressForAkka)
+      refs.remove(formattedPath)
     case msg@ExecutorUp(ref) =>
       refs.get(ref.dstPath.path) match {
         case Some(akkaRef) =>
           akkaRef ! msg // Send KompactRef to Akka Actor
           sender() ! akkaRef // Send ActorRef to handler responsible for akkaRef
         case None =>
-          log.error("ProxyActor could not find corresponding Actor")
+          log.error(s"ProxyActor could not find actor for path ${ref.dstPath.path}")
       }
     case AskRelay(reply) =>
       val actor = context.actorSelection(reply.askActor)

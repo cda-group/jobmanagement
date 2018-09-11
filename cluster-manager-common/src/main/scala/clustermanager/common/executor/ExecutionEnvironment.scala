@@ -1,7 +1,7 @@
 package clustermanager.common.executor
 
 import java.nio.file.attribute.{PosixFilePermission, PosixFilePermissions}
-import java.nio.file.{Files, Paths}
+import java.nio.file.{FileAlreadyExistsException, Files, Path, Paths}
 import java.util.Comparator
 import java.util.stream.Collectors
 
@@ -127,10 +127,33 @@ private[clustermanager] class ExecutionEnvironment(jobId: String) extends LazyLo
       ))
   }
 
-  def getJobPath: String =
-    OperatingSystem.get() match {
-      case Linux => LINUX_JOB_PATH
-      case Mac => MAC_OS_JOB_PATH
-      case _ => ""
+  def getJobPath: String = OperatingSystem.get() match {
+    case Linux => LINUX_JOB_PATH
+    case Mac => MAC_OS_JOB_PATH
+    case _ => ""
+  }
+
+  def createLogForTask(taskName: String): Boolean = {
+    try {
+      val path = Paths.get(getJobPath + "/" + taskName.concat(".log"))
+      Files.createFile(path)
+      true
+    } catch {
+      case err: FileAlreadyExistsException =>
+        true
+      case err: Exception =>
+        logger.error(err.toString)
+        false
     }
+  }
+
+  def getLogFile(taskName: String): Option[Path] = {
+    val name = taskName.concat(".log")
+    val log = Paths.get(getJobPath + "/" + name)
+    if (Files.exists(log))
+      Some(log)
+    else
+      None
+  }
+
 }

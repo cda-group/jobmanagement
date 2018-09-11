@@ -26,11 +26,14 @@ import scala.util.{Failure, Success}
   */
 abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   protected var taskMaster = None: Option[ActorRef]
-  protected var stateMaster = None: Option[ActorRef]
+  protected var stateMasterConn = None: Option[StateMasterConn]
   protected var arcJob = None: Option[ArcJob]
 
   protected implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
+  // Handles implicit conversions of ActorRef and ActorRefProto
+  implicit val sys: ActorSystem = context.system
+  import runtime.protobuf.ProtoConversions.ActorRef._
 
   def receive: Receive =  {
     case ArcJobStatus(_) =>
@@ -39,8 +42,9 @@ abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
       arcJob = updateTask(task)
     case TaskMasterStatus(_status) =>
       arcJob = arcJob.map(_.copy(status = Some(_status)))
-    case req@ArcJobMetricRequest(id) if stateMaster.isDefined =>
-      (stateMaster.get ? req) pipeTo sender()
+    case req@ArcJobMetricRequest(id) if stateMasterConn.isDefined =>
+      val stateMasterRef: ActorRef = stateMasterConn.get.ref
+      (stateMasterRef ? req) pipeTo sender()
     case ArcJobMetricRequest(_) =>
       sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
   }
@@ -85,7 +89,6 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
   private val yarnClient = new Client()
 
   // Handles implicit conversions of ActorRef and ActorRefProto
-  implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
   // Futures
@@ -108,9 +111,10 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
       arcJob.get.tasks.foreach { t =>
         compileAndTransfer(ref, t)
       }
-    case StateMasterConn(ref) =>
-      stateMaster = Some(ref)
-      startTaskMaster(ref)
+    case conn@StateMasterConn(ref, _ ) =>
+      stateMasterConn = Some(conn)
+      val stateMasterRef: ActorRef = conn.ref
+      startTaskMaster(stateMasterRef)
     case StateMasterError  =>
       log.error("Could not establish a StateMaster, closing down!")
       context stop self
@@ -189,7 +193,6 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
   import AppManager._
 
   // Handles implicit conversions of ActorRef and ActorRefProto
-  implicit val sys: ActorSystem = context.system
   import runtime.protobuf.ProtoConversions.ActorRef._
 
   private val containers = mutable.HashMap.empty[ActorRef, Container]
@@ -203,8 +206,8 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
   }
 
   override def receive = super.receive orElse {
-    case StateMasterConn(ref) =>
-      stateMaster = Some(ref)
+    case conn@StateMasterConn(ref, _) =>
+      stateMasterConn = Some(conn)
       // Start Request...
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
       // Add ActorRef of ourselves onto the Job
@@ -212,13 +215,13 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
     case StateMasterError =>
       log.error("Something went wrong while fetching StateMaster, shutting down!")
       context stop self
-    case TaskMasterUp(container, ref) if stateMaster.nonEmpty =>
+    case TaskMasterUp(container, ref) if stateMasterConn.nonEmpty =>
       // Enable DeathWatch of the TaskMaster
       context watch ref
       // Store Reference and to which container it belongs to
       containers.put(ref, container)
       // Notify TaskMaster about our StateMaster
-      sender() ! StateMasterConn(stateMaster.get)
+      sender() ! stateMasterConn.get
       taskMaster = Some(ref)
 
       // If the tasks belonging to the container's tasks have not been compiled,
@@ -268,7 +271,7 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
   }
 
   private def weldRunnerBin(): Array[Byte] =
-    Files.readAllBytes(Paths.get("weldrunner"))
+    Files.readAllBytes(Paths.get("executor"))
 }
 
 

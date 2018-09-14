@@ -1,8 +1,9 @@
-package runtime.tests
+package runtime.tests.standalone
 
 import akka.testkit.TestProbe
 import runtime.common.ActorPaths
 import runtime.protobuf.messages.{AllocateSuccess, NoSlotsAvailable}
+import runtime.tests.RuntimeHelper
 
 
 class ResourceManagementSpecMultiJvmNode1 extends ResourceManagementSpec

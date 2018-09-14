@@ -47,7 +47,7 @@ lazy val appmanager = (project in file("runtime/appmanager"))
   .settings(Sigar.loader())
 
 
-lazy val runtimeProtobuf = (project in file("runtime-protobuf"))
+lazy val runtimeProtobuf = (project in file("runtime/protobuf"))
   .settings(runtimeSettings: _*)
   .settings(Dependencies.protobuf)
   .settings(moduleName("runtime.protobuf"))
@@ -57,7 +57,7 @@ lazy val runtimeProtobuf = (project in file("runtime-protobuf"))
     )
   )
 
-lazy val runtimeCommon = (project in file("runtime-common"))
+lazy val runtimeCommon = (project in file("runtime/common"))
   .settings(runtimeSettings: _*)
   .settings(Dependencies.runtimeCommon)
   .settings(moduleName("runtime.common"))
@@ -73,7 +73,7 @@ lazy val kompactExtension = (project in file("kompact-extension"))
   )
 
 
-lazy val runtimeTests = (project in file("runtime-tests"))
+lazy val runtimeTests = (project in file("runtime/tests"))
   .dependsOn(
     runtimeProtobuf, runtimeCommon % "test->test; compile->compile",
     statemanager, appmanager, standalone % "test->test; compile->compile")
@@ -86,7 +86,7 @@ lazy val runtimeTests = (project in file("runtime-tests"))
   .settings(
     parallelExecution in Test := false // do not run test cases in
   )
-lazy val clusterManagerCommon = (project in file("cluster-manager-common"))
+lazy val clusterManagerCommon = (project in file("cluster-manager/common"))
   .dependsOn(runtimeProtobuf % "test->test; compile->compile")
   .settings(runtimeSettings: _*)
   .settings(Dependencies.clusterManagerCommon)

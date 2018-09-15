@@ -30,7 +30,7 @@ class StateMasterSpec extends TestKit(StateMasterSpec.actorSystem)
     "Retrieve and Report metrics" in {
       val appMaster = TestProbe()
       val probe = TestProbe()
-      val master = system.actorOf(StateMaster(appMaster.ref, testArcJob))
+      val master = system.actorOf(StateMaster(appMaster.ref, testArcApp))
 
       val task = ArcTask("test_task", 1, 1024, " ", " ")
       val fakeMetric = ExecutorMetric(
@@ -44,10 +44,10 @@ class StateMasterSpec extends TestKit(StateMasterSpec.actorSystem)
       val metric = ArcTaskMetric(task, fakeMetric)
       master ! metric
 
-      master ! ArcJobMetricRequest(testArcJob.id)
-      val report = expectMsgType[ArcJobMetricReport]
+      master ! ArcAppMetricRequest(testArcApp.id)
+      val report = expectMsgType[ArcAppMetricReport]
 
-      report.jobId shouldBe testArcJob.id
+      report.appId shouldBe testArcApp.id
       report.metrics.size === 1
       report.metrics.head.task.name shouldBe "test_task"
       report.metrics.head.executorMetric.timestamp < System.currentTimeMillis()

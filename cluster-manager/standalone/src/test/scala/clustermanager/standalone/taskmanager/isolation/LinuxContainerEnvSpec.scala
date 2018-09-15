@@ -16,9 +16,9 @@ class LinuxContainerEnvSpec extends FlatSpec with BeforeAndAfterAll with TaskMan
   private val taskOneName = "map"
   private val taskTwoName = "filter"
   private val taskOne = ArcTask(taskOneName, 1, 1024)
-  private val taskTwo= ArcTask(taskTwoName, 2, 2024)
+  private val taskTwo = ArcTask(taskTwoName, 2, 2024)
   private val testTasks = Seq(taskOne, taskTwo)
-  private val containerId = "containerz"
+  private val containerId = "jobId" // TODO: fix
   private val testContainer = Container(containerId, "jobId", tasks = testTasks)
 
   override protected def beforeAll(): Unit = {
@@ -48,8 +48,8 @@ class LinuxContainerEnvSpec extends FlatSpec with BeforeAndAfterAll with TaskMan
     lce match {
       case Right(cg) =>
         assert(cg.createContainerGroup(testContainer))
-        assert(Files.exists(Paths.get(containersCpu + "/" + containerId)))
-        assert(Files.exists(Paths.get(containersMem + "/" + containerId)))
+        assert(Files.isDirectory(Paths.get(containersCpu + "/" + containerId)))
+        assert(Files.isDirectory(Paths.get(containersMem + "/" + containerId)))
 
         // CPU check
         val containerCores = testContainer.tasks.foldLeft(0)(_ + _.cores)

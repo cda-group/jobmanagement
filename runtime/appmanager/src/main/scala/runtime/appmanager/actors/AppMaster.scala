@@ -9,7 +9,7 @@ import akka.util.Timeout
 import akka.pattern._
 import clustermanager.yarn.client.Client
 import org.apache.hadoop.yarn.api.records.{ApplicationId, YarnApplicationState}
-import runtime.appmanager.actors.AppManager.{ArcJobStatus, StateMasterError}
+import runtime.appmanager.actors.AppManager.{ArcAppStatus, StateMasterError}
 import runtime.appmanager.actors.StandaloneAppMaster.BinaryTask
 import runtime.appmanager.utils.AppManagerConfig
 import runtime.common.{ActorPaths, Identifiers}
@@ -27,7 +27,7 @@ import scala.util.{Failure, Success}
 abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   protected var taskMaster = None: Option[ActorRef]
   protected var stateMasterConn = None: Option[StateMasterConn]
-  protected var arcJob = None: Option[ArcJob]
+  protected var arcApp = None: Option[ArcApp]
 
   protected implicit val timeout = Timeout(2 seconds)
   import context.dispatcher
@@ -36,36 +36,36 @@ abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
   import runtime.protobuf.ProtoConversions.ActorRef._
 
   def receive: Receive =  {
-    case ArcJobStatus(_) =>
-      sender() ! arcJob.get
+    case ArcAppStatus(_) =>
+      sender() ! arcApp.get
     case ArcTaskUpdate(task) =>
-      arcJob = updateTask(task)
+      arcApp = updateTask(task)
     case TaskMasterStatus(_status) =>
-      arcJob = arcJob.map(_.copy(status = Some(_status)))
-    case req@ArcJobMetricRequest(id) if stateMasterConn.isDefined =>
+      arcApp = arcApp.map(_.copy(status = Some(_status)))
+    case req@ArcAppMetricRequest(id) if stateMasterConn.isDefined =>
       val stateMasterRef: ActorRef = stateMasterConn.get.ref
       (stateMasterRef ? req) pipeTo sender()
-    case ArcJobMetricRequest(_) =>
-      sender() ! ArcJobMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
+    case ArcAppMetricRequest(_) =>
+      sender() ! ArcAppMetricFailure("AppMaster has no stateMaster tied to it. Cannot fetch metrics")
   }
 
-  protected def updateTask(task: ArcTask): Option[ArcJob] = {
-    arcJob match {
-      case Some(job) =>
-        val updatedJob = job.copy(tasks = job.tasks.map(s => if (isSameTask(s.id, task.id)) task else s))
-        val stillRunning = updatedJob
+  protected def updateTask(task: ArcTask): Option[ArcApp] = {
+    arcApp match {
+      case Some(app) =>
+        val updatedApp = app.copy(tasks = app.tasks.map(s => if (isSameTask(s.id, task.id)) task else s))
+        val stillRunning = updatedApp
           .tasks
           .exists(_.result.isEmpty)
 
         Some(
           if (stillRunning) {
-            if (updatedJob.status.get.equals(Identifiers.ARC_JOB_DEPLOYING))
-              updatedJob.copy(status = Some(Identifiers.ARC_JOB_RUNNING))
+            if (updatedApp.status.get.equals(Identifiers.ARC_APP_DEPLOYING))
+              updatedApp.copy(status = Some(Identifiers.ARC_APP_RUNNING))
             else
-              updatedJob
+              updatedApp
           }
           else {
-            updatedJob.copy(status = Some(Identifiers.ARC_TASK_KILLED))
+            updatedApp.copy(status = Some(Identifiers.ARC_TASK_KILLED))
           })
       case None =>
         None
@@ -81,9 +81,9 @@ abstract class AppMaster extends Actor with ActorLogging with AppManagerConfig {
 }
 
 /**
-  * Uses YARN to allocate resources and schedule ArcJob's.
+  * Uses YARN to allocate resources and schedule ArcApp's
   */
-class YarnAppMaster(job: ArcJob) extends AppMaster {
+class YarnAppMaster(app: ArcApp) extends AppMaster {
   private var yarnAppId = None: Option[ApplicationId]
   private val selfAddr = Cluster(context.system).selfAddress
   private val yarnClient = new Client()
@@ -98,7 +98,7 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
 
   override def preStart(): Unit = {
     super.preStart()
-    arcJob = Some(job)
+    arcApp = Some(app)
   }
   override def receive = super.receive orElse {
     case YarnTaskMasterUp(ref) =>
@@ -108,7 +108,7 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
       taskMaster = Some(ref)
 
       // Our fake compile method
-      arcJob.get.tasks.foreach { t =>
+      arcApp.get.tasks.foreach { t =>
         compileAndTransfer(ref, t)
       }
     case conn@StateMasterConn(ref, _ ) =>
@@ -136,7 +136,7 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
         toStringWithAddress(selfAddr)
       val stateMasterStr = stateMaster.path.
         toStringWithAddress(stateMaster.path.address)
-      yarnAppId = yarnClient.launchTaskMaster(meStr, stateMasterStr, job.id).toOption
+      yarnAppId = yarnClient.launchTaskMaster(meStr, stateMasterStr, app.id).toOption
     } else {
       log.error("Could not establish connection with YARN")
     }
@@ -145,7 +145,7 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
   //TODO: Implement real logic
   // Simulation for now
   private def compileAndTransfer(tMaster: ActorRef, task: ArcTask): Future[Unit] = Future {
-    YarnUtils.moveToHDFS(job.id, task.name, "weldrunner") match {
+    YarnUtils.moveToHDFS(app.id, task.name, "weldrunner") match {
       case Some(path) =>
         tMaster ! YarnTaskTransferred(path.toString, task)
       case None =>
@@ -180,16 +180,16 @@ class YarnAppMaster(job: ArcJob) extends AppMaster {
 }
 
 object YarnAppMaster {
-  def apply(job: ArcJob): Props =
-    Props(new YarnAppMaster(job))
+  def apply(app: ArcApp): Props =
+    Props(new YarnAppMaster(app))
 }
 
 
 /**
   * Uses the Standalone Cluster Manager in order to allocate resources
-  * and schedule ArcJob's
+  * and schedule ArcApp's
   */
-private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends AppMaster {
+private[runtime] class StandaloneAppMaster(app: ArcApp, rmAddr: Address) extends AppMaster {
   import AppManager._
 
   // Handles implicit conversions of ActorRef and ActorRefProto
@@ -202,7 +202,7 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
 
   override def preStart(): Unit = {
     super.preStart()
-    arcJob = Some(job)
+    arcApp = Some(app)
   }
 
   override def receive = super.receive orElse {
@@ -211,7 +211,7 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
       // Start Request...
       val resourceManager = context.actorSelection(ActorPaths.resourceManager(rmAddr))
       // Add ActorRef of ourselves onto the Job
-      resourceManager ! job.copy(appMasterRef = Some(self))
+      resourceManager ! app.copy(appMasterRef = Some(self))
     case StateMasterError =>
       log.error("Something went wrong while fetching StateMaster, shutting down!")
       context stop self
@@ -276,8 +276,8 @@ private[runtime] class StandaloneAppMaster(job: ArcJob, rmAddr: Address) extends
 
 
 private[runtime] object StandaloneAppMaster {
-  def apply(job: ArcJob, resourceManagerAddr: Address): Props =
-    Props(new StandaloneAppMaster(job, resourceManagerAddr))
+  def apply(app: ArcApp, resourceManagerAddr: Address): Props =
+    Props(new StandaloneAppMaster(app, resourceManagerAddr))
 
   final case class BinaryTask(bin: Array[Byte], name: String)
 }

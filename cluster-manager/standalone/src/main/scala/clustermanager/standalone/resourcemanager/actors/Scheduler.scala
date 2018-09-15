@@ -88,12 +88,12 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
   import runtime.protobuf.ProtoConversions.ActorRef._
   import runtime.protobuf.ProtoConversions.Address._
 
-  // Dequeue order based on the jobs priority value.
+  // Dequeue order based on the app's priority value.
   // The higher Integer, the higher priority the job has.
-  private def jobOrder(j: ArcJob) = j.priority
+  private def appOrder(a: ArcApp) = a.priority
 
-  private val jobQueue: mutable.PriorityQueue[ArcJob] =
-    mutable.PriorityQueue.empty[ArcJob](Ordering.by(jobOrder))
+  private val appQueue: mutable.PriorityQueue[ArcApp] =
+    mutable.PriorityQueue.empty[ArcApp](Ordering.by(appOrder))
 
   private var scheduleTicker = None: Option[Cancellable]
 
@@ -109,13 +109,13 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
     scheduleTicker.map(_.cancel())
 
   override def receive = super.receive orElse {
-    case ResourceRequest(job) =>
-      log.info(s"Adding job with id ${job.id} to the queue")
-      jobQueue.enqueue(job)
-    case ScheduleTick if jobQueue.nonEmpty && taskManagers.nonEmpty =>
-      val job = jobQueue.dequeue()
+    case ResourceRequest(app) =>
+      log.info(s"Adding app with id ${app.id} to the queue")
+      appQueue.enqueue(app)
+    case ScheduleTick if appQueue.nonEmpty && taskManagers.nonEmpty =>
+      val app = appQueue.dequeue()
       val currentRound = roundNumber
-      allocationAttempt(job) match {
+      allocationAttempt(app) match {
         case Some(containers) =>
           containers.foreach { container  =>
             val tmAddr: Address = container.taskmanager
@@ -126,7 +126,7 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
          roundNumber = currentRound + 1
         case None =>
           log.info("Could not find any containers, requeing")
-          jobQueue.enqueue(job)
+          appQueue.enqueue(app)
       }
     case SlicesAllocated(_slices) =>
       if (offeredSlices.remove(_slices))
@@ -155,15 +155,15 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
     })
   }
 
-  private def allocationAttempt(job: ArcJob): Option[Seq[Container]] = {
-    if (job.locality)
-      withLocality(job, tries = 0, max = taskManagers.size)
+  private def allocationAttempt(app: ArcApp): Option[Seq[Container]] = {
+    if (app.locality)
+      withLocality(app, tries = 0, max = taskManagers.size)
     else
-      noPreference(job)
+      noPreference(app)
   }
 
   @tailrec
-  private def withLocality(job: ArcJob, tries: Int, max: Int): Option[Seq[Container]] = {
+  private def withLocality(app: ArcApp, tries: Int, max: Int): Option[Seq[Container]] = {
     if (tries == max) {
       None
     } else {
@@ -175,16 +175,16 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
         case Some(fSlices) =>
           // Free Slices on this TaskManager
           val freeSlices = fSlices.filter(s => s.state == SliceState.FREE)
-          fetchSlots(freeSlices, job) match {
+          fetchSlots(freeSlices, app) match {
             case Some(chosen) =>
               import runtime.protobuf.ProtoConversions.Address._
-              val c = Container(IdGenerator.container(), job.id, job.appMasterRef.get,
-                taskManagers(roundNumber), chosen, job.tasks)
+              val c = Container(IdGenerator.container(), app.id, app.appMasterRef.get,
+                taskManagers(roundNumber), chosen, app.tasks)
               Some(Seq(c))
             case None =>
               roundNumber += 1
               var _tries = tries + 1
-              withLocality(job, _tries, max)
+              withLocality(app, _tries, max)
           }
         case None =>
           None
@@ -192,28 +192,28 @@ private[resourcemanager] class RoundRobinScheduler extends Scheduler {
     }
   }
 
-  private def noPreference(job: ArcJob): Option[Seq[Container]] = {
+  private def noPreference(app: ArcApp): Option[Seq[Container]] = {
     None
   }
 
 
   /** Checks if the free slices matches the resource profile of the job
     * @param freeSlices ContainerSlices
-    * @param job ArcJob
+    * @param app ArcApp
     * @return Option of ContainerSlices
     */
-  private def fetchSlots(freeSlices: Seq[ContainerSlice], job: ArcJob): Option[Seq[ContainerSlice]] = {
-    val jobProfile = buildProfile(job.tasks)
+  private def fetchSlots(freeSlices: Seq[ContainerSlice], app: ArcApp): Option[Seq[ContainerSlice]] = {
+    val appProfile = buildProfile(app.tasks)
 
     val resources = freeSlices.foldLeft((ResourceProfile(0, 0), Seq[ContainerSlice]())) { (x, y) =>
-      if (x._1.matches(jobProfile) || offeredSlices.contains(Seq(y)))
+      if (x._1.matches(appProfile) || offeredSlices.contains(Seq(y)))
         x
       else
         (x._1.copy(cpuCores = x._1.cpuCores + y.profile.cpuCores,
           memoryInMb = x._1.memoryInMb + y.profile.memoryInMb), x._2 :+ y)
     }
 
-    if (resources._1.matches(jobProfile))
+    if (resources._1.matches(appProfile))
       Some(resources._2)
     else
       None

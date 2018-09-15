@@ -1,15 +1,13 @@
 package clustermanager.standalone.resourcemanager.actors
 
 import akka.actor.ActorSystem
-import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import akka.testkit.{ImplicitSender, TestKit}
 import clustermanager.standalone.{ActorSpec, TestHelpers}
-import clustermanager.standalone.resourcemanager.actors.ClusterListener.TaskManagerRegistration
-import clustermanager.standalone.resourcemanager.actors.ResourceManager.SlotRequest
 import com.typesafe.config.ConfigFactory
 
 
-object SlotManagerSpec {
-  val actorSystem = ActorSystem("SlotManagerSpec", ConfigFactory.parseString(
+object SliceManagerSpec {
+  val actorSystem = ActorSystem("SliceManagerSpec", ConfigFactory.parseString(
     """
       | akka.loggers = ["akka.testkit.TestEventListener"]
       | akka.stdout-loglevel = "OFF"
@@ -17,7 +15,7 @@ object SlotManagerSpec {
     """.stripMargin))
 }
 
-class SlotManagerSpec extends TestKit(SlotManagerSpec.actorSystem)
+class SliceManagerSpec extends TestKit(SliceManagerSpec.actorSystem)
   with ImplicitSender with ActorSpec with TestHelpers {
 
   override def afterAll {
@@ -25,7 +23,7 @@ class SlotManagerSpec extends TestKit(SlotManagerSpec.actorSystem)
   }
 
   /*
-  "A SlotManager Actor" must {
+  "A SliceManager Actor" must {
 
     "Handle no available task managers" in {
       val sm = system.actorOf(SlotManager())

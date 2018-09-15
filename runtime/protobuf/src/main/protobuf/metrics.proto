@@ -8,7 +8,7 @@ option (scalapb.options) = {
   package_name: "runtime.protobuf.messages"
   single_file: true
   flat_package: true
-  preamble: "sealed trait ArcJobMetricResponse"
+  preamble: "sealed trait ArcAppMetricResponse"
 };
 
 
@@ -69,18 +69,18 @@ message ArcTaskMetric {
 }
 
 
-message ArcJobMetricRequest {
-    string jobId = 1;
+message ArcAppMetricRequest {
+    string appId = 1;
 }
 
-message ArcJobMetricReport {
-    option (scalapb.message).extends = "ArcJobMetricResponse";
-    string jobId = 1;
+message ArcAppMetricReport {
+    option (scalapb.message).extends = "ArcAppMetricResponse";
+    string appId = 1;
     repeated ArcTaskMetric metrics = 2;
 }
 
-message ArcJobMetricFailure {
-    option (scalapb.message).extends = "ArcJobMetricResponse";
+message ArcAppMetricFailure {
+    option (scalapb.message).extends = "ArcAppMetricResponse";
     string reason = 1;
 }
 

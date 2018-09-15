@@ -1,9 +1,8 @@
 package runtime.appmanager
 
-import runtime.protobuf.messages.{ArcJob, ArcTask, ResourceProfile}
+import runtime.protobuf.messages.{ArcApp, ArcTask, ResourceProfile}
 
 
 trait TestHelpers {
-  val arcProfile = ResourceProfile(1, 2000)
-  val testArcJob = ArcJob("test", Seq(ArcTask("", 1, 1024, "")))
+  val testArcApp = ArcApp("test", Seq(ArcTask("", 1, 1024, "")))
 }

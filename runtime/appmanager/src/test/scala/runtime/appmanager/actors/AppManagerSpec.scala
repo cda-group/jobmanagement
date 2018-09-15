@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import com.typesafe.config.ConfigFactory
 import runtime.appmanager.{ActorSpec, TestHelpers}
-import runtime.appmanager.actors.AppManager.{ArcJobRequest, ResourceManagerUnavailable}
+import runtime.appmanager.actors.AppManager.{ArcAppRequest, ResourceManagerUnavailable}
 
 object AppManagerSpec {
   val actorSystem = ActorSystem("AppManagerSpec", ConfigFactory.parseString(
@@ -28,7 +28,7 @@ class AppManagerSpec extends TestKit(AppManagerSpec.actorSystem)
     "handle no available ResourceManager" in {
       val appManager = system.actorOf(StandaloneAppManager())
       val requester = TestProbe()
-      requester.send(appManager, ArcJobRequest(testArcJob))
+      requester.send(appManager, ArcAppRequest(testArcApp))
       requester.expectMsg("No StateManagers available")
     }
 

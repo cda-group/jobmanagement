@@ -23,11 +23,11 @@ object Identifiers {
   final val ARC_TASK_KILLED = "killed"
   final val ARC_TASK_TRANSFER_ERROR = "transfer error"
 
-  // ArcJob states
-  final val ARC_JOB_DEPLOYING = "deploying"
-  final val ARC_JOB_INITIALIZING = "initializing"
-  final val ARC_JOB_RUNNING = "running"
-  final val ARC_JOB_KILLED = "killed"
-  final val ARC_JOB_FAILED = "failed"
-  final val ARC_JOB_SUCCEEDED = "succeeded"
+  // ArcApp states
+  final val ARC_APP_DEPLOYING = "deploying"
+  final val ARC_APP_INITIALIZING = "initializing"
+  final val ARC_APP_RUNNING = "running"
+  final val ARC_APP_KILLED = "killed"
+  final val ARC_APP_FAILED = "failed"
+  final val ARC_APP_SUCCEEDED = "succeeded"
 }

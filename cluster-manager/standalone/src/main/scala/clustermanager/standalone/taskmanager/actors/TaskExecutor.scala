@@ -44,7 +44,7 @@ private[taskmanager] class TaskExecutor(env: ExecutionEnvironment,
   private var process = None: Option[Process]
   private var monitor = None: Option[ExecutorStats]
   private var arcTask = None: Option[ArcTask]
-  private val binPath = env.getJobPath + "/" + task.name
+  private val binPath = env.getAppPath + "/" + task.name
 
   private val selfAddr = Cluster(context.system)
     .selfAddress

@@ -119,7 +119,7 @@ private[taskmanager] class TaskMaster(container: Container, cgroupController: Op
         log.info("No alive TaskExecutors left, releasing slices")
 
         // Notify AppMaster and StateMaster that this job is being killed..
-        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_APP_KILLED)
         //stateMasterConn.foreach(_.ref ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED))
         shutdown()
       }
@@ -139,7 +139,7 @@ private[taskmanager] class TaskMaster(container: Container, cgroupController: Op
         if (container.tasks.lengthCompare(executors.size) == 0) {
           log.info("All executors have been initialized, starting them up!")
           executors.foreach(_ ! StartExecution)
-          appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_RUNNING)
+          appmaster ! TaskMasterStatus(Identifiers.ARC_APP_RUNNING)
         }
       case None =>
         log.error("Was not able to match received task with task in the container")
@@ -153,11 +153,11 @@ private[taskmanager] class TaskMaster(container: Container, cgroupController: Op
   private def envSetup(): Unit = {
     env.create() match {
       case Success(_) =>
-        log.debug("Created job environment: " + env.getJobPath)
+        log.debug("Created app environment: " + env.getAppPath)
       case Failure(e) =>
-        log.error("Failed to create job environment with path: " + env.getJobPath)
+        log.error("Failed to create app environment with path: " + env.getAppPath)
         // Notify AppMaster
-        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_APP_FAILED)
         shutdown()
     }
   }

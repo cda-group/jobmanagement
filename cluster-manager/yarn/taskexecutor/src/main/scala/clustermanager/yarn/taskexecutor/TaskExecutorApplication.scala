@@ -17,21 +17,21 @@ private[yarn] object TaskExecutorApplication extends App with LazyLogging {
   if (args.length > 3) {
     logger.info("args: " + args)
     val hdfsPath = args(0)
-    val jobId = args(1)
+    val appId = args(1)
     val taskId = args(2).toInt
     val taskMaster = args(3)
     val appMaster = args(4)
     val stateMaster = args(5)
 
     // Set up execution environment on the local filesystem
-    val env = new ExecutionEnvironment(jobId)
+    val env = new ExecutionEnvironment(appId)
     env.create()
 
     val binName = Paths.get(hdfsPath)
       .getFileName
       .toString
 
-    val binPath = env.getJobPath + "/" + binName
+    val binPath = env.getAppPath + "/" + binName
 
     if (!YarnUtils.moveToLocal(hdfsPath, binPath)) {
       logger.error("Could not move the binary to the execution environment, shutting down!")
@@ -69,7 +69,7 @@ private[yarn] object TaskExecutorApplication extends App with LazyLogging {
 
     system.whenTerminated
   } else {
-    logger.error("Args are 1. HDFS binpath, 2. jobId, 3 appMaster Ref, 4. stateMaster ref")
+    logger.error("Args are 1. HDFS binpath, 2. appId, 3 appMaster Ref, 4. stateMaster ref")
   }
 
 

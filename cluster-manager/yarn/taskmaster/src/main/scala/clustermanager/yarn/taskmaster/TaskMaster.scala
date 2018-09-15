@@ -20,8 +20,8 @@ import scala.concurrent.duration._
 
 
 private[yarn] object TaskMaster {
-  def apply(appmaster: ActorRef, statemaster: ActorRef, jobId: String): Props =
-    Props(new TaskMaster(appmaster, statemaster, jobId))
+  def apply(appmaster: ActorRef, statemaster: ActorRef, appId: String): Props =
+    Props(new TaskMaster(appmaster, statemaster, appId))
   final case class LaunchedTask(containerId: ContainerId, task: ArcTask, container: Container)
   type AllocationID = Long
   type BinaryPath = String
@@ -32,9 +32,9 @@ private[yarn] object TaskMaster {
   * YARN resource manager and then launching them onto NodeManager's.
   * @param appmaster ActorRef of its AppMaster in String format
   * @param statemaster ActorRef of its StateMaster in String format
-  * @param jobId ID for the Job
+  * @param appId ArcApp id
   */
-private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId: String)
+private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, appId: String)
   extends Actor with ActorLogging with TaskMasterConfig  {
 
   import TaskMaster._
@@ -68,7 +68,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
   implicit val timeout = Timeout(2 seconds)
 
   override def preStart(): Unit = {
-    log.info(s"Starting up TaskMaster for job $jobId")
+    log.info(s"Starting up TaskMaster for app $appId")
     initYarnClients()
     // Once we have started, let the Appmaster know that we are alive.
     appmaster ! YarnTaskMasterUp(self)
@@ -114,7 +114,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
 
 
     log.info("Registering ApplicationMaster")
-    val res = rmClient.registerApplicationMaster(jobId, 0, "")
+    val res = rmClient.registerApplicationMaster(appId, 0, "")
     val mem = res.getMaximumResourceCapability.getMemorySize
     val cpu = res.getMaximumResourceCapability.getVirtualCores
     log.info(s"TaskMaster currently has $mem memory and $cpu cores available")
@@ -164,7 +164,7 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
       pendingTasks.get(allocId) match {
         case Some((task: ArcTask, bin:String)) =>
           val ctx = YarnTaskExecutor.context(taskMasterStr, appMasterStr,
-            stateMasterStr, jobId, allocId.toInt, bin)
+            stateMasterStr, appId, allocId.toInt, bin)
           log.info("Starting Container with task: " + task)
           nmClient.startContainerAsync(container, ctx)
           launchedTasks += LaunchedTask(container.getId, task, container)
@@ -181,23 +181,23 @@ private[yarn] class TaskMaster(appmaster: ActorRef, statemaster: ActorRef, jobId
     rmClient.stop()
     nmClient.stop()
 
-    if (YarnUtils.cleanJob(jobId))
-      log.info(s"Cleaned HDFS directory for Job $jobId")
+    if (YarnUtils.cleanJob(appId))
+      log.info(s"Cleaned HDFS directory for app $appId")
     else
-      log.error(s"Was not able to clean the HDFS directory for job $jobId")
+      log.error(s"Was not able to clean the HDFS directory for app $appId")
 
 
     status match {
       case FinalApplicationStatus.FAILED =>
-        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_APP_FAILED)
       case FinalApplicationStatus.KILLED =>
-        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_KILLED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_APP_KILLED)
       case FinalApplicationStatus.SUCCEEDED =>
-        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_SUCCEEDED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_APP_SUCCEEDED)
       case FinalApplicationStatus.ENDED =>
-        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_SUCCEEDED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_APP_SUCCEEDED)
       case FinalApplicationStatus.UNDEFINED =>
-        appmaster ! TaskMasterStatus(Identifiers.ARC_JOB_FAILED)
+        appmaster ! TaskMasterStatus(Identifiers.ARC_APP_FAILED)
     }
 
     // Shut down the ActorSystem

@@ -8,7 +8,7 @@ import runtime.protobuf.messages.ActorRefProto
 
 /** YARN ApplicationMaster.
   *
-  * Each time a new job is deployed, the TaskMasterApplication
+  * Each time a new app is deployed, the TaskMasterApplication
   * is created on one of the machines in the YARN cluster.
   */
 private[yarn] object TaskMasterApplication extends App with LazyLogging {
@@ -20,7 +20,7 @@ private[yarn] object TaskMasterApplication extends App with LazyLogging {
   } else {
     val appMasterRef = args(0)
     val stateMasterRef = args(1)
-    val jobId = args(2)
+    val appId = args(2)
 
 
     val localhostname = java.net.InetAddress
@@ -44,7 +44,7 @@ private[yarn] object TaskMasterApplication extends App with LazyLogging {
     val appMaster = ActorRefProto(appMasterRef)
     val stateMaster = ActorRefProto(stateMasterRef)
 
-    val taskmaster = system.actorOf(TaskMaster(appMaster, stateMaster, jobId), "taskmaster")
+    val taskmaster = system.actorOf(TaskMaster(appMaster, stateMaster, appId), "taskmaster")
   }
 
 }

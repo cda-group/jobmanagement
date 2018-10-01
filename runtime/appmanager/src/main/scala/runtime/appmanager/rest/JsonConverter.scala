@@ -16,11 +16,11 @@ import runtime.protobuf.messages._
 trait JsonConverter extends SprayJsonSupport with DefaultJsonProtocol {
   import spray.json._
 
-  // ArcTask/ArcJob
+  // ArcTask/ArcApp
   implicit val arcTaskFormat = jsonFormat8(ArcTask.apply)
   implicit val arcDeployRequest = jsonFormat3(ArcDeployRequest.apply)
   implicit val actorRefProtoFormat = jsonFormat1(ActorRefProto.apply)
-  implicit val arcJobFormat = jsonFormat6(ArcJob.apply)
+  implicit val arcAppFormat = jsonFormat6(ArcApp.apply)
 
   implicit val resourceProfileFormat= jsonFormat2(ResourceProfile.apply)
 
@@ -47,17 +47,17 @@ trait JsonConverter extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val executorFormat = jsonFormat2(Executor.apply)
   implicit val executorMetricFormat = jsonFormat6(ExecutorMetric.apply)
 
-  // ArcJobMetric
+  // ArcAppMetric
   implicit val arcTaskMetricFormat = jsonFormat2(ArcTaskMetric.apply)
-  implicit val arcMetricReportFormat = jsonFormat2(ArcJobMetricReport.apply)
-  implicit val arcMetricFailureFormat = jsonFormat1(ArcJobMetricFailure.apply)
-  implicit object ArcJobMetrcResp extends RootJsonFormat[ArcJobMetricResponse] {
-    def write(obj: ArcJobMetricResponse): JsValue = obj match {
-      case report: ArcJobMetricReport => report.toJson
-      case fail: ArcJobMetricFailure => fail.toJson
+  implicit val arcMetricReportFormat = jsonFormat2(ArcAppMetricReport.apply)
+  implicit val arcMetricFailureFormat = jsonFormat1(ArcAppMetricFailure.apply)
+  implicit object ArcAppMetricResp extends RootJsonFormat[ArcAppMetricResponse] {
+    def write(obj: ArcAppMetricResponse): JsValue = obj match {
+      case report: ArcAppMetricReport => report.toJson
+      case fail: ArcAppMetricFailure => fail.toJson
       case _ => throw new RuntimeException("Unknown JSON Format")
     }
 
-    def read(json: JsValue): ArcJobMetricResponse = ???
+    def read(json: JsValue): ArcAppMetricResponse = ???
   }
 }

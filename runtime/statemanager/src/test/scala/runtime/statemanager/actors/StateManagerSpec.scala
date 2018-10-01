@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
 import com.typesafe.config.ConfigFactory
 import runtime.protobuf.messages.{StateManagerJob, StateMasterConn}
-import runtime.statemanager.ActorSpec
+import runtime.statemanager.{ActorSpec, TestHelpers}
 
 
 object StateManagerSpec {
@@ -14,11 +14,14 @@ object StateManagerSpec {
       | akka.loggers = ["akka.testkit.TestEventListener"]
       | akka.stdout-loglevel = "OFF"
       | akka.loglevel = "OFF"
+      | akka.extensions = ["runtime.kompact.KompactExtension"]
+      | akka.kompact.host = "localhost"
+      | akka.kompact.port = "2020"
     """.stripMargin))
 }
 
 class StateManagerSpec extends TestKit(StateManagerSpec.actorSystem)
-  with ImplicitSender with ActorSpec {
+  with ImplicitSender with ActorSpec with TestHelpers {
 
   override def afterAll {
     TestKit.shutdownActorSystem(system)
@@ -31,8 +34,8 @@ class StateManagerSpec extends TestKit(StateManagerSpec.actorSystem)
       val probe = TestProbe()
       val manager = system.actorOf(StateManager())
       import runtime.protobuf.ProtoConversions.ActorRef._
-      probe.send(manager, StateManagerJob(appMaster.ref))
-      probe.expectMsgType[StateMasterConn]
+      manager ! StateManagerJob(appMaster.ref, testArcApp)
+      expectMsgType[StateMasterConn]
     }
 
   }

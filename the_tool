@@ -21,13 +21,13 @@ case "$1" in
         fi
         ;;
     "status")
-        curl -s "$APPMANAGER_REST"/api/v1/jobs/status/"$2" | python -m json.tool
+        curl -s "$APPMANAGER_REST"/api/v1/apps/status/"$2" | python -m json.tool
         ;;
     "list")
-        curl -s "$APPMANAGER_REST"/api/v1/jobs/list | python -m json.tool
+        curl -s "$APPMANAGER_REST"/api/v1/apps/list | python -m json.tool
         ;;
     "metrics")
-        curl -s "$APPMANAGER_REST"/api/v1/jobs/metrics/"$2" | python -m json.tool
+        curl -s "$APPMANAGER_REST"/api/v1/apps/metrics/"$2" | python -m json.tool
         ;;
     "cluster")
         curl -s "$APPMANAGER_REST"/api/v1/cluster/metrics | python -m json.tool
@@ -37,7 +37,7 @@ case "$1" in
         #echo -e "Adding Weld Job with expr $FILTER_EXPR and vector $FILTER_VEC"
         curl -H "Content-Type: application/json" -X POST \
         -d '{"priority": 1, "locality" : false, "tasks":[{"name": "mapper", "cores" : 1, "memory": 1024, "expr": "'"$MAP_EXPR"'", "vec": "'"$MAP_VEC"'"}, 
-        {"name": "filter", "cores": 1, "memory": 1024, "expr": "'"$FILTER_EXPR"'", "vec":"'"$FILTER_VEC"'"}]}' localhost:5050/api/v1/jobs/deploy
+        {"name": "filter", "cores": 1, "memory": 1024, "expr": "'"$FILTER_EXPR"'", "vec":"'"$FILTER_VEC"'"}]}' "$APPMANAGER_REST"/api/v1/apps/deploy
         ;;
 esac
 

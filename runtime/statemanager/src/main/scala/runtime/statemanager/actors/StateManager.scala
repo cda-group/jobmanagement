@@ -15,7 +15,7 @@ object StateManager {
 
 /**
   * StateManager is a node that is responsible for creating
-  * StateMasters for each Job. StateMasters receive monitoring
+  * StateMasters for each App. StateMasters receive monitoring
   * stats and can act upon them.
   */
 class StateManager extends Actor with ActorLogging {
@@ -37,8 +37,8 @@ class StateManager extends Actor with ActorLogging {
   }
 
   def receive = {
-    case StateManagerJob(appMaster, job) =>
-      val stateMaster = context.actorOf(StateMaster(appMaster, job)
+    case StateManagerJob(appMaster, app) =>
+      val stateMaster = context.actorOf(StateMaster(appMaster, app)
         , Identifiers.STATE_MASTER + stateMasterId)
       stateMasters = stateMasters :+ stateMaster
       stateMasterId += 1
@@ -48,7 +48,7 @@ class StateManager extends Actor with ActorLogging {
 
       // Respond with Ref to StateMaster and Kompact Proxy Addr
       val addr = KompactExtension(context.system).getProxyAddr
-      sender() ! StateMasterConn(stateMaster, addr)
+      sender() ! StateMasterConn(stateMaster, "")
     case Terminated(ref) =>
       stateMasters = stateMasters.filterNot(_ == ref)
     case _ =>

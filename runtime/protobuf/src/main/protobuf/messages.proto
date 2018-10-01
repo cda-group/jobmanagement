@@ -1,0 +1,211 @@
+syntax = "proto3";
+
+// Brought in from scalapb-runtime
+import "scalapb/scalapb.proto";
+import "google/protobuf/wrappers.proto";
+
+
+option (scalapb.options) = {
+  package_name: "runtime.protobuf.messages"
+
+  // All classes that extend a sealed trait need to be in the same Scala
+  // file, so we set single_file to true.
+  single_file: true
+  flat_package: true
+  preamble: "sealed trait AllocateResponse"
+  preamble: "sealed trait SlotRequestResp"
+};
+
+// Traits
+
+// SlotState
+
+enum SliceState {
+    FREE = 0;
+    ALLOCATED = 1;
+    OFFERED = 2;
+}
+
+message AcceptedOffer {
+    SlotOffer offer = 1 [(scalapb.field).no_box = true];
+    ActorRefProto appmaster = 2 [(scalapb.field).no_box = true];
+}
+
+message SlotOffer {
+    AddressProto taskmanager = 1 [(scalapb.field).no_box = true];
+    repeated ContainerSlice slots = 2;
+    string jobId = 3;
+}
+
+message CancelOffer {
+    SlotOffer offer = 1 [(scalapb.field).no_box = true];
+}
+
+// Represents a Remote ActorRef
+message ActorRefProto {
+    string path = 1;
+}
+
+// Represents an Akka Address
+message AddressProto {
+    string system = 1;
+    string hostname = 2;
+    uint32 port = 3;
+    string protocol = 4 [(scalapb.field).no_box = false];
+}
+
+// Represents an InetSocketAddress
+message InetProto {
+    string ip = 1;
+    int32 port = 2;
+}
+
+//case object TaskManagerInit
+// well in scalapb, case class..
+message TaskManagerInit { }
+
+
+//case class ArcTask(name: String, expr: String, vec: String,
+//result: Option[String] = None, id: Option[Int], status: Option[String)
+message ArcTask {
+    string name = 1;
+    int32 cores = 2;
+    int32 memory = 3;
+    string expr = 4;
+    string vec = 5;
+    google.protobuf.StringValue result = 6; // To make it an Option
+    google.protobuf.Int32Value id = 7; // Added when received
+    google.protobuf.StringValue status = 8; // To make it an Option
+}
+
+message ArcTaskUpdate {
+    ArcTask task = 1 [(scalapb.field).no_box = true];
+}
+
+message ResourceProfile {
+    option (scalapb.message).extends = "runtime.protobuf.messages.ProfileMatcher";
+    int32 cpuCores = 1;
+    int64 memoryInMb = 2; // Long
+}
+
+message ArcApp {
+    string id = 1;
+    repeated ArcTask tasks = 2;
+    int32 priority = 3;
+    bool locality = 4;
+    ActorRefProto appMasterRef = 5;
+    google.protobuf.StringValue status = 6; // To make it an Option
+}
+
+// TaskMaster related
+//case class TaskMasterStatus(status: String)
+message TaskMasterStatus {
+    // FAILED, KILLED, SUCCEEDED
+    string status = 1;
+}
+
+//case class TaskTransferConn(inet: InetSocketAddress)
+message TaskTransferConn {
+    InetProto inet = 1 [(scalapb.field).no_box = true];
+}
+
+//case class TaskTransferAck(inet: InetSocketAddress) extends Event
+message TaskTransferAck {
+    option (scalapb.message).extends = "akka.io.Tcp.Event";
+    InetProto inet = 1 [(scalapb.field).no_box = true];
+}
+
+//case object TaskTransferError
+message TaskTransferError {}
+
+message TaskTransferComplete {
+    InetProto inet = 1 [(scalapb.field).no_box = true];
+    string taskName = 2;
+}
+
+//case object TasksCompiled
+message TasksCompiled {}
+
+
+// TaskManager related
+
+message TaskMasterUp {
+    Container container = 1 [(scalapb.field).no_box = true];
+    ActorRefProto taskmaster = 2 [(scalapb.field).no_box = true];
+}
+
+message ReleaseSlices {
+    repeated int32 sliceIndexes = 1;
+}
+
+message ContainerSlice {
+    int32 index = 1;
+    ResourceProfile profile = 2 [(scalapb.field).no_box = true]; // Not Option[]
+    SliceState state = 3 [(scalapb.field).no_box = true]; // Not Option[]
+    string host = 4;
+}
+
+message Container {
+    string containerId = 1;
+    string jobId = 2;
+    ActorRefProto appmaster = 3 [(scalapb.field).no_box = true];
+    AddressProto taskmanager = 4 [(scalapb.field).no_box = true];
+    repeated ContainerSlice slices = 5;
+    repeated ArcTask tasks = 6;
+}
+
+message ContainerAllocation {
+    string allocationId = 1;
+    Container container = 2 [(scalapb.field).no_box = true];
+}
+
+message SliceUpdate {
+    repeated ContainerSlice slices = 1;
+}
+
+message SlicesAllocated {
+    repeated ContainerSlice slices = 1;
+}
+
+
+// StateManager related
+
+//case class StateManagerJob(appMasterRef: ActorRef, app: ArcApp)
+message StateManagerJob {
+    ActorRefProto ref = 1 [(scalapb.field).no_box = true];
+    ArcApp app = 2 [(scalapb.field).no_box = true];
+}
+
+//case class StateMasterConn(stateMaster: ActorRef)
+message StateMasterConn {
+    ActorRefProto ref = 1 [(scalapb.field).no_box = true];
+    string kompactProxyAddr = 2;
+}
+
+//case class ExecutorTaskExit(task: ArcTask)
+message ExecutorTaskExit {
+    ArcTask task = 1 [(scalapb.field).no_box = true];
+}
+
+
+// Yarn
+
+message YarnTaskMasterUp {
+    ActorRefProto ref = 1 [(scalapb.field).no_box = true];
+}
+
+message YarnTaskTransferred {
+    string binPath = 1;
+    ArcTask task = 2 [(scalapb.field).no_box = true];
+}
+
+
+// For now as we are sending arguments to the binary
+message YarnExecutorUp {
+    int32 taskId = 1;
+}
+
+message YarnExecutorStart {
+    ArcTask task = 1 [(scalapb.field).no_box = true];
+}
+

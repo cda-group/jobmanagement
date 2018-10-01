@@ -2,10 +2,12 @@ package clustermanager.standalone.taskmanager.actors
 
 import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit, TestProbe}
+import clustermanager.common.executor.ExecutionEnvironment
 import clustermanager.standalone.ActorSpec
+import clustermanager.standalone.taskmanager.actors.TaskExecutor.ExecutorInit
 import clustermanager.standalone.taskmanager.utils.TaskManagerConfig
 import com.typesafe.config.ConfigFactory
-import runtime.protobuf.messages.ArcTask
+import runtime.protobuf.messages.{ArcTask, StateMasterConn}
 
 import scala.concurrent.duration._
 
@@ -34,7 +36,10 @@ class TaskExecutorSpec extends TestKit(TaskExecutorSpec.actorSystem)
     "Terminate after execution" in {
       val am = TestProbe()
       val sm = TestProbe()
-      val be = system.actorOf(TaskExecutor(program, ArcTask("", 1, 1024, "", ""), am.ref, sm.ref))
+      val env = new ExecutionEnvironment("test")
+      val sMasterConn = StateMasterConn(null, "")
+      val init = ExecutorInit(env, ArcTask("", 1, 1024, "", ""), am.ref, sMasterConn)
+      val be = system.actorOf(TaskExecutor(init))
       val probe = TestProbe()
       probe watch be
       probe.expectTerminated(be, taskExecutorHealthCheck.millis + taskExecutorHealthCheck.millis)

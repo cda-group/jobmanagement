@@ -1,6 +1,7 @@
 package runtime.kompact.netty
 
 
+import com.typesafe.scalalogging.LazyLogging
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.MessageToByteEncoder
@@ -8,7 +9,7 @@ import runtime.kompact.messages.{KompactAkkaEnvelope, KompactAkkaPath}
 import runtime.kompact.serialization.{Frame, SerIdents}
 
 
-private[kompact] class KompactEncoder extends MessageToByteEncoder[KompactAkkaEnvelope] with SerIdents {
+private[kompact] class KompactEncoder extends MessageToByteEncoder[KompactAkkaEnvelope] with SerIdents with LazyLogging {
   private var seqNum = 0
 
   override def encode(ctx: ChannelHandlerContext, msg: KompactAkkaEnvelope, outBuf: ByteBuf): Unit = {
@@ -28,7 +29,7 @@ private[kompact] class KompactEncoder extends MessageToByteEncoder[KompactAkkaEn
       outBuf.writeBytes(msg.toByteArray)
     } catch {
       case err: Exception =>
-        println(err.toString)
+        logger.error(err.toString)
     }
   }
 
@@ -53,6 +54,7 @@ private[kompact] class KompactEncoder extends MessageToByteEncoder[KompactAkkaEn
     out.writeShort(p.port)
     out.writeShort(p.path.length)
     out.writeBytes(p.path.getBytes)
+
   }
 }
 

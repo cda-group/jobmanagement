@@ -10,15 +10,15 @@ import scala.collection.mutable
 
 
 object StateMaster {
-  def apply(appMaster: ActorRef, job: ArcJob): Props =
-    Props(new StateMaster(appMaster, job))
+  def apply(appMaster: ActorRef, app: ArcApp): Props =
+    Props(new StateMaster(appMaster, app))
 }
 
 /**
   * StateMaster receives metrics from running apps that are
   * connected to a specific AppMaster.
   */
-class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogging {
+class StateMaster(appMaster: ActorRef, app: ArcApp) extends Actor with ActorLogging {
   private var metricMap = mutable.HashMap[ArcTask, ExecutorMetric]()
   private var kompactRefs = IndexedSeq.empty[KompactRef]
 
@@ -41,18 +41,18 @@ class StateMaster(appMaster: ActorRef, job: ArcJob) extends Actor with ActorLogg
   def receive = {
     case ArcTaskMetric(task, metric) =>
       metricMap.put(task, metric)
-    case ArcJobMetricRequest(id) if job.id.equals(id) =>
-      val report = ArcJobMetricReport(id, metricMap.map(m => ArcTaskMetric(m._1, m._2)).toSeq)
+    case ArcAppMetricRequest(id) if app.id.equals(id) =>
+      val report = ArcAppMetricReport(id, metricMap.map(m => ArcTaskMetric(m._1, m._2)).toSeq)
       sender() ! report
-    case ArcJobMetricRequest(_) =>
-      sender() ! ArcJobMetricFailure("Job ID did not match up")
+    case ArcAppMetricRequest(_) =>
+      sender() ! ArcAppMetricFailure("App ID did not match up")
     case ExecutorTaskExit(task) =>
       // Remove or declare task as "dead"?
-    case TaskMasterStatus(Identifiers.ARC_JOB_KILLED) =>
+    case TaskMasterStatus(Identifiers.ARC_APP_KILLED) =>
       // react
-    case TaskMasterStatus(Identifiers.ARC_JOB_FAILED) =>
+    case TaskMasterStatus(Identifiers.ARC_APP_FAILED) =>
     // react
-    case TaskMasterStatus(Identifiers.ARC_JOB_SUCCEEDED) =>
+    case TaskMasterStatus(Identifiers.ARC_APP_SUCCEEDED) =>
     // react
     case KompactAkkaMsg(payload) =>
       log.info(s"Received msg from executor $payload")

@@ -1,19 +1,13 @@
 package clustermanager.standalone.resourcemanager.actors
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import akka.pattern._
-import akka.util.Timeout
+import akka.actor.{Actor, ActorLogging, Props}
 import clustermanager.standalone.resourcemanager.utils.RmConfig
 import runtime.common.Identifiers
-import runtime.protobuf.messages.ArcJob
-
-import scala.collection.mutable
-import scala.concurrent.duration._
+import runtime.protobuf.messages.ArcApp
 
 private[resourcemanager] object ResourceManager {
   def apply(): Props = Props(new ResourceManager)
-  final case class SlotRequest(job: ArcJob)
-  final case class ResourceRequest(job: ArcJob)
+  final case class ResourceRequest(app: ArcApp)
 }
 
 /**
@@ -46,8 +40,8 @@ private[resourcemanager] class ResourceManager extends Actor with ActorLogging w
       scheduler forward tmr
     case utm@UnreachableTaskManager(_) =>
       scheduler forward utm
-    case job@ArcJob(_, _, _, _, _ ,_) =>
-      scheduler forward ResourceRequest(job)
+    case app@ArcApp(_, _, _, _, _ ,_) =>
+      scheduler forward ResourceRequest(app)
     case _ =>
   }
 }

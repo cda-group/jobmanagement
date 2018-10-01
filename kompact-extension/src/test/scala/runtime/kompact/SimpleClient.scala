@@ -17,7 +17,7 @@ import runtime.kompact.netty.{KompactDecoder, KompactEncoder}
 class SimpleClient extends LazyLogging {
   private val bGroup = new NioEventLoopGroup()
 
-  def run(host: String, port: Int): Unit = {
+  def run(host: String, port: Int, testActorPath: String): Unit = {
     try {
       val bootstrap = new Bootstrap()
       bootstrap.group(bGroup)
@@ -32,7 +32,7 @@ class SimpleClient extends LazyLogging {
             new LengthFieldPrepender(ByteOrder.BIG_ENDIAN, 4, 0, true),
             new KompactDecoder(),
             new KompactEncoder(),
-            ClientHandler()
+            ClientHandler(testActorPath)
           )
           channel.config().setReuseAddress(true)
         }
@@ -51,7 +51,7 @@ class SimpleClient extends LazyLogging {
   }
 }
 
-final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyLogging with TestSettings {
+final case class ClientHandler(testActorPath: String) extends ChannelInboundHandlerAdapter with LazyLogging with TestSettings {
   override def channelRead(ctx: ChannelHandlerContext, msg: scala.Any): Unit = {
     try {
       val e: KompactAkkaEnvelope = msg.asInstanceOf[KompactAkkaEnvelope]
@@ -59,9 +59,13 @@ final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyL
         case KompactAkkaMsg.Payload.Hello(v) =>
           println(v)
         case KompactAkkaMsg.Payload.Ask(ask) =>
-          val hello = Hello("gotyaback")
+          val hello = Hello("ask_hello_reply")
           val askReply = AskReply(ask.askActor, KompactAkkaMsg().withHello(hello))
-          val reply = KompactAkkaEnvelope().withMsg(KompactAkkaMsg().withAskReply(askReply))
+          // Just for testing purposes...
+          val srcPath = KompactAkkaPath("random", "127.0.0.1", 0)
+          val dstPath = KompactAkkaPath("random", "127.0.0.1", 0)
+          val reply = KompactAkkaEnvelope(src = srcPath, dst = dstPath).
+            withMsg(KompactAkkaMsg().withAskReply(askReply))
           ctx.writeAndFlush(reply)
         case _ => println("unknown")
       }
@@ -72,8 +76,8 @@ final case class ClientHandler() extends ChannelInboundHandlerAdapter with LazyL
   override def channelActive(ctx: ChannelHandlerContext): Unit = {
     logger.info(s"Client Connected to ${ctx.channel().remoteAddress()}")
     val src = KompactAkkaPath("executor", "127.0.0.1", 2020)
-    val dst = KompactAkkaPath("executor", "127.0.0.1", 2020)
-    val s = ExecutorRegistration("test", src, dst)
+    val dst = KompactAkkaPath(testActorPath, "127.0.0.1", 1337)
+    val s = ExecutorRegistration(testActorPath, src, dst)
     val reg = KompactAkkaEnvelope(src, dst, msg = KompactAkkaMsg().withExecutorRegistration(s))
     ctx.writeAndFlush(reg)
   }

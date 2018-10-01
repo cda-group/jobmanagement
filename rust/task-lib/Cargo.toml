@@ -1,0 +1,12 @@
+[package]
+name = "executor"
+version = "0.1.0"
+authors = ["Max Meldrum <max@meldrum.se>"]
+
+[dependencies]
+kompact = { git = "https://github.com/Max-Meldrum/kompact", branch = "dev", features = ["protobuf"]}
+protobuf = "2.0"
+bytes = "0.4"
+
+[build-dependencies]
+protoc-rust = "2.0"

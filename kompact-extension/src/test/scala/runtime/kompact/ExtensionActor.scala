@@ -12,9 +12,9 @@ private[kompact] object ExtensionActor {
 
 private[kompact] class ExtensionActor(parent: ActorRef) extends Actor with ActorLogging {
   import ExtensionActor._
+  import KompactApi._
 
   import scala.concurrent.duration._
-  import akka.pattern._
 
   private var kompactRef: Option[KompactRef] = None
 
@@ -32,11 +32,10 @@ private[kompact] class ExtensionActor(parent: ActorRef) extends Actor with Actor
     case msg@ExecutorUp(ref) =>
       kompactRef = Some(ref)
       parent ! msg
-      ref kompactWatch parent // If killed, parent will be notified
+      parent watch ref // If killed, parent will be notified
     case TestAsk(msg) =>
       kompactRef match {
         case Some(ref) =>
-          import KompactApi._
           (ref ? msg) pipeKompactTo  parent
         case None =>
       }

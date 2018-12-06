@@ -14,6 +14,15 @@ import scala.util.{Failure, Success}
 
 
 object KompactApi {
+
+  implicit def watch(watcher: ActorRef): DeathWatch =
+    new DeathWatch(watcher)
+
+  final class DeathWatch(watcher: ActorRef) {
+    def watch(kompactRef: KompactRef): Unit =
+      kompactRef.registerWatcher(watcher)
+  }
+
   implicit def pipez[T](future: Future[T])(implicit executionContext: ExecutionContext): KompactPipe[T] =
     new KompactPipe[T](future)
 
@@ -71,7 +80,7 @@ private[kompact] trait KompactApi {
   /** Enable Akka Actors to DeathWatch KompactRef's
     * @param watcher ActorRef
     */
-  def kompactWatch(watcher: ActorRef): Unit
+  def registerWatcher(watcher: ActorRef): Unit
 
   /** Close a connection to an Executor
     */
@@ -113,7 +122,7 @@ final case class KompactRef(jobId: String,
     askActor.ask(AskTickerInit).mapTo[AskResponse]
   }
 
-  override def kompactWatch(watcher: ActorRef): Unit =  {
+  override def registerWatcher(watcher: ActorRef): Unit =  {
     ctx.channel().closeFuture().addListener((_: JFuture[Void]) => {
       // Channel has been closed
       watcher ! ExecutorTerminated(this)

@@ -64,7 +64,8 @@ class StateMaster(appMaster: ActorRef, app: ArcApp) extends Actor with ActorLogg
       log.info(s"Kompact Executor up ${ref.srcPath}")
       kompactRefs = kompactRefs :+ ref
       // Enable DeathWatch
-      ref kompactWatch self
+      import runtime.kompact.KompactApi._
+      self watch ref
 
       val hello = Hello("Akka saying hello from statemaster")
       val welcomeMsg = KompactAkkaMsg().withHello(hello)
